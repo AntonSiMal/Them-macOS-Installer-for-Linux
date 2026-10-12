@@ -1,13 +1,11 @@
 #!/bin/bash
 
 # =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26
+# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
-# Incluye: temas, fuentes, sonidos, wallpapers dinámicos, Rofi Spotlight,
-#          atajos de teclado estilo macOS, Plymouth, Firefox, Plank, GDM
 # =============================================================================
 
-set -e  # Salir en caso de error crítico
+set -e
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -16,9 +14,6 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# =============================================================================
-# CONFIGURACIÓN GLOBAL
-# =============================================================================
 MACOS_VERSION="Tahoe"
 GTK_THEME="MacTahoe-Dark"
 SHELL_THEME="MacTahoe-Dark"
@@ -36,24 +31,14 @@ mkdir -p "$WORKDIR"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Iniciando instalación de macOS Tahoe Theme" > "$LOG_FILE"
 
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║   🍎 macOS Tahoe Theme Installer - WWDC26 Edition       ║${NC}"
-echo -e "${CYAN}║   Instalación 100% automatizada                         ║${NC}"
+echo -e "${CYAN}║   🍎 macOS Tahoe Theme Installer - Ultimate Edition     ║${NC}"
+echo -e "${CYAN}║   Instalación 100% automatizada (23 pasos)              ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "${BLUE}📋 Resumen de la instalación:${NC}"
-echo -e "   • Tema GTK e Iconos: ${GREEN}macOS Tahoe (26.7.1)${NC}"
-echo -e "   • Fuentes oficiales: ${GREEN}SF Pro + New York (WWDC26 v27.0)${NC}"
-echo -e "   • Wallpaper dinámico: ${GREEN}macOS Mojave (horarios reales)${NC}"
-echo -e "   • Sonidos del sistema: ${GREEN}macOS Big Sur (44 eventos)${NC}"
-echo -e "   • Lanzador: ${GREEN}Rofi Spotlight (Ctrl+Espacio)${NC}"
-echo -e "   • Efectos: ${GREEN}Magic Lamp (GNOME y Cinnamon)${NC}"
 echo ""
 
 # =============================================================================
 # DETECCIÓN DEL ENTORNO
 # =============================================================================
-echo -e "${YELLOW}🔍 Detectando entorno de escritorio...${NC}"
-
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-unknown}" | tr '[:upper:]' '[:lower:]')
 SESSION_TYPE="${XDG_SESSION_TYPE:-unknown}"
 DISTRO=""
@@ -62,63 +47,49 @@ if [ -f /etc/os-release ]; then
     DISTRO=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
 fi
 
-echo -e "   • Entorno: ${GREEN}$DESKTOP_ENV${NC}"
-echo -e "   • Sesión:  ${GREEN}$SESSION_TYPE${NC}"
-echo -e "   • Distro:  ${GREEN}$DISTRO${NC}"
+IS_GNOME=false; IS_CINNAMON=false
+[[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]] && IS_GNOME=true
+[[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && IS_CINNAMON=true
 
 if command -v xrandr &> /dev/null; then
     SCREEN_WIDTH=$(xrandr --current | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1)
-    if [ -n "$SCREEN_WIDTH" ]; then
-        if [ "$SCREEN_WIDTH" -ge 3840 ]; then
-            SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
-        elif [ "$SCREEN_WIDTH" -ge 2560 ]; then
-            SCREEN_VARIANT="2k"; ICON_BOLD_FLAG=""
-        else
-            SCREEN_VARIANT="1080p"; ICON_BOLD_FLAG=""
-        fi
-        echo -e "   • Resolución: ${GREEN}${SCREEN_WIDTH}px → $SCREEN_VARIANT${NC}"
-    else
-        SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
-    fi
+    [ -n "$SCREEN_WIDTH" ] && {
+        if [ "$SCREEN_WIDTH" -ge 3840 ]; then SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
+        elif [ "$SCREEN_WIDTH" -ge 2560 ]; then SCREEN_VARIANT="2k"; ICON_BOLD_FLAG=""
+        else SCREEN_VARIANT="1080p"; ICON_BOLD_FLAG=""; fi
+    } || { SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"; }
 else
     SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
 fi
 
-HAS_FLATPAK=false
-command -v flatpak &> /dev/null && HAS_FLATPAK=true
-
+HAS_FLATPAK=false; command -v flatpak &> /dev/null && HAS_FLATPAK=true
 HAS_DASH_TO_DOCK=false
 [ -d "$HOME/.local/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] || \
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
-echo -e "   • Flatpak:      $([ "$HAS_FLATPAK" = true ] && echo "${GREEN}Detectado${NC}" || echo "${YELLOW}No detectado${NC}")"
-echo -e "   • Dash to Dock: $([ "$HAS_DASH_TO_DOCK" = true ] && echo "${GREEN}Detectado${NC}" || echo "${YELLOW}No detectado${NC}")"
-echo ""
-
 # =============================================================================
 # PASO 1: DEPENDENCIAS DEL SISTEMA
 # =============================================================================
-echo -e "${YELLOW}📦 [1/20] Instalando dependencias del sistema...${NC}"
+echo -e "${YELLOW}📦 [1/23] Instalando dependencias del sistema...${NC}"
 if command -v apt-get &> /dev/null; then
     sudo apt-get update -qq
-    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils \
-        fontconfig gnome-tweaks gnome-shell-extension-manager dconf-cli \
-        plymouth-themes firefox plank x11-xserver-utils python3-pil \
-        curl unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find \
-        python3-requests xdotool wmctrl x11-utils util-linux 2>/dev/null
+    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
+        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
+        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
+        qt5ct qt6ct sushi ruby libinput-tools 2>/dev/null
 elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks \
-        dconf plymouth-theme-spinner firefox plank xorg-x11-server-utils \
-        python3-pillow curl unzip wget jq gnome-backgrounds ffmpeg sox rofi \
-        fd-find python3-requests xdotool wmctrl xorg-xprop xorg-xwininfo util-linux
+    sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
+        plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
+        unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
+        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput 2>/dev/null
 elif command -v pacman &> /dev/null; then
     sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
-        gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl \
-        xorg-xprop xorg-xwininfo util-linux
+        gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
+        xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput 2>/dev/null
 fi
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
-echo ""
 
 # =============================================================================
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
@@ -885,16 +856,105 @@ fi
 echo ""
 
 # =============================================================================
-# PROBAR SONIDO DE BIENVENIDA
+# PASO 21: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
 # =============================================================================
-if [ "$SOUND_INSTALLED" = true ]; then
-    SOUND_FILE="$HOME/.local/share/sounds/bigsur/stereo/desktop-login.oga"
-    if [ -f "$SOUND_FILE" ]; then
-        if command -v paplay &> /dev/null; then paplay "$SOUND_FILE" 2>/dev/null &
-        elif command -v aplay &> /dev/null; then aplay "$SOUND_FILE" 2>/dev/null &; fi
-        sleep 1
-    fi
+echo -e "${YELLOW}🎨 [21/23] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
+# Qt Theming
+if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment; then
+    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null
 fi
+mkdir -p ~/.config/qt5ct
+cat > ~/.config/qt5ct/qt5ct.conf << 'EOF'
+[Appearance]
+style=gtk2
+color_scheme_path=
+icon_theme=MacTahoe-dark
+EOF
+
+# Quick Look
+if [ "$IS_GNOME" = true ]; then
+    sudo apt-get install -y -qq sushi 2>/dev/null || sudo dnf install -y -q sushi 2>/dev/null || sudo pacman -S --noconfirm sushi 2>/dev/null
+else
+    sudo apt-get install -y -qq gloobus-preview 2>/dev/null || sudo dnf install -y -q gloobus-preview 2>/dev/null || sudo pacman -S --noconfirm gloobus-preview 2>/dev/null
+fi
+echo -e "${GREEN}✅ Qt tematizado y Quick Look instalado.${NC}"
+
+# =============================================================================
+# PASO 22: SCROLL NATURAL UNIVERSAL
+# =============================================================================
+echo -e "${YELLOW}📜 [22/23] Activando Scroll Natural (Estilo macOS)...${NC}"
+if [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; then
+    gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null
+    gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null
+fi
+
+if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    for device in $(xinput list 2>/dev/null | grep -i "pointer" | grep -i "libinput" | sed 's/.*id=\([0-9]*\).*/\1/'); do
+        xinput set-prop "$device" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
+    done
+    xfconf-query -c pointers -p /-1/Properties/libinput_Natural_Scrolling_Enabled -n -t bool -s true 2>/dev/null || true
+fi
+echo -e "${GREEN}✅ Scroll natural activado.${NC}"
+
+# =============================================================================
+# PASO 23: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA)
+# =============================================================================
+echo -e "${YELLOW}👆 [23/23] Instalando Gestos Multitáctiles estilo macOS (Fusuma)...${NC}"
+# Añadir usuario al grupo input (requiere reinicio de sesión para surtir efecto)
+sudo gpasswd -a $USER input 2>/dev/null || true
+
+# Instalar fusuma (gem)
+sudo gem install fusuma --no-document 2>/dev/null || true
+
+# Configurar gestos estilo macOS
+mkdir -p ~/.config/fusuma
+cat > ~/.config/fusuma/config.yml << 'EOF'
+plugin:
+  inputs:
+    libinput_command_input:
+      enable-tap: true
+swipe:
+  3:
+    left:
+      command: 'xdotool key ctrl+alt+Right' # Siguiente espacio de trabajo
+    right:
+      command: 'xdotool key ctrl+alt+Left' # Espacio de trabajo anterior
+    up:
+      command: 'xdotool key super' # Actividades / Launchpad
+    down:
+      command: 'xdotool key super' # Actividades / Launchpad
+  4:
+    left:
+      command: 'xdotool key alt+Left' # Historial atrás
+    right:
+      command: 'xdotool key alt+Right' # Historial adelante
+pinch:
+  2:
+    in:
+      command: 'xdotool keydown ctrl click 4 keyup ctrl' # Zoom in
+    out:
+      command: 'xdotool keydown ctrl click 5 keyup ctrl' # Zoom out
+EOF
+
+# Crear servicio systemd para autoinicio
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/fusuma.service << 'EOF'
+[Unit]
+Description=Fusuma Multitouch Gestures
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/env fusuma
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+
+systemctl --user daemon-reload 2>/dev/null || true
+systemctl --user enable --now fusuma.service 2>/dev/null || true
+
+echo -e "${GREEN}✅ Fusuma instalado y configurado.${NC}"
 
 # =============================================================================
 # MENSAJE FINAL
@@ -903,63 +963,9 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║        🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}📋 Versiones instaladas:${NC}"
-echo -e "   🍎 ${GREEN}macOS Tahoe (26.7.1)${NC} - Tema GTK, iconos y cursores"
-echo -e "   🔤 ${GREEN}Apple SF Pro + New York (WWDC26 v27.0)${NC} - Fuentes oficiales"
-[ "$MOJAVE_INSTALLED" = true ] && echo -e "   🌄 ${GREEN}macOS Mojave${NC} - Wallpaper dinámico (16 imágenes, horarios reales)" || echo -e "   🖼️  ${GREEN}macOS Sonoma (14.8.9)${NC} - Wallpaper (respaldo)"
-[ "$SOUND_INSTALLED" = true ] && echo -e "   🔊 ${GREEN}macOS Big Sur${NC} - 44 eventos de sonido del sistema"
-echo ""
-echo -e "${BLUE}⌨️  Atajos configurados (principales):${NC}"
-echo -e "   ${CYAN}Ctrl + Espacio${NC}   → Spotlight"
-echo -e "   ${CYAN}Súper + E${NC}        → Explorador"
-echo -e "   ${CYAN}Súper + D${NC}        → Escritorio"
-echo -e "   ${CYAN}Súper + L${NC}        → Bloquear pantalla"
-echo -e "   ${CYAN}Ctrl + Alt + T${NC}   → Terminal"
-echo -e "   ${CYAN}Súper + Flechas${NC}  → Snap ventanas"
-echo -e "   ${CYAN}Súper + C/F/V/R${NC}  → Centrar/Fijar/Mover/Redimensionar"
-echo -e "   ${CYAN}Alt + Ctrl + Esc${NC} → Forzar cierre (xkill)"
-echo ""
-echo -e "${BLUE}Componentes instalados:${NC}"
-echo -e "   ✅ ${CYAN}SF Pro + New York${NC} (fuentes oficiales Apple)"
-echo -e "   ✅ ${CYAN}SF Mono${NC} (terminal y código)"
-echo -e "   ✅ Tema GTK: $GTK_THEME"
-echo -e "   ✅ Iconos: $ICON_THEME"
-echo -e "   ✅ Cursores: $CURSOR_THEME"
-echo -e "   ✅ Rofi Spotlight (lanzador estilo macOS)"
-[ "$SOUND_INSTALLED" = true ] && echo -e "   ✅ Sonidos macOS Big Sur (44 eventos)"
-echo -e "   ✅ Temas de Plank"
-echo -e "   ✅ Tema Plymouth (pantalla de arranque)"
-echo -e "   ✅ Tema Firefox (estilo Safari)"
-[ "$IS_GNOME" = true ] && echo -e "   ✅ Efecto Magic Lamp (GNOME)"
-[ "$IS_CINNAMON" = true ] && echo -e "   ✅ Efecto Magic Lamp (Cinnamon)"
-[ "$HAS_FLATPAK" = true ] && echo -e "   ✅ Soporte Flatpak"
-[ "$HAS_DASH_TO_DOCK" = true ] && echo -e "   ✅ Fix Dash to Dock"
-echo ""
-
-if [ "$IS_GNOME" = true ]; then
-    echo -e "${YELLOW}⚠️  ÚNICO PASO MANUAL:${NC}"
-    if [ "$SESSION_TYPE" = "wayland" ]; then
-        echo -e "   En Wayland, cierra sesión y vuelve a entrar:"
-        echo -e "   ${BLUE}gnome-session-quit --logout${NC}"
-    else
-        echo -e "   Reiniciando GNOME Shell en X11..."
-        dbus-send --session --type=method_call --dest=org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval string:'Meta.restart("Reiniciando GNOME Shell...")' 2>/dev/null
-    fi
-elif [ "$IS_CINNAMON" = true ]; then
-    dbus-send --session --dest=org.Cinnamon.LookingGlass --type=method_call /org/Cinnamon/LookingGlass org.Cinnamon.LookingGlass.ExecuteCommand string:"global.reexec_self()" 2>/dev/null
-    echo -e "${GREEN}✨ Todo listo. ¡Disfruta de macOS Tahoe!${NC}"
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${GREEN}✨ Todo listo. ¡Disfruta de macOS Tahoe!${NC}"
-fi
-
-echo ""
-echo -e "${YELLOW}💡 Prueba estos atajos ahora:${NC}"
-echo -e "   • ${CYAN}Ctrl + Espacio${NC} → Abre Spotlight"
-echo -e "   • ${CYAN}Súper + E${NC}        → Abre el explorador"
-echo -e "   • ${CYAN}Súper + L${NC}        → Bloquea la pantalla"
-echo -e "   • ${CYAN}Ctrl + Alt + T${NC}   → Abre el terminal"
-echo ""
-echo -e "${YELLOW}📜 Aviso legal:${NC}"
-echo -e "   Las fuentes San Francisco y New York son propiedad de Apple Inc."
-echo -e "   Su uso está sujeto a los acuerdos de licencia de Apple."
+echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia ULTIMA de macOS Tahoe.${NC}"
+echo -e "${YELLOW}⚠️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
+echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
+echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
+echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
 echo ""
