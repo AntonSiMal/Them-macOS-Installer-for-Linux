@@ -37,6 +37,42 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 
 # =============================================================================
+# 🛡️ MECANISMO DE SEGURIDAD: ROLLBACK AUTOMÁTICO EN CASO DE ERROR
+# =============================================================================
+INSTALLATION_SUCCESS=false
+ROLLBACK_SCRIPT="$WORKDIR/uninstall_rollback.sh"
+UNINSTALL_URL="https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh"
+
+echo -e "${BLUE}🛡️  [0/24] Descargando script de restauración de emergencia...${NC}"
+if curl -sSL "$UNINSTALL_URL" -o "$ROLLBACK_SCRIPT" 2>/dev/null; then
+    chmod +x "$ROLLBACK_SCRIPT"
+    echo -e "${GREEN}✅ Script de restauración guardado localmente. Sistema protegido.${NC}"
+else
+    echo -e "${YELLOW}⚠️  No se pudo descargar el script de restauración. La limpieza automática podría no estar disponible si falla la instalación.${NC}"
+fi
+
+cleanup_on_error() {
+    echo -e "\n${RED}⚠️  ERROR CRÍTICO DETECTADO DURANTE LA INSTALACIÓN.${NC}"
+    echo -e "${YELLOW}Para evitar dejar el sistema en un estado inconsistente, se ejecutará una limpieza automática...${NC}"
+    
+    if [ -f "$ROLLBACK_SCRIPT" ]; then
+        echo -e "${BLUE}Ejecutando limpieza automática (modo forzado)...${NC}"
+        # El flag --auto evita que el uninstall.sh pida confirmación al usuario
+        bash "$ROLLBACK_SCRIPT" --auto
+        echo -e "${RED}❌ La instalación ha sido revertida. Revisa tu conexión a internet e inténtalo de nuevo.${NC}"
+    else
+        echo -e "${RED}❌ El script de limpieza no está disponible (fallo de red previo).${NC}"
+        echo -e "${YELLOW}Por favor, ejecuta manualmente cuando tengas conexión:${NC}"
+        echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
+    fi
+    exit 1
+}
+
+# Activar la trampa: si cualquier comando falla (debido a 'set -e'), se ejecuta cleanup_on_error
+trap cleanup_on_error ERR
+echo ""
+
+# =============================================================================
 # DETECCIÓN DEL ENTORNO
 # =============================================================================
 DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-unknown}" | tr '[:upper:]' '[:lower:]')
@@ -97,7 +133,7 @@ echo -e "${GREEN}✅ Dependencias listas.${NC}"
 # =============================================================================
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
 # =============================================================================
-echo -e "${YELLOW}🔤 [2/20] Instalando fuentes oficiales de Apple (WWDC26)...${NC}"
+echo -e "${YELLOW}🔤 [2/24] Instalando fuentes oficiales de Apple (WWDC26)...${NC}"
 FONTS_DIR="$HOME/.local/share/fonts"
 SF_TEMP="$WORKDIR/sf-windows-temp"
 mkdir -p "$FONTS_DIR" "$SF_TEMP"
@@ -151,7 +187,7 @@ echo ""
 IS_GNOME=false
 if [[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]]; then
     IS_GNOME=true
-    echo -e "${YELLOW}🧩 [3/20] Instalando extensión 'Liquid Glass'...${NC}"
+    echo -e "${YELLOW}🧩 [3/24] Instalando extensión 'Liquid Glass'...${NC}"
     mkdir -p ~/.local/share/gnome-shell/extensions/
 
     [ ! -d "$WORKDIR/liquid-glass" ] && git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git "$WORKDIR/liquid-glass" -q
@@ -172,7 +208,7 @@ if '$GNOME_VERSION' not in data.get('shell-version', []):
     fi
     echo -e "${GREEN}✅ Liquid Glass instalada.${NC}"
 else
-    echo -e "${YELLOW}⏭️  [3/20] Liquid Glass omitida.${NC}"
+    echo -e "${YELLOW}⏭️  [3/24] Liquid Glass omitida.${NC}"
 fi
 echo ""
 
@@ -182,7 +218,7 @@ echo ""
 IS_CINNAMON=false
 if [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]]; then
     IS_CINNAMON=true
-    echo -e "${YELLOW}🌅 [4/20] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
+    echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
     mkdir -p ~/.local/share/cinnamon/extensions/
 
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q
@@ -193,13 +229,13 @@ if [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP
         if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
             gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null
         else
-            NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'cinnamon-dynamic-wallpaper@TobiZog']/")
+            NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$, 'cinnamon-dynamic-wallpaper@TobiZog']/")
             gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
         fi
     fi
     echo -e "${GREEN}✅ Cinnamon Dynamic Wallpaper instalada.${NC}"
 else
-    echo -e "${YELLOW}⏭️  [4/20] Cinnamon Dynamic Wallpaper omitida.${NC}"
+    echo -e "${YELLOW}⏭️  [4/24] Cinnamon Dynamic Wallpaper omitida.${NC}"
 fi
 echo ""
 
@@ -245,7 +281,7 @@ echo ""
 # =============================================================================
 MOJAVE_INSTALLED=false
 if [ "$IS_GNOME" = true ]; then
-    echo -e "${YELLOW}🌄 [6/20] Instalando wallpaper dinámico Mojave...${NC}"
+    echo -e "${YELLOW}🌄 [6/24] Instalando wallpaper dinámico Mojave...${NC}"
     MOJAVE_TEMP="$WORKDIR/gnome-kde-mojave-dynamic"
     [ ! -d "$MOJAVE_TEMP" ] && git clone --depth=1 https://github.com/japamax/gnome-kde-dynamic-wallpaper-mojave.git "$MOJAVE_TEMP" -q 2>/dev/null
     
@@ -275,14 +311,14 @@ if [ "$IS_GNOME" = true ]; then
         echo -e "${YELLOW}⚠️  No se pudo descargar Mojave dinámico.${NC}"
     fi
 else
-    echo -e "${YELLOW}⏭️  [6/20] Mojave dinámico omitido.${NC}"
+    echo -e "${YELLOW}⏭️  [6/24] Mojave dinámico omitido.${NC}"
 fi
 echo ""
 
 # =============================================================================
 # PASO 7: WALLPAPERS SONOMA (RESPALDO)
 # =============================================================================
-echo -e "${YELLOW}🖼️  [7/20] Instalando wallpapers macOS Sonoma...${NC}"
+echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
 [ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q
 
 if [ "$IS_GNOME" = true ]; then
@@ -296,7 +332,7 @@ echo ""
 # =============================================================================
 # PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR
 # =============================================================================
-echo -e "${YELLOW}🔊 [8/20] Instalando sonidos del sistema macOS Big Sur...${NC}"
+echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
 SOUNDS_DIR="$HOME/.local/share/sounds"
 SOUNDS_TEMP="$WORKDIR/bigsur-sounds-temp"
 mkdir -p "$SOUNDS_DIR" "$SOUNDS_TEMP"
@@ -335,7 +371,7 @@ echo ""
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
 # =============================================================================
-echo -e "${YELLOW}🔍 [9/20] Instalando Rofi Spotlight...${NC}"
+echo -e "${YELLOW}🔍 [9/24] Instalando Rofi Spotlight...${NC}"
 ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
 ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
 mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR"
@@ -380,7 +416,7 @@ echo ""
 # =============================================================================
 # PASO 10: TEMAS DE PLANK
 # =============================================================================
-echo -e "${YELLOW}🚀 [10/20] Instalando temas de Plank...${NC}"
+echo -e "${YELLOW}🚀 [10/24] Instalando temas de Plank...${NC}"
 [ ! -d "$WORKDIR/MacOS-Mojave-Plank-themes" ] && git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git "$WORKDIR/MacOS-Mojave-Plank-themes" -q
 mkdir -p ~/.local/share/plank/themes
 find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do
@@ -392,7 +428,7 @@ echo ""
 # =============================================================================
 # PASO 11: TEMA PLYMOUTH (PANTALLA DE ARRANQUE)
 # =============================================================================
-echo -e "${YELLOW}🖥️  [11/20] Instalando tema Plymouth...${NC}"
+echo -e "${YELLOW}🖥️  [11/24] Instalando tema Plymouth...${NC}"
 if command -v plymouth &> /dev/null || [ -d /usr/share/plymouth/themes ]; then
     [ ! -d "$WORKDIR/apple-mac-plymouth" ] && git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git "$WORKDIR/apple-mac-plymouth" -q
     sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null
@@ -409,7 +445,7 @@ echo ""
 # =============================================================================
 # PASO 12: TEMA DE FIREFOX
 # =============================================================================
-echo -e "${YELLOW}🦊 [12/20] Instalando tema de Firefox...${NC}"
+echo -e "${YELLOW}🦊 [12/24] Instalando tema de Firefox...${NC}"
 if command -v firefox &> /dev/null || command -v firefox-bin &> /dev/null; then
     pidof firefox &> /dev/null || pidof firefox-bin &> /dev/null && pkill -f firefox 2>/dev/null && sleep 2
     ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -f > /dev/null 2>&1 )
@@ -422,7 +458,7 @@ echo ""
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
 # =============================================================================
-echo -e "${YELLOW}🔐 [13/20] Configurando pantalla de login...${NC}"
+echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
 if [ "$IS_GNOME" = true ]; then
     ( cd "$WORKDIR/MacTahoe-gtk-theme" && sudo ./tweaks.sh -g -b default > /dev/null 2>&1 )
     echo -e "${GREEN}✅ Pantalla de login configurada.${NC}"
@@ -434,7 +470,7 @@ echo ""
 # =============================================================================
 # PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS
 # =============================================================================
-echo -e "${YELLOW}🪟 [14/20] Instalando script auxiliar de gestión de ventanas...${NC}"
+echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
 ADVANCED_WM_SCRIPT="$HOME/.local/bin/macos-wm-actions"
 mkdir -p "$HOME/.local/bin"
 
@@ -504,7 +540,7 @@ echo ""
 # =============================================================================
 # PASO 15: CONFIGURACIÓN DEL SISTEMA Y ATAJO DE TECLADO
 # =============================================================================
-echo -e "${YELLOW}⚙️  [15/20] Configurando sistema y atajos de teclado macOS...${NC}"
+echo -e "${YELLOW}⚙️  [15/24] Configurando sistema y atajos de teclado macOS...${NC}"
 
 gnome_set_keybinding() {
     local name="$1" command="$2" binding="$3" index="$4"
@@ -711,7 +747,7 @@ echo ""
 # =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
-echo -e "${YELLOW}🔤 [16/20] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
+echo -e "${YELLOW}🔤 [16/24] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
 mkdir -p ~/.config/fontconfig/
 cat > ~/.config/fontconfig/fonts.conf << 'EOF'
 <?xml version="1.0"?>
@@ -738,7 +774,7 @@ echo ""
 # =============================================================================
 # PASO 17: CONFIGURACIÓN DE TERMINAL ESTILO macOS
 # =============================================================================
-echo -e "${YELLOW}💻 [17/20] Configurando terminal estilo macOS...${NC}"
+echo -e "${YELLOW}💻 [17/24] Configurando terminal estilo macOS...${NC}"
 
 if [ "$IS_GNOME" = true ] && command -v gnome-terminal &> /dev/null; then
     PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)
@@ -772,7 +808,7 @@ echo ""
 # =============================================================================
 # PASO 18: CONFIGURACIÓN DE ANIMACIONES SUAVES
 # =============================================================================
-echo -e "${YELLOW}🎬 [18/20] Configurando animaciones suaves...${NC}"
+echo -e "${YELLOW}🎬 [18/24] Configurando animaciones suaves...${NC}"
 
 if [ "$IS_GNOME" = true ]; then
     gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null
@@ -789,7 +825,7 @@ echo ""
 # =============================================================================
 # PASO 19: EFECTO MAGIC LAMP (GNOME y Cinnamon)
 # =============================================================================
-echo -e "${YELLOW}🪔 [19/20] Instalando efecto Magic Lamp (minimizar ventanas)...${NC}"
+echo -e "${YELLOW}🪔 [19/24] Instalando efecto Magic Lamp (minimizar ventanas)...${NC}"
 
 if [ "$IS_GNOME" = true ]; then
     echo -e "   ${BLUE}→ Instalando para GNOME...${NC}"
@@ -817,7 +853,7 @@ elif [ "$IS_CINNAMON" = true ]; then
             if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
                 gsettings set org.cinnamon enabled-extensions "['CinnamonMagicLamp@klangman']" 2>/dev/null
             else
-                NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'CinnamonMagicLamp@klangman']/")
+                NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$, 'CinnamonMagicLamp@klangman']/")
                 gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
             fi
         fi
@@ -828,14 +864,14 @@ elif [ "$IS_CINNAMON" = true ]; then
         echo -e "${GREEN}✅ Magic Lamp para Cinnamon instalada y activada.${NC}"
     fi
 else
-    echo -e "${YELLOW}⏭️  [19/20] Magic Lamp omitido (solo GNOME y Cinnamon).${NC}"
+    echo -e "${YELLOW}⏭️  [19/24] Magic Lamp omitido (solo GNOME y Cinnamon).${NC}"
 fi
 echo ""
 
 # =============================================================================
 # PASO 20: VERIFICACIÓN POST-INSTALACIÓN
 # =============================================================================
-echo -e "${YELLOW}🔍 [20/20] Verificando instalación...${NC}"
+echo -e "${YELLOW}🔍 [20/24] Verificando instalación...${NC}"
 
 VERIFICATION_PASSED=true
 
@@ -982,6 +1018,12 @@ elif [ "$IS_CINNAMON" = true ]; then
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${GREEN}✅ Clipman instalado para XFCE (añádelo al panel manualmente).${NC}"
 fi
+
+# =============================================================================
+# DESACTIVAR TRAMPA DE ERROR (Instalación exitosa)
+# =============================================================================
+INSTALLATION_SUCCESS=true
+trap - ERR
 
 # =============================================================================
 # MENSAJE FINAL
