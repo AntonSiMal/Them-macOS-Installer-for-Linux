@@ -29,7 +29,7 @@
 
 ## ✨ ¿Qué hace este script?
 
-Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **23 pasos** de instalación y configuración sin que tengas que hacer nada manualmente:
+Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **24 pasos** de instalación y configuración sin que tengas que hacer nada manualmente:
 
 | # | Componente | Descripción |
 |---|------------|-------------|
@@ -57,7 +57,8 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden con el tema macOS |
 | 👁️ | **Quick Look** | Vista previa de archivos con barra espaciadora (Sushi/Gloobus) |
 | 📜 | **Scroll Natural** | Desplazamiento estilo trackpad macOS universal |
-| 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y más |
+| 👆 | **Gestos Fusuma + Arrastre 3 dedos** | Deslizar para espacios/zoom y arrastrar sin hacer clic |
+| 📋 | **Gestor de Portapapeles** | Historial de portapapeles minimalista (Clipboard Indicator/Clipit) |
 
 ---
 
