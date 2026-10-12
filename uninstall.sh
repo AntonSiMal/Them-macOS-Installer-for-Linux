@@ -14,6 +14,14 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# =============================================================================
+# DETECCIÓN DE MODO AUTOMÁTICO (Para Rollback de emergencia desde install.sh)
+# =============================================================================
+AUTO_CLEANUP=false
+if [[ "$1" == "--auto" || "$1" == "--force" ]]; then
+    AUTO_CLEANUP=true
+fi
+
 echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${RED}║   ⚠️  macOS Tahoe Uninstaller - Restauración del Sistema  ║${NC}"
 echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
@@ -23,11 +31,18 @@ echo -e "Este script eliminará todos los temas, iconos, fuentes, sonidos,"
 echo -e "extensiones y configuraciones instalados por el instalador de macOS Tahoe."
 echo -e "Tu escritorio volverá a su estado original (temas por defecto)."
 echo ""
-read -p "¿Estás seguro de que deseas continuar? (s/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-    echo -e "${BLUE}Operación cancelada.${NC}"
-    exit 1
+
+# Solo pedir confirmación si NO se está ejecutando en modo automático
+if [ "$AUTO_CLEANUP" = false ]; then
+    read -p "¿Estás seguro de que deseas continuar? (s/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+        echo -e "${BLUE}Operación cancelada.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}⚠️  MODO AUTOMÁTICO: Ejecutando limpieza de emergencia sin confirmación...${NC}"
+    sleep 2
 fi
 
 echo -e "${CYAN}Iniciando proceso de desinstalación...${NC}"
