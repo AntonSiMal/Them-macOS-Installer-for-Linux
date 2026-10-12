@@ -32,7 +32,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Iniciando instalación de macOS Tahoe Theme
 
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║   🍎 macOS Tahoe Theme Installer - Ultimate Edition     ║${NC}"
-echo -e "${CYAN}║   Instalación 100% automatizada (23 pasos)              ║${NC}"
+echo -e "${CYAN}║   Instalación 100% automatizada (24 pasos)              ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -70,24 +70,27 @@ HAS_DASH_TO_DOCK=false
 # =============================================================================
 # PASO 1: DEPENDENCIAS DEL SISTEMA
 # =============================================================================
-echo -e "${YELLOW}📦 [1/23] Instalando dependencias del sistema...${NC}"
+echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 if command -v apt-get &> /dev/null; then
     sudo apt-get update -qq
     sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct sushi ruby libinput-tools 2>/dev/null
+        qt5ct qt6ct sushi ruby libinput-tools \
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
 elif command -v dnf &> /dev/null; then
     sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
         plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
         unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
-        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput 2>/dev/null
+        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
 elif command -v pacman &> /dev/null; then
     sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
         gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
-        xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput 2>/dev/null
+        xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
 fi
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
 
@@ -203,25 +206,38 @@ echo ""
 # =============================================================================
 # PASO 5: TEMA GTK + ICONOS + CURSORES (macOS Tahoe)
 # =============================================================================
-echo -e "${YELLOW}🎨 [5/20] Instalando tema macOS Tahoe...${NC}"
+echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...${NC}"
 
+# Clonar repositorios si no existen
 [ ! -d "$WORKDIR/MacTahoe-gtk-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q
 [ ! -d "$WORKDIR/MacTahoe-icon-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$WORKDIR/MacTahoe-icon-theme" -q
 
+# Configurar flags de instalación
 INSTALL_FLAGS="-c dark --silent-mode --round --darker"
 if [ "$IS_GNOME" = true ]; then
-    INSTALL_FLAGS="$INSTALL_FLAGS -l"
+    INSTALL_FLAGS="$INSTALL_FLAGS -l" # Soporte para libadwaita (GTK4)
+    # Activar modo blur si la extensión Blur-my-shell ya está presente
     if [ -d "$HOME/.local/share/gnome-shell/extensions/blur-my-shell@aunetx" ] || [ -d "/usr/share/gnome-shell/extensions/blur-my-shell@aunetx" ]; then
         INSTALL_FLAGS="$INSTALL_FLAGS -b"
     fi
 fi
 
+# 1. Instalar tema GTK
 ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 )
-[ -n "$ICON_BOLD_FLAG" ] && ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 ) || ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
 
+# 2. Instalar Iconos y Cursores 
+# (El script oficial de MacTahoe ejecuta 'install_theme && install_cursor_theme' automáticamente)
+if [ -n "$ICON_BOLD_FLAG" ]; then
+    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 )
+else
+    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
+fi
+
+# Aplicar tweaks adicionales si el sistema lo requiere
 [ "$HAS_FLATPAK" = true ] && ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -F -c dark > /dev/null 2>&1 )
 [ "$HAS_DASH_TO_DOCK" = true ] && [ "$IS_GNOME" = true ] && ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -d > /dev/null 2>&1 )
-echo -e "${GREEN}✅ macOS Tahoe instalado.${NC}"
+
+echo -e "${GREEN}✅ Tema GTK, Iconos y Cursores MacTahoe instalados correctamente.${NC}"
 echo ""
 
 # =============================================================================
@@ -858,8 +874,7 @@ echo ""
 # =============================================================================
 # PASO 21: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
 # =============================================================================
-echo -e "${YELLOW}🎨 [21/23] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
-# Qt Theming
+echo -e "${YELLOW}🎨 [21/24] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
 if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment; then
     echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null
 fi
@@ -871,7 +886,6 @@ color_scheme_path=
 icon_theme=MacTahoe-dark
 EOF
 
-# Quick Look
 if [ "$IS_GNOME" = true ]; then
     sudo apt-get install -y -qq sushi 2>/dev/null || sudo dnf install -y -q sushi 2>/dev/null || sudo pacman -S --noconfirm sushi 2>/dev/null
 else
@@ -882,7 +896,7 @@ echo -e "${GREEN}✅ Qt tematizado y Quick Look instalado.${NC}"
 # =============================================================================
 # PASO 22: SCROLL NATURAL UNIVERSAL
 # =============================================================================
-echo -e "${YELLOW}📜 [22/23] Activando Scroll Natural (Estilo macOS)...${NC}"
+echo -e "${YELLOW}📜 [22/24] Activando Scroll Natural (Estilo macOS)...${NC}"
 if [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; then
     gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null
     gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null
@@ -897,16 +911,12 @@ fi
 echo -e "${GREEN}✅ Scroll natural activado.${NC}"
 
 # =============================================================================
-# PASO 23: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA)
+# PASO 23: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA) + ARRASTRE 3 DEDOS
 # =============================================================================
-echo -e "${YELLOW}👆 [23/23] Instalando Gestos Multitáctiles estilo macOS (Fusuma)...${NC}"
-# Añadir usuario al grupo input (requiere reinicio de sesión para surtir efecto)
+echo -e "${YELLOW}👆 [23/24] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
 sudo gpasswd -a $USER input 2>/dev/null || true
-
-# Instalar fusuma (gem)
 sudo gem install fusuma --no-document 2>/dev/null || true
 
-# Configurar gestos estilo macOS
 mkdir -p ~/.config/fusuma
 cat > ~/.config/fusuma/config.yml << 'EOF'
 plugin:
@@ -916,27 +926,32 @@ plugin:
 swipe:
   3:
     left:
-      command: 'xdotool key ctrl+alt+Right' # Siguiente espacio de trabajo
+      command: 'xdotool key ctrl+alt+Right'
     right:
-      command: 'xdotool key ctrl+alt+Left' # Espacio de trabajo anterior
+      command: 'xdotool key ctrl+alt+Left'
     up:
-      command: 'xdotool key super' # Actividades / Launchpad
+      command: 'xdotool key super'
     down:
-      command: 'xdotool key super' # Actividades / Launchpad
+      command: 'xdotool key super'
   4:
     left:
-      command: 'xdotool key alt+Left' # Historial atrás
+      command: 'xdotool key alt+Left'
     right:
-      command: 'xdotool key alt+Right' # Historial adelante
+      command: 'xdotool key alt+Right'
 pinch:
   2:
     in:
-      command: 'xdotool keydown ctrl click 4 keyup ctrl' # Zoom in
+      command: 'xdotool keydown ctrl click 4 keyup ctrl'
     out:
-      command: 'xdotool keydown ctrl click 5 keyup ctrl' # Zoom out
+      command: 'xdotool keydown ctrl click 5 keyup ctrl'
+hold:
+  3:
+    begin:
+      command: 'xdotool mousedown 1'
+    end:
+      command: 'xdotool mouseup 1'
 EOF
 
-# Crear servicio systemd para autoinicio
 mkdir -p ~/.config/systemd/user
 cat > ~/.config/systemd/user/fusuma.service << 'EOF'
 [Unit]
@@ -953,8 +968,20 @@ EOF
 
 systemctl --user daemon-reload 2>/dev/null || true
 systemctl --user enable --now fusuma.service 2>/dev/null || true
+echo -e "${GREEN}✅ Fusuma y Arrastre con 3 dedos configurados.${NC}"
 
-echo -e "${GREEN}✅ Fusuma instalado y configurado.${NC}"
+# =============================================================================
+# PASO 24: GESTOR DE PORTAPAPELES MINIMALISTA
+# =============================================================================
+echo -e "${YELLOW}📋 [24/24] Configurando Gestor de Portapapeles estilo macOS...${NC}"
+if [ "$IS_GNOME" = true ]; then
+    gnome-extensions enable clipboard-indicator@tudmotu.com 2>/dev/null || true
+    echo -e "${GREEN}✅ Clipboard Indicator activado para GNOME.${NC}"
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${GREEN}✅ Clipit instalado para Cinnamon (inícialo desde el menú).${NC}"
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${GREEN}✅ Clipman instalado para XFCE (añádelo al panel manualmente).${NC}"
+fi
 
 # =============================================================================
 # MENSAJE FINAL
