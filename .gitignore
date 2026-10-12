@@ -1,0 +1,28 @@
+# Archivos temporales
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+
+# Directorios de trabajo
+.macos-theme-setup/
+build/
+dist/
+temp/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE y editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs de instalación
+install.log
+error.log
