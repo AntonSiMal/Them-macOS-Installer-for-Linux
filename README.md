@@ -29,30 +29,35 @@
 
 ## ✨ ¿Qué hace este script?
 
-Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **20 pasos** de instalación y configuración sin que tengas que hacer nada manualmente:
+Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **23 pasos** de instalación y configuración sin que tengas que hacer nada manualmente:
 
 | # | Componente | Descripción |
 |---|------------|-------------|
+| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas necesarias |
+| 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0) |
+| 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME) |
+| 🌅 | **Dynamic Wallpaper (Cinnamon)** | Extensión para wallpapers dinámicos en Cinnamon |
 | 🎨 | **Tema MacTahoe GTK** | Tema visual estilo macOS Tahoe con ventanas redondeadas |
 | 🖼️ | **Iconos MacTahoe** | Iconos oficiales estilo macOS (versión bold automática para 4K) |
-| 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0) |
+| 🌄 | **Wallpaper dinámico Mojave** | 16 imágenes que cambian según la hora del día (horarios reales) |
+| 🏞️ | **Wallpapers Sonoma** | Fondos de respaldo estáticos y dinámicos |
 | 🔊 | **Sonidos macOS Big Sur** | 44 eventos de sonido (startup chime, notificaciones, etc.) |
-| 🌄 | **Wallpaper dinámico** | Mojave con 16 imágenes que cambian según la hora del día |
-| 🖼️ | **Wallpapers Sonoma** | Fondo de respaldo con versión estática y dinámica |
 | 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda de archivos y web |
-| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar ventanas (GNOME y Cinnamon) |
-| 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME) |
-| 🚀 | **Plank Dock** | Dock estilo macOS con tema BigSur y auto-ocultación |
+| 🚀 | **Temas de Plank** | Dock estilo macOS con múltiples temas BigSur |
 | 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple |
-| 🦊 | **Firefox Safari** | Tema de Firefox estilo Safari |
-| 🔐 | **GDM** | Pantalla de login estilo macOS (solo GNOME) |
+| 🦊 | **Tema Firefox Safari** | Firefox con apariencia de Safari |
+| 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS |
+| 🪟 | **Script de ventanas avanzadas** | Gestión de opacidad, centrado, mover/redimensionar sin barra |
 | ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente |
-| 💻 | **Terminal Configurada** | Perfil de terminal con colores y fuente SF Mono estilo macOS |
-| 🔤 | **Renderizado de Fuentes** | Optimización de Fontconfig para que SF Pro se vea nítida |
-| 🎬 | **Animaciones Suaves** | Activación de composición y animaciones fluidas del sistema |
-| ✅ | **Verificación Automática** | Comprobación post-instalación de todos los componentes |
-| 📝 | **Documentación** | Guía de atajos generada automáticamente en `~/.macos-keybindings.md` |
-| 🌅 | **Dynamic Wallpaper** | Extensión para Cinnamon con wallpapers dinámicos |
+| ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para SF Pro nítida |
+| 💻 | **Terminal estilo macOS** | Perfil con SF Mono y colores auténticos |
+| 🎬 | **Animaciones suaves** | Activación de composición y transiciones fluidas |
+| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar (GNOME y Cinnamon) |
+| ✅ | **Verificación automática** | Comprobación post-instalación de componentes |
+| 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden con el tema macOS |
+| 👁️ | **Quick Look** | Vista previa de archivos con barra espaciadora (Sushi/Gloobus) |
+| 📜 | **Scroll Natural** | Desplazamiento estilo trackpad macOS universal |
+| 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y más |
 
 ---
 
@@ -201,7 +206,7 @@ fc-list | grep -i "SF Pro"
 
 ## 🙏 Créditos
 
-Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos de la comunidad Linux:
+Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos de la comunidad Linux de código abierto:
 
 | Proyecto | Autor | Licencia |
 |----------|-------|----------|
@@ -219,6 +224,12 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 | [Plank Themes](https://github.com/Macintosh98/MacOS-Mojave-Plank-themes) | Macintosh98 | - |
 | [Apple Mac Plymouth](https://github.com/navisjayaseelan/apple-mac-plymouth) | navisjayaseelan | - |
 | [Cinnamon Dynamic Wallpaper](https://github.com/TobiZog/cinnamon-dynamic-wallpaper) | TobiZog | GPL-3.0 |
+| [Fusuma (Gestos Multitáctiles)](https://github.com/iberianpig/fusuma) | iberianpig | MIT |
+| [Sushi / Gloobus Preview (Quick Look)](https://github.com/GNOME/sushi) | GNOME Project | GPL-2.0+ |
+
+---
+
+> **⚠️ Aviso legal:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple, basándose en repositorios comunitarios. El uso de estas fuentes está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
 
 ---
 
