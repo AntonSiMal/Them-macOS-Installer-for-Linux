@@ -19,9 +19,9 @@ echo -e "${RED}║   ⚠️  macOS Tahoe Uninstaller - Restauración del Sistema
 echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${YELLOW}ADVERTENCIA:${NC}"
-echo -e "Este script eliminará todos los temas, iconos, fuentes, sonidos y"
-echo -e "extensiones instalados por el instalador de macOS Tahoe."
-echo -e "Tu escritorio volvera a su estado original (temas por defecto)."
+echo -e "Este script eliminará todos los temas, iconos, fuentes, sonidos,"
+echo -e "extensiones y configuraciones instalados por el instalador de macOS Tahoe."
+echo -e "Tu escritorio volverá a su estado original (temas por defecto)."
 echo ""
 read -p "¿Estás seguro de que deseas continuar? (s/N): " -n 1 -r
 echo
@@ -49,7 +49,7 @@ IS_CINNAMON=false
 [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && IS_CINNAMON=true
 
 # =============================================================================
-# 2. ELIMINAR ARCHIVOS Y CARPETAS DE MACOS
+# 2. ELIMINAR ARCHIVOS, CONFIGURACIONES Y PAQUETES ESPECÍFICOS
 # =============================================================================
 echo -e "${YELLOW}🗑️  [1/8] Eliminando archivos y configuraciones de macOS...${NC}"
 
@@ -65,7 +65,7 @@ rm -rf ~/.icons/MacTahoe* ~/.local/share/icons/MacTahoe*
 rm -rf ~/.local/share/sounds/bigsur
 
 # Wallpapers
-sudo rm -rf /usr/share/dynamicwallpapers/mojave-solar /usr/share/dynamicwallpapers/mojave-timed /usr/share/backgrounds/macOS
+sudo rm -rf /usr/share/dynamicwallpapers/mojave-solar /usr/share/dynamicwallpapers/mojave-timed /usr/share/backgrounds/macOS 2>/dev/null || true
 rm -rf ~/.local/share/backgrounds/Sonoma*
 
 # Rofi Spotlight y Scripts
@@ -80,6 +80,19 @@ rm -rf ~/.local/share/plank/themes/MacOS-* ~/.local/share/plank/themes/elementar
 rm -f ~/.config/autostart/plank.desktop
 pkill plank 2>/dev/null || true
 
+# Fusuma (Gestos)
+systemctl --user disable --now fusuma.service 2>/dev/null || true
+rm -rf ~/.config/fusuma
+sudo gem uninstall fusuma -a -x 2>/dev/null || true
+sudo gpasswd -d $USER input 2>/dev/null || true
+
+# Qt5ct y Quick Look
+sudo sed -i '/QT_QPA_PLATFORMTHEME=qt5ct/d' /etc/environment 2>/dev/null || true
+rm -rf ~/.config/qt5ct
+sudo apt-get remove -y -qq sushi gloobus-preview 2>/dev/null || true
+sudo dnf remove -y -q sushi gloobus-preview 2>/dev/null || true
+sudo pacman -Rns --noconfirm sushi gloobus-preview 2>/dev/null || true
+
 # Fontconfig y Terminal
 rm -f ~/.config/fontconfig/fonts.conf
 rm -f ~/.config/xfce4/terminal/terminalrc
@@ -88,7 +101,7 @@ rm -f ~/.config/xfce4/terminal/terminalrc
 rm -rf ~/.macos-theme-setup
 rm -f ~/.macos-keybindings.md
 
-echo -e "${GREEN}✅ Archivos eliminados.${NC}"
+echo -e "${GREEN}✅ Archivos y configuraciones eliminados.${NC}"
 echo ""
 
 # =============================================================================
@@ -110,8 +123,10 @@ if [ "$IS_GNOME" = true ]; then
     gsettings reset org.gnome.desktop.background picture-uri
     gsettings reset org.gnome.desktop.background picture-uri-dark
     
-    # Restablecer sonidos
+    # Restablecer sonidos y scroll natural
     gsettings reset org.gnome.desktop.sound theme-name
+    gsettings reset org.gnome.desktop.peripherals.touchpad natural-scroll
+    gsettings reset org.gnome.desktop.peripherals.mouse natural-scroll
     
     # Restablecer atajos de teclado y combinaciones
     gsettings reset-recursively org.gnome.desktop.wm.keybindings
@@ -152,11 +167,10 @@ if [ "$IS_CINNAMON" = true ]; then
     gsettings reset org.cinnamon.desktop.wm.preferences theme
     gsettings reset org.cinnamon.desktop.wm.preferences titlebar-font
     
-    # Restablecer fondo
+    # Restablecer fondo y sonidos
     gsettings reset org.cinnamon.desktop.background picture-uri
-    
-    # Restablecer sonidos
     gsettings reset org.cinnamon.desktop.sound theme-name
+    gsettings reset org.gnome.desktop.peripherals.touchpad natural-scroll 2>/dev/null || true
     
     # Restablecer atajos de teclado
     gsettings reset-recursively org.cinnamon.desktop.keybindings
@@ -179,7 +193,7 @@ fi
 if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${YELLOW}⚙️  [4/8] Restaurando configuración de XFCE...${NC}"
     
-    # Restablecer temas, iconos y fuentes (la flag -r resetea al valor por defecto)
+    # Restablecer temas, iconos, fuentes y scroll (la flag -r resetea al valor por defecto)
     xfconf-query -c xsettings -p /Net/ThemeName -r 2>/dev/null || true
     xfconf-query -c xsettings -p /Net/IconThemeName -r 2>/dev/null || true
     xfconf-query -c xsettings -p /Net/CursorThemeName -r 2>/dev/null || true
@@ -236,8 +250,8 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🦊 [6/8] Limpiando configuraciones de Firefox y GDM...${NC}"
 # Eliminar perfiles de tema de Firefox si existen
-rm -rf ~/.mozilla/firefox/*.default*/chrome
-rm -rf ~/.var/app/org.mozilla.firefox/.mozilla/firefox/*.default*/chrome
+rm -rf ~/.mozilla/firefox/*.default*/chrome 2>/dev/null || true
+rm -rf ~/.var/app/org.mozilla.firefox/.mozilla/firefox/*.default*/chrome 2>/dev/null || true
 
 # Revertir GDM si el script de tweaks está disponible
 if [ "$IS_GNOME" = true ] && [ -d "$HOME/.macos-theme-setup/MacTahoe-gtk-theme" ]; then
@@ -247,10 +261,10 @@ echo -e "${GREEN}✅ Limpieza de Firefox/GDM completada.${NC}"
 echo ""
 
 # =============================================================================
-# 8. LIMPIEZA FINAL DE PAQUETES (OPCIONAL)
+# 8. LIMPIEZA FINAL DE PAQUETES
 # =============================================================================
 echo -e "${YELLOW}🧹 [7/8] Limpieza del sistema...${NC}"
-echo -e "${BLUE}Nota: Los paquetes de dependencias (rofi, plank, etc.) se mantienen${NC}"
+echo -e "${BLUE}Nota: Los paquetes de dependencias generales (rofi, plank, etc.) se mantienen${NC}"
 echo -e "${BLUE}instalados por si los usabas antes. Puedes eliminarlos manualmente si${NC}"
 echo -e "${BLUE}deseas una limpieza total.${NC}"
 
@@ -258,8 +272,10 @@ if command -v apt-get &> /dev/null; then
     sudo apt-get autoremove -y -qq 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
     sudo dnf autoremove -y -q 2>/dev/null || true
+elif command -v pacman &> /dev/null; then
+    sudo pacman -Rns --noconfirm $(pacman -Qdtq) 2>/dev/null || true
 fi
-echo -e "${GREEN}✅ Limpieza completada.${NC}"
+echo -e "${GREEN}✅ Limpieza de paquetes huérfanos completada.${NC}"
 echo ""
 
 # =============================================================================
@@ -270,12 +286,12 @@ echo -e "${CYAN}║        🎉 ¡DESINSTALACIÓN COMPLETADA CON ÉXITO! 🎉   
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Tu sistema ha sido restaurado a su estado original.${NC}"
-echo -e "${YELLOW}⚠️  IMPORTANTE: Debes ${RED}cerrar sesión y volver a entrar${YELLOW} (o reiniciar)${NC}"
-echo -e "${YELLOW}   para que todos los cambios surtan efecto correctamente.${NC}"
+echo -e "${YELLOW}⚠️  IMPORTANTE: Debes ${RED}reiniciar el equipo${YELLOW} para que todos los cambios${NC}"
+echo -e "${YELLOW}   (especialmente Plymouth, grupo 'input' y Qt) surtan efecto correctamente.${NC}"
 echo ""
 
 if [ "$IS_GNOME" = true ]; then
-    echo -e "${BLUE}Si usas X11, puedes reiniciar GNOME Shell ahora con:${NC}"
+    echo -e "${BLUE}Si usas X11 y prefieres no reiniciar, puedes reiniciar GNOME Shell con:${NC}"
     echo -e "   ${CYAN}dbus-send --session --type=method_call --dest=org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval string:'Meta.restart(\"Reiniciando...\")'${NC}"
 fi
 
