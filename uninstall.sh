@@ -57,7 +57,7 @@ echo -e "${YELLOW}🗑️  [1/8] Eliminando archivos y configuraciones de macOS.
 rm -rf ~/.local/share/fonts/SF* ~/.local/share/fonts/NewYork*
 fc-cache -f > /dev/null 2>&1
 
-# Temas e Iconos
+# Temas, Iconos y Cursores
 rm -rf ~/.themes/MacTahoe* ~/.local/share/themes/MacTahoe*
 rm -rf ~/.icons/MacTahoe* ~/.local/share/icons/MacTahoe*
 
@@ -80,7 +80,7 @@ rm -rf ~/.local/share/plank/themes/MacOS-* ~/.local/share/plank/themes/elementar
 rm -f ~/.config/autostart/plank.desktop
 pkill plank 2>/dev/null || true
 
-# Fusuma (Gestos)
+# Fusuma (Gestos y Arrastre 3 dedos)
 systemctl --user disable --now fusuma.service 2>/dev/null || true
 rm -rf ~/.config/fusuma
 sudo gem uninstall fusuma -a -x 2>/dev/null || true
@@ -92,6 +92,11 @@ rm -rf ~/.config/qt5ct
 sudo apt-get remove -y -qq sushi gloobus-preview 2>/dev/null || true
 sudo dnf remove -y -q sushi gloobus-preview 2>/dev/null || true
 sudo pacman -Rns --noconfirm sushi gloobus-preview 2>/dev/null || true
+
+# Gestor de Portapapeles
+sudo apt-get remove -y -qq gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
+sudo dnf remove -y -q gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
+sudo pacman -Rns --noconfirm gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
 
 # Fontconfig y Terminal
 rm -f ~/.config/fontconfig/fonts.conf
@@ -110,7 +115,7 @@ echo ""
 if [ "$IS_GNOME" = true ]; then
     echo -e "${YELLOW}⚙️  [2/8] Restaurando configuración de GNOME...${NC}"
     
-    # Restablecer temas, iconos y fuentes a los valores por defecto
+    # Restablecer temas, iconos, cursores y fuentes a los valores por defecto
     gsettings reset org.gnome.desktop.interface gtk-theme
     gsettings reset org.gnome.desktop.interface icon-theme
     gsettings reset org.gnome.desktop.interface cursor-theme
@@ -140,6 +145,7 @@ if [ "$IS_GNOME" = true ]; then
     gnome-extensions disable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
     gnome-extensions disable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true
     gnome-extensions disable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
+    gnome-extensions disable clipboard-indicator@tudmotu.com 2>/dev/null || true
     
     rm -rf ~/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com
     rm -rf ~/.local/share/gnome-shell/extensions/*magic-lamp*
@@ -157,7 +163,7 @@ fi
 if [ "$IS_CINNAMON" = true ]; then
     echo -e "${YELLOW}⚙️  [3/8] Restaurando configuración de Cinnamon...${NC}"
     
-    # Restablecer temas e iconos
+    # Restablecer temas, iconos y cursores
     gsettings reset org.cinnamon.desktop.interface gtk-theme
     gsettings reset org.cinnamon.desktop.interface icon-theme
     gsettings reset org.cinnamon.desktop.interface cursor-theme
@@ -193,7 +199,7 @@ fi
 if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${YELLOW}⚙️  [4/8] Restaurando configuración de XFCE...${NC}"
     
-    # Restablecer temas, iconos, fuentes y scroll (la flag -r resetea al valor por defecto)
+    # Restablecer temas, iconos, cursores, fuentes y scroll (la flag -r resetea al valor por defecto)
     xfconf-query -c xsettings -p /Net/ThemeName -r 2>/dev/null || true
     xfconf-query -c xsettings -p /Net/IconThemeName -r 2>/dev/null || true
     xfconf-query -c xsettings -p /Net/CursorThemeName -r 2>/dev/null || true
