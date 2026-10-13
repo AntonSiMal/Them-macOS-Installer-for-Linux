@@ -217,7 +217,7 @@ echo ""
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
 # =============================================================================
 echo -e "${YELLOW}🔤 [2/24] Instalando fuentes oficiales de Apple (WWDC26)...${NC}"
-FONTS_DIR="$HOME/.local/share/fonts"
+FONTS_DIR="$REAL_HOME/.local/share/fonts"
 SF_TEMP="$WORKDIR/sf-windows-temp"
 mkdir -p "$FONTS_DIR" "$SF_TEMP"
 
@@ -272,13 +272,13 @@ IS_GNOME=false
 if [[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]]; then
     IS_GNOME=true
     echo -e "${YELLOW}🧩 [3/24] Instalando extensión 'Liquid Glass'...${NC}"
-    mkdir -p ~/.local/share/gnome-shell/extensions/
+    mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/"
 
     [ ! -d "$WORKDIR/liquid-glass" ] && git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git "$WORKDIR/liquid-glass" -q
-    cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" ~/.local/share/gnome-shell/extensions/
+    cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" "$REAL_HOME/.local/share/gnome-shell/extensions/"
 
     GNOME_VERSION=$(gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1)
-    EXT_DIR=~/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com
+    EXT_DIR="$REAL_HOME/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com"
     if [ -n "$GNOME_VERSION" ] && [ -f "$EXT_DIR/metadata.json" ]; then
         if ! grep -q "\"$GNOME_VERSION\"" "$EXT_DIR/metadata.json"; then
             python3 -c "
@@ -303,18 +303,18 @@ IS_CINNAMON=false
 if [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]]; then
     IS_CINNAMON=true
     echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
-    mkdir -p ~/.local/share/cinnamon/extensions/
+    mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/"
 
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q
-    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ~/.local/share/cinnamon/extensions/ 2>/dev/null
+    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null
 
-    CINNAMON_EXTENSIONS=$(gsettings get org.cinnamon enabled-extensions 2>/dev/null)
+    CINNAMON_EXTENSIONS=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null)
     if ! echo "$CINNAMON_EXTENSIONS" | grep -q "cinnamon-dynamic-wallpaper@TobiZog"; then
         if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
-            gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null
+            run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null
         else
             NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'cinnamon-dynamic-wallpaper@TobiZog']/")
-            gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
+            run_as_user gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
         fi
     fi
     echo -e "${GREEN}✅ Cinnamon Dynamic Wallpaper instalada.${NC}"
@@ -334,7 +334,7 @@ echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...$
 INSTALL_FLAGS="-c dark --silent-mode --round --darker"
 if [ "$IS_GNOME" = true ]; then
     INSTALL_FLAGS="$INSTALL_FLAGS -l"
-    if [ -d "$HOME/.local/share/gnome-shell/extensions/blur-my-shell@aunetx" ] || [ -d "/usr/share/gnome-shell/extensions/blur-my-shell@aunetx" ]; then
+    if [ -d "$REAL_HOME/.local/share/gnome-shell/extensions/blur-my-shell@aunetx" ] || [ -d "/usr/share/gnome-shell/extensions/blur-my-shell@aunetx" ]; then
         INSTALL_FLAGS="$INSTALL_FLAGS -b"
     fi
 fi
@@ -561,9 +561,9 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🚀 [10/24] Instalando temas de Plank...${NC}"
 [ ! -d "$WORKDIR/MacOS-Mojave-Plank-themes" ] && git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git "$WORKDIR/MacOS-Mojave-Plank-themes" -q
-mkdir -p ~/.local/share/plank/themes
+mkdir -p "$REAL_HOME/.local/share/plank/themes"
 find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do
-    [ -d "$theme_dir" ] && cp -r "$theme_dir" ~/.local/share/plank/themes/
+    [ -d "$theme_dir" ] && cp -r "$theme_dir" "$REAL_HOME/.local/share/plank/themes/"
 done
 echo -e "${GREEN}✅ Temas de Plank instalados.${NC}"
 echo ""
@@ -899,8 +899,8 @@ echo ""
 # PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS
 # =============================================================================
 echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
-ADVANCED_WM_SCRIPT="$HOME/.local/bin/macos-wm-actions"
-mkdir -p "$HOME/.local/bin"
+ADVANCED_WM_SCRIPT="$REAL_HOME/.local/bin/macos-wm-actions"
+mkdir -p "$REAL_HOME/.local/bin"
 
 cat > "$ADVANCED_WM_SCRIPT" << 'WMEOF'
 #!/bin/bash
@@ -962,6 +962,9 @@ case "$ACTION" in
 esac
 WMEOF
 chmod +x "$ADVANCED_WM_SCRIPT"
+if [ -n "$SUDO_USER" ]; then
+    chown "$SUDO_USER:$SUDO_USER" "$ADVANCED_WM_SCRIPT" 2>/dev/null || true
+fi
 echo -e "${GREEN}✅ Script auxiliar creado.${NC}"
 echo ""
 
