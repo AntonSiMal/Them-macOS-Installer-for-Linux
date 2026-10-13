@@ -988,6 +988,78 @@ set -e
 echo ""
 
 # =============================================================================
+# PASO 15.6: AJUSTES FINOS DE COMPORTAMIENTO (FINDER, TRACKPAD Y NOTIFICACIONES)
+# =============================================================================
+echo -e "${YELLOW}🔧 [15.6/25] Aplicando ajustes finos de comportamiento (Finder, Trackpad, Notificaciones)...${NC}"
+
+set +e
+
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Ajustando GNOME (Nautilus, Trackpad, Notificaciones)...${NC}"
+    
+    # 📁 Administrador de Archivos (Nautilus estilo Finder)
+    run_as_user gsettings set org.gnome.nautilus.preferences default-folder-viewer 'icon-view' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.nautilus.preferences show-hidden-files false 2>/dev/null || true
+    run_as_user gsettings set org.gnome.nautilus.preferences search-filter-time-type 'last_modified' 2>/dev/null || true
+    
+    # 🖱️ Trackpad y Mouse (Nivel Avanzado)
+    run_as_user gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.peripherals.mouse acceleration-profile 'adaptive' 2>/dev/null || true
+    
+    # 🔔 Notificaciones (Nativo de GNOME, ya estilizado por el tema)
+    # No se requiere acción extra, el tema MacTahoe ya aplica el estilo visual.
+    
+    echo -e "${GREEN}   ✓ Ajustes finos de GNOME aplicados${NC}"
+
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${BLUE}   → Ajustando Cinnamon (Nemo, Trackpad, Notificaciones)...${NC}"
+    
+    # 📁 Administrador de Archivos (Nemo estilo Finder)
+    run_as_user gsettings set org.nemo.preferences default-folder-viewer 'icon-view' 2>/dev/null || true
+    run_as_user gsettings set org.nemo.preferences show-hidden-files false 2>/dev/null || true
+    run_as_user gsettings set org.nemo.preferences show-hidden-backups false 2>/dev/null || true
+    
+    # 🖱️ Trackpad y Mouse (Nivel Avanzado)
+    run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad tap-to-click true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.peripherals.mouse acceleration-profile 'adaptive' 2>/dev/null || true
+    
+    # 🔔 Centro de Notificaciones (Estilo macOS)
+    run_as_user gsettings set org.cinnamon.desktop.notifications show-banners true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.notifications show-notifications-on-lock-screen false 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Ajustes finos de Cinnamon aplicados${NC}"
+
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Ajustando XFCE (Thunar, Trackpad, Notificaciones)...${NC}"
+    
+    # 📁 Administrador de Archivos (Thunar estilo Finder)
+    run_as_user xfconf-query -c thunar -p /misc-default-view -s "THUNAR_VIEW_ICON" 2>/dev/null || true
+    run_as_user xfconf-query -c thunar -p /misc-show-hidden -s false 2>/dev/null || true
+    run_as_user xfconf-query -c thunar -p /misc-single-click -s false 2>/dev/null || true # Doble clic para abrir, como macOS
+    
+    # 🖱️ Trackpad (Habilitar Tap-to-Click de forma genérica)
+    # Buscamos cualquier dispositivo que contenga "Touchpad" y activamos el tapping
+    for dev in $(xinput list --id-only 'Touchpad' 'touchpad' 2>/dev/null); do
+        xinput set-prop "$dev" "libinput Tapping Enabled" 1 2>/dev/null || true
+        xinput set-prop "$dev" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
+    done
+    
+    # 🔔 Centro de Notificaciones (Estilo macOS)
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -s 2 2>/dev/null || true # 2 = Esquina superior derecha
+    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -s 500 2>/dev/null || true # Desvanecimiento rápido (0.5s)
+    
+    echo -e "${GREEN}   ✓ Ajustes finos de XFCE aplicados${NC}"
+fi
+
+set -e
+echo -e "${GREEN}✅ Ajustes finos de comportamiento completados.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
 echo -e "${YELLOW}🔤 [16/25] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
