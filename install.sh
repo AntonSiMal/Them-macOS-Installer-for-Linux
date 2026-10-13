@@ -119,9 +119,12 @@ HAS_DASH_TO_DOCK=false
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA
+# PASO 1: DEPENDENCIAS DEL SISTEMA (MODO NO INTERACTIVO)
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
+
+# Variable clave: evita pantallas de configuración interactivas de apt
+export DEBIAN_FRONTEND=noninteractive
 
 if command -v apt-get &> /dev/null; then
     echo -e "${BLUE}   → Actualizando repositorios...${NC}"
@@ -136,7 +139,6 @@ if command -v apt-get &> /dev/null; then
         clipit xfce4-clipman-plugin 2>/dev/null || true
     
     echo -e "${BLUE}   → Instalando Quick Look (Sushi)...${NC}"
-    # En Ubuntu/Zorin el paquete se llama gnome-sushi
     sudo apt-get install -y -qq gnome-sushi 2>/dev/null || {
         echo -e "${YELLOW}   ⚠️  No se pudo instalar gnome-sushi automáticamente.${NC}"
         echo -e "${YELLOW}      (Es opcional. Puedes instalarlo después con: sudo apt install gnome-sushi)${NC}"
@@ -144,7 +146,7 @@ if command -v apt-get &> /dev/null; then
     
     echo -e "${BLUE}   → Instalando gestor de portapapeles...${NC}"
     sudo apt-get install -y -qq gpaste 2>/dev/null || {
-        echo -e "${YELLOW}   ⚠️  gpaste no disponible. Se usará la extensión de GNOME más adelante.${NC}"
+        echo -e "${YELLOW}   ️  gpaste no disponible. Se usará la extensión de GNOME más adelante.${NC}"
     }
 
 elif command -v dnf &> /dev/null; then
@@ -167,8 +169,10 @@ else
     exit 1
 fi
 
-echo -e "${GREEN}✅ Dependencias listas.${NC}"
+# Restaurar el valor original
+unset DEBIAN_FRONTEND
 
+echo -e "${GREEN}✅ Dependencias listas.${NC}"
 # =============================================================================
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
 # =============================================================================
