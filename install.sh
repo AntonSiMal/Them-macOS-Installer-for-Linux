@@ -119,36 +119,48 @@ HAS_DASH_TO_DOCK=false
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (CON DEBUG)
+# PASO 1: DEPENDENCIAS DEL SISTEMA
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 
 if command -v apt-get &> /dev/null; then
     echo -e "${BLUE}   → Actualizando repositorios...${NC}"
-    sudo apt-get update
-    echo -e "${BLUE}   → Instalando paquetes necesarios...${NC}"
-    sudo apt-get install -y git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+    sudo apt-get update -qq
+    
+    echo -e "${BLUE}   → Instalando paquetes base...${NC}"
+    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct sushi ruby libinput-tools \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
+        qt5ct qt6ct ruby libinput-tools \
+        clipit xfce4-clipman-plugin 2>/dev/null || true
+    
+    echo -e "${BLUE}   → Instalando paquetes específicos de GNOME...${NC}"
+    # gnome-sushi (Quick Look) - nombre correcto en Ubuntu/Zorin
+    sudo apt-get install -y -qq gnome-sushi 2>/dev/null || \
+        echo -e "${YELLOW}   ⚠️  gnome-sushi no disponible, Quick Look omitido${NC}"
+    
+    # gpaste como alternativa al clipboard indicator
+    sudo apt-get install -y -qq gpaste 2>/dev/null || \
+        echo -e "${YELLOW}   ⚠️  gpaste no disponible, portapapeles omitido${NC}"
+        
 elif command -v dnf &> /dev/null; then
-    echo -e "${BLUE}   → Instalando paquetes necesarios (Fedora)...${NC}"
-    sudo dnf install -y git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
+    echo -e "${BLUE}   → Instalando paquetes (Fedora)...${NC}"
+    sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
         plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
         unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
         wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
+        clipit xfce4-clipman-plugin 2>/dev/null || true
+        
 elif command -v pacman &> /dev/null; then
-    echo -e "${BLUE}   → Instalando paquetes necesarios (Arch)...${NC}"
+    echo -e "${BLUE}   → Instalando paquetes (Arch)...${NC}"
     sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
         gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
         xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
+        clipit xfce4-clipman-plugin 2>/dev/null || true
 else
-    echo -e "${RED}    No se detectó un gestor de paquetes compatible (apt, dnf, pacman)${NC}"
+    echo -e "${RED}    No se detectó un gestor de paquetes compatible${NC}"
     exit 1
 fi
 
