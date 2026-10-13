@@ -2001,6 +2001,245 @@ echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 13: INTEGRACIÓN DE APLICACIONES EN EL DOCK (ESTILO macOS)
+# =============================================================================
+echo -e "${YELLOW}🚀 [13/25] Integrando aplicaciones en el Dock (Safari, Office, Apple Music, TV, LocalSend)...${NC}"
+
+# 1. Crear archivos .desktop personalizados para "enmascarar" los nombres reales
+APPS_DIR="$REAL_HOME/.local/share/applications"
+mkdir -p "$APPS_DIR" 2>/dev/null || true
+
+# Safari (Enmascara a Firefox)
+cat > "$APPS_DIR/safari.desktop" << 'EOF'
+[Desktop Entry]
+Name=Safari
+GenericName=Navegador Web
+Comment=Navega por la web
+Exec=firefox %u
+Icon=firefox
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+EOF
+
+# Office (Enmascara a OnlyOffice)
+cat > "$APPS_DIR/office.desktop" << 'EOF'
+[Desktop Entry]
+Name=Office
+GenericName=Suite de Oficina
+Comment=Edita documentos, hojas de cálculo y presentaciones
+Exec=onlyoffice-desktopeditors %U
+Icon=onlyoffice-desktopeditors
+Terminal=false
+Type=Application
+Categories=Office;
+EOF
+
+# Apple Music (Ajusta 'Exec' si tu aplicación se llama diferente, ej: spotify, lollypop)
+cat > "$APPS_DIR/apple-music.desktop" << 'EOF'
+[Desktop Entry]
+Name=Apple Music
+GenericName=Reproductor de Música
+Comment=Escucha tu música
+Exec=apple-music
+Icon=apple-music
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;
+EOF
+
+# Apple TV (Ajusta 'Exec' si tu aplicación se llama diferente, ej: celluloid, vlc)
+cat > "$APPS_DIR/apple-tv.desktop" << 'EOF'
+[Desktop Entry]
+Name=Apple TV
+GenericName=Reproductor de Video
+Comment=Mira tus series y películas favoritas
+Exec=apple-tv
+Icon=apple-tv
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Player;
+EOF
+
+# LocalSend (Ajusta 'Exec' si el comando es 'localsend-app' o similar)
+cat > "$APPS_DIR/localsend.desktop" << 'EOF'
+[Desktop Entry]
+Name=LocalSend
+GenericName=Compartir Archivos
+Comment=Comparte archivos de forma local y segura
+Exec=localsend %U
+Icon=localsend
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;
+EOF
+
+# Hacer ejecutables y asignar permisos
+chmod +x "$APPS_DIR"/*.desktop 2>/dev/null || true
+if [ -n "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$APPS_DIR" 2>/dev/null || true
+fi
+echo -e "${GREEN}   ✓ Accesos directos con nombres macOS creados${NC}"
+
+# 2. Anclar aplicaciones al Dock de GNOME (Dash-to-Dock)
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Configurando favoritos en GNOME Dash...${NC}"
+    # Orden típico de macOS: Safari, Finder (Nautilus), Música, TV, LocalSend, Office, Terminal, App Store (Software)
+    run_as_user gsettings set org.gnome.shell favorite-apps "['safari.desktop', 'org.gnome.Nautilus.desktop', 'apple-music.desktop', 'apple-tv.desktop', 'localsend.desktop', 'office.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Software.desktop']" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Dock de GNOME configurado${NC}"
+fi
+
+# 3. Anclar aplicaciones a Plank (XFCE / Cinnamon)
+if [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Configurando lanzadores en Plank...${NC}"
+    PLANK_LAUNCHERS_DIR="$REAL_HOME/.config/plank/dock1/launchers"
+    mkdir -p "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
+
+    # Lista de apps a anclar
+    DOCK_APPS=("safari" "org.gnome.Nautilus" "apple-music" "apple-tv" "localsend" "office" "org.gnome.Terminal")
+
+    for app in "${DOCK_APPS[@]}"; do
+        DESKTOP_FILE=""
+        [ -f "$APPS_DIR/${app}.desktop" ] && DESKTOP_FILE="$APPS_DIR/${app}.desktop"
+        [ -z "$DESKTOP_FILE" ] && [ -f "/usr/share/applications/${app}.desktop" ] && DESKTOP_FILE="/usr/share/applications/${app}.desktop"
+        [ -z "$DESKTOP_FILE" ] && [ -f "/var/lib/flatpak/exports/share/applications/${app}.desktop" ] && DESKTOP_FILE="/var/lib/flatpak/exports/share/applications/${app}.desktop"
+        [ -z "$DESKTOP_FILE" ] && [ -f "$REAL_HOME/.local/share/flatpak/exports/share/applications/${app}.desktop" ] && DESKTOP_FILE="$REAL_HOME/.local/share/flatpak/exports/share/applications/${app}.desktop"
+
+        if [ -n "$DESKTOP_FILE" ]; then
+            cat > "$PLANK_LAUNCHERS_DIR/${app}.dockitem" << EOF
+[PlankItemsDockItemPreferences]
+Launcher=file://${DESKTOP_FILE}
+EOF
+        fi
+    done
+    
+    if [ -n "$SUDO_USER" ]; then
+        chown -R "$SUDO_USER:$SUDO_USER" "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
+    fi
+    echo -e "${GREEN}   ✓ Dock de Plank configurado${NC}"
+fi
+
+echo -e "${GREEN}✅ Integración de aplicaciones en el Dock completada.${NC}"
+echo ""
+
+# =============================================================================
+# PASO 13.5: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
+# =============================================================================
+echo -e "${YELLOW}🔬 [13.5/25] Refinando comportamiento gráfico y renderizado (Nivel macOS)...${NC}"
+
+set +e
+
+# =============================================================================
+# 1. SCROLLBARS Y COLOR DE SELECCIÓN ESTILO MACOS (GTK3 y GTK4)
+# =============================================================================
+echo -e "${BLUE}   → Forzando scrollbars superpuestas y color de selección macOS...${NC}"
+
+MACOS_CSS_BLOCK='
+/* === macOS Scrollbar Behavior === */
+scrollbar, scrollbar trough {
+    background-color: transparent !important;
+    border: none !important;
+}
+scrollbar slider {
+    min-width: 8px !important;
+    min-height: 8px !important;
+    border-radius: 4px !important;
+    background-color: alpha(@theme_fg_color, 0.4) !important;
+    transition: all 200ms ease !important;
+}
+scrollbar slider:hover {
+    background-color: alpha(@theme_fg_color, 0.8) !important;
+    min-width: 10px !important;
+}
+
+/* === macOS Text Selection Color (Apple System Blue) === */
+*:selected, *:selected:focus {
+    background-color: #007AFF !important;
+    color: #ffffff !important;
+}
+'
+
+for GTK_VER in "gtk-3.0" "gtk-4.0"; do
+    GTK_CSS_DIR="$REAL_HOME/.config/$GTK_VER"
+    GTK_CSS_FILE="$GTK_CSS_DIR/gtk.css"
+    mkdir -p "$GTK_CSS_DIR" 2>/dev/null || true
+    
+    # Solo inyectar si no existe ya el bloque (Idempotencia)
+    if [ -f "$GTK_CSS_FILE" ]; then
+        if ! grep -q "macOS Scrollbar Behavior" "$GTK_CSS_FILE" 2>/dev/null; then
+            echo "$MACOS_CSS_BLOCK" >> "$GTK_CSS_FILE"
+        fi
+    else
+        echo "$MACOS_CSS_BLOCK" > "$GTK_CSS_FILE"
+    fi
+    
+    if [ -n "$SUDO_USER" ]; then
+        chown -R "$SUDO_USER:$SUDO_USER" "$GTK_CSS_DIR" 2>/dev/null || true
+    fi
+done
+echo -e "${GREEN}   ✓ CSS de renderizado macOS aplicado (Scrollbars finas y Selección azul)${NC}"
+
+# =============================================================================
+# 2. INDICADORES DE DOCK (PUNTOS, NO CUADRADOS) Y COMPORTAMIENTO
+# =============================================================================
+echo -e "${BLUE}   → Configurando indicadores de aplicaciones en ejecución (Puntos)...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    # Forzar el estilo de indicador a "PUNTOS" (DOTS)
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-style 'DOTS' 2>/dev/null || true
+    # Asegurar que el dock no se extienda a toda la pantalla (comportamiento macOS)
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock extend-height false 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-fixed false 2>/dev/null || true
+    # Asegurar que el dock esté centrado
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM' 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Indicadores de Dash-to-Dock configurados como puntos${NC}"
+elif [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    # Plank ya usa puntos por defecto, pero forzamos la configuración en su archivo
+    PLANK_CONF="$REAL_HOME/.config/plank/dock1/settings"
+    if [ -f "$PLANK_CONF" ]; then
+        # Autohide inteligente (solo se oculta cuando hay ventanas maximizadas o superpuestas)
+        sed -i 's/^HideMode=.*/HideMode=1/' "$PLANK_CONF" 2>/dev/null || true
+        # Tamaño de iconos estándar macOS
+        sed -i 's/^IconSize=.*/IconSize=48/' "$PLANK_CONF" 2>/dev/null || true
+        if [ -n "$SUDO_USER" ]; then chown "$SUDO_USER:$SUDO_USER" "$PLANK_CONF" 2>/dev/null || true; fi
+    fi
+    echo -e "${GREEN}   ✓ Configuración de Plank refinada${NC}"
+fi
+
+# =============================================================================
+# 15.11 COMPACTACIÓN DE BARRAS DE TÍTULO (HEADERBARS) Y LIBADWAITA
+# =============================================================================
+echo -e "${BLUE}   → Forzando modo compacto en aplicaciones modernas (GTK4/Libadwaita)...${NC}"
+
+# Libadwaita (GTK4) usa un archivo de configuración específico
+ADWAITA_DIR="$REAL_HOME/.config/adwaita-1"
+ADWAITA_SETTINGS="$ADWAITA_DIR/settings.ini"
+mkdir -p "$ADWAITA_DIR" 2>/dev/null || true
+
+cat > "$ADWAITA_SETTINGS" << 'ADWAITAEOF'
+[Settings]
+gtk-application-prefer-dark-theme=1
+ADWAITAEOF
+
+# Forzar compactación y decoración en GTK3 también
+GTK3_SETTINGS="$REAL_HOME/.config/gtk-3.0/settings.ini"
+if [ -f "$GTK3_SETTINGS" ]; then
+    if ! grep -q "gtk-decoration-layout" "$GTK3_SETTINGS"; then
+        echo "gtk-decoration-layout = close,minimize,maximize:" >> "$GTK3_SETTINGS"
+    fi
+fi
+
+if [ -n "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$ADWAITA_DIR" 2>/dev/null || true
+    chown -R "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/gtk-3.0" 2>/dev/null || true
+fi
+echo -e "${GREEN}   ✓ Modo compacto y decoración de ventanas aplicados${NC}"
+
+set -e
+echo -e "${GREEN}✅ Refinamiento microscópico de la GUI completado.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
 echo -e "${YELLOW}🔤 [16/25] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
