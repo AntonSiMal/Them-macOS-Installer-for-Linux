@@ -94,7 +94,7 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 ### Método recomendado (una sola línea)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/install.sh -o /tmp/mac-installer.sh && chmod +x /tmp/mac-installer.sh && sudo /tmp/mac-installer.sh
 ```
 
 ### Método manual
