@@ -1211,6 +1211,126 @@ echo -e "${GREEN}✅ Detalles finales de experiencia macOS aplicados.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 15.8: NOMBRE DE EQUIPO Y MODO OSCURO AUTOMÁTICO
+# =============================================================================
+echo -e "${YELLOW}💻 [15.8/25] Configurando identidad del equipo y modo oscuro automático...${NC}"
+
+set +e
+
+# =============================================================================
+# 1. NOMBRE DEL EQUIPO (HOSTNAME) SEGÚN ENTORNO DE ESCRITORIO
+# =============================================================================
+echo -e "${BLUE}   → Cambiando nombre del equipo estilo macOS...${NC}"
+
+# Asignar nombre según el entorno de escritorio (sin espacios para compatibilidad de red)
+if [ "$IS_GNOME" = true ]; then
+    NEW_HOSTNAME="MacBook-Pro"
+elif [ "$IS_CINNAMON" = true ]; then
+    NEW_HOSTNAME="MacBook-Air"
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    NEW_HOSTNAME="MacBook-Neo"
+else
+    NEW_HOSTNAME="MacBook"
+fi
+
+CURRENT_HOSTNAME=$(hostname 2>/dev/null)
+
+if [ "$CURRENT_HOSTNAME" != "$NEW_HOSTNAME" ]; then
+    # Cambiar hostname del sistema
+    sudo hostnamectl set-hostname "$NEW_HOSTNAME" 2>/dev/null || true
+    echo "$NEW_HOSTNAME" | sudo tee /etc/hostname > /dev/null 2>/dev/null || true
+    
+    # Actualizar /etc/hosts para evitar errores de sudo y resolución de red
+    sudo sed -i "s/127.0.1.1\s\+$CURRENT_HOSTNAME/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts 2>/dev/null || true
+    
+    # Asegurar que la entrada exista por si el sed no encontró coincidencia
+    if ! grep -q "127.0.1.1.*$NEW_HOSTNAME" /etc/hosts 2>/dev/null; then
+        echo "127.0.1.1	$NEW_HOSTNAME" | sudo tee -a /etc/hosts > /dev/null 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}   ✓ Nombre del equipo cambiado a: $NEW_HOSTNAME${NC}"
+else
+    echo -e "${GREEN}   ✓ El nombre del equipo ya es: $NEW_HOSTNAME${NC}"
+fi
+
+# =============================================================================
+# 2. MODO OSCURO AUTOMÁTICO (SEGÚN HORA DEL DÍA)
+# =============================================================================
+echo -e "${BLUE}   → Configurando modo oscuro automático (6:00 a 18:00 Claro)...${NC}"
+
+AUTO_DARK_SCRIPT="$REAL_HOME/.local/bin/auto-dark-mode.sh"
+mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
+
+# Crear el script que se ejecutará cada hora
+cat > "$AUTO_DARK_SCRIPT" << 'AUTODARKEOF'
+#!/bin/bash
+# Obtener hora actual y forzar base 10 para evitar errores con 08 o 09
+HOUR=$(date +%H)
+HOUR=$((10#$HOUR))
+
+if [ "$HOUR" -ge 6 ] && [ "$HOUR" -lt 18 ]; then
+    GTK_THEME="MacTahoe"
+    COLOR_SCHEME="default"
+else
+    GTK_THEME="MacTahoe-Dark"
+    COLOR_SCHEME="prefer-dark"
+fi
+
+# Aplicar a GNOME y Cinnamon (usan gsettings)
+if command -v gsettings &> /dev/null; then
+    gsettings set org.gnome.desktop.interface color-scheme "$COLOR_SCHEME" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
+fi
+
+# Aplicar a XFCE (usa xfconf-query)
+if command -v xfconf-query &> /dev/null; then
+    xfconf-query -c xsettings -p /Net/ThemeName -s "$GTK_THEME" 2>/dev/null || true
+fi
+AUTODARKEOF
+
+chmod +x "$AUTO_DARK_SCRIPT"
+if [ -n "$SUDO_USER" ]; then 
+    chown "$SUDO_USER:$SUDO_USER" "$AUTO_DARK_SCRIPT" 2>/dev/null || true 
+fi
+
+# Crear servicio y temporizador de systemd para el usuario real
+SYSTEMD_DIR="$REAL_HOME/.config/systemd/user"
+mkdir -p "$SYSTEMD_DIR" 2>/dev/null || true
+
+cat > "$SYSTEMD_DIR/auto-dark-mode.service" << EOF
+[Unit]
+Description=Cambio automático de tema macOS (Claro/Oscuro)
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=$AUTO_DARK_SCRIPT
+EOF
+
+cat > "$SYSTEMD_DIR/auto-dark-mode.timer" << EOF
+[Unit]
+Description=Timer para cambio automático de tema macOS
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# Activar el temporizador
+run_as_user systemctl --user daemon-reload 2>/dev/null || true
+run_as_user systemctl --user enable --now auto-dark-mode.timer 2>/dev/null || true
+
+echo -e "${GREEN}   ✓ Modo oscuro automático activado (se actualiza cada hora)${NC}"
+
+set -e
+echo -e "${GREEN}✅ Identidad y automatización de tema configuradas.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
 echo -e "${YELLOW}🔤 [16/25] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
