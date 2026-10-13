@@ -119,26 +119,35 @@ HAS_DASH_TO_DOCK=false
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (100% NO INTERACTIVO)
+# PASO 1: DEPENDENCIAS DEL SISTEMA (100% NO INTERACTIVO CON PRE-CONFIG)
 # =============================================================================
-echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
+echo -e "${YELLOW} [1/24] Instalando dependencias del sistema...${NC}"
 
-# Forzar modo no interactivo a nivel de sistema para este script
+# Forzar modo no interactivo
 export DEBIAN_FRONTEND=noninteractive
 
 if command -v apt-get &> /dev/null; then
-    echo -e "${BLUE}   → Actualizando repositorios (sin prompts)...${NC}"
-    sudo -E apt-get update -qq
+    echo -e "${BLUE}   → Pre-configurando gestor de sesiones (gdm3)...${NC}"
+    # Pre-seleccionar gdm3 como gestor predeterminado para evitar la pantalla morada
+    echo "gdm3 shared/default-x-display-manager select gdm3" | sudo debconf-set-selections 2>/dev/null || true
+    echo "gdm3 shared/default-x-display-manager seen true" | sudo debconf-set-selections 2>/dev/null || true
     
-    echo -e "${BLUE}   → Instalando paquetes base (esto puede tardar un momento)...${NC}"
-    sudo -E apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+    echo -e "${BLUE}   → Actualizando repositorios...${NC}"
+    sudo apt-get update -qq
+    
+    echo -e "${BLUE}   → Instalando paquetes base (sin prompts)...${NC}"
+    # Usar opciones de dpkg para forzar configuraciones predeterminadas
+    sudo apt-get install -y -qq \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold" \
+        git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste 2>/dev/null || {
+        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste \
+        2>/dev/null || {
         
-        echo -e "${YELLOW}   ⚠️  Algunos paquetes opcionales no se pudieron instalar.${NC}"
-        echo -e "${YELLOW}      (No te preocupes, el script continuá con el resto de la instalación)${NC}"
+        echo -e "${YELLOW}   ⚠️  Algunos paquetes no se instalaron, continuando...${NC}"
     }
 
 elif command -v dnf &> /dev/null; then
@@ -161,6 +170,7 @@ else
     exit 1
 fi
 
+unset DEBIAN_FRONTEND
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
 
 # =============================================================================
