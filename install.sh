@@ -387,46 +387,110 @@ echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 8: SONIDOS DEL SISTEMA (VERSIÓN RÁPIDA - SIN COMPILACIÓN)
+# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (VERSIÓN ROBUSTA)
 # =============================================================================
-echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
+echo -e "${YELLOW} [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
 
 SOUNDS_DIR="$HOME/.local/share/sounds"
 ALT_REPO="$WORKDIR/bigsur-sound-theme"
+SOUND_INSTALLED=false
 
-# Crear estructura básica manualmente
-mkdir -p "$SOUNDS_DIR/bigsur/stereo"
+# Crear directorio base
+mkdir -p "$SOUNDS_DIR" 2>/dev/null || true
 
-echo -e "${BLUE}   → Descargando sonidos pre-compilados...${NC}"
+echo -e "${BLUE}   → Método 1: Descargando release pre-compilado...${NC}"
 
-# Descargar directamente el release pre-compilado
-RELEASE_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/1.0.2/bigsur-sound-theme.tar.gz"
+# Probar múltiples URLs posibles
+URLS=(
+    "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/1.0.2/bigsur-sound-theme.tar.gz"
+    "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/latest/download/bigsur-sound-theme.tar.gz"
+    "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/v1.0.2/bigsur-sound-theme.tar.gz"
+)
 
-if curl -L "$RELEASE_URL" --max-time 60 -o /tmp/bigsur.tar.gz 2>/dev/null; then
-    tar -xzf /tmp/bigsur.tar.gz -C "$SOUNDS_DIR" 2>/dev/null && \
-    echo -e "${GREEN}   ✅ Sonidos instalados desde release.${NC}" || \
-    echo -e "${YELLOW}   ️  No se pudo extraer el archivo.${NC}"
-    rm -f /tmp/bigsur.tar.gz
-else
-    echo -e "${YELLOW}   ⚠️  No se pudo descargar el release.${NC}"
-    echo -e "${BLUE}   → Intentando método alternativo...${NC}"
-    
-    # Clonar y usar archivos .oga directamente si existen
-    if git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null; then
-        if [ -d "$ALT_REPO/theme/bigsur" ]; then
-            cp -r "$ALT_REPO/theme/bigsur" "$SOUNDS_DIR/" 2>/dev/null && \
-            echo -e "${GREEN}   ✅ Sonidos copiados desde theme.${NC}" || \
-            echo -e "${YELLOW}   ️  No se encontraron sonidos pre-compilados.${NC}"
+DOWNLOADED=false
+for URL in "${URLS[@]}"; do
+    echo -e "${BLUE}   → Probando: $URL${NC}"
+    if curl -L "$URL" --max-time 30 -o /tmp/bigsur.tar.gz 2>/dev/null && [ -f /tmp/bigsur.tar.gz ]; then
+        # Verificar que el archivo no esté vacío
+        if [ -s /tmp/bigsur.tar.gz ]; then
+            echo -e "${BLUE}   → Archivo descargado, intentando extraer...${NC}"
+            
+            # Intentar extraer con diferentes métodos
+            if tar -xzf /tmp/bigsur.tar.gz -C "$SOUNDS_DIR" 2>/dev/null; then
+                echo -e "${GREEN}   ✅ Sonidos extraídos con tar${NC}"
+                DOWNLOADED=true
+                break
+            elif unzip -q /tmp/bigsur.tar.gz -d "$SOUNDS_DIR" 2>/dev/null; then
+                echo -e "${GREEN}   ✅ Sonidos extraídos con unzip${NC}"
+                DOWNLOADED=true
+                break
+            else
+                echo -e "${YELLOW}   ⚠️  No se pudo extraer el archivo${NC}"
+                echo -e "${BLUE}   → Contenido del archivo:${NC}"
+                file /tmp/bigsur.tar.gz 2>/dev/null
+                ls -lh /tmp/bigsur.tar.gz 2>/dev/null
+            fi
         else
-            echo -e "${YELLOW}   ️  No hay sonidos pre-compilados disponibles.${NC}"
+            echo -e "${YELLOW}   ⚠️  Archivo vacío o inválido${NC}"
+        fi
+        rm -f /tmp/bigsur.tar.gz
+    fi
+done
+
+if [ "$DOWNLOADED" = false ]; then
+    echo -e "${YELLOW}   ⚠️  No se pudo descargar el release.${NC}"
+    echo -e "${BLUE}   → Método 2: Clonando repositorio...${NC}"
+    
+    # Limpiar repositorio anterior si existe
+    if [ -d "$ALT_REPO" ]; then
+        rm -rf "$ALT_REPO"
+    fi
+    
+    if timeout 60 git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" 2>/dev/null; then
+        echo -e "${BLUE}   → Repositorio clonado, buscando archivos de sonido...${NC}"
+        
+        # Buscar archivos .oga o .ogg en el repositorio
+        SOUND_FILES=$(find "$ALT_REPO" -name "*.oga" -o -name "*.ogg" 2>/dev/null | head -5)
+        
+        if [ -n "$SOUND_FILES" ]; then
+            echo -e "${BLUE}   → Archivos de sonido encontrados, copiando...${NC}"
+            mkdir -p "$SOUNDS_DIR/bigsur/stereo" 2>/dev/null || true
+            
+            # Copiar todos los archivos de sonido
+            find "$ALT_REPO" -name "*.oga" -o -name "*.ogg" 2>/dev/null | while read -r sound_file; do
+                cp "$sound_file" "$SOUNDS_DIR/bigsur/stereo/" 2>/dev/null || true
+            done
+            
+            # Crear index.theme básico
+            cat > "$SOUNDS_DIR/bigsur/index.theme" << 'EOF' 2>/dev/null || true
+[Sound Theme]
+Name=Big Sur
+Comment=macOS Big Sur Sound Theme
+Directories=stereo
+EOF
+            
+            SOUND_INSTALLED=true
+            echo -e "${GREEN}   ✅ Sonidos copiados manualmente desde repositorio${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  No se encontraron archivos de sonido en el repositorio${NC}"
+            echo -e "${BLUE}   → Estructura del repositorio:${NC}"
+            ls -la "$ALT_REPO" 2>/dev/null | head -10
         fi
     else
-        echo -e "${YELLOW}   ️  Saltando instalación de sonidos.${NC}"
+        echo -e "${YELLOW}   ⚠️  No se pudo clonar el repositorio${NC}"
     fi
 fi
 
-echo ""
+# Verificación final
+if [ -d "$SOUNDS_DIR/bigsur" ] || [ -d "$SOUNDS_DIR/bigsur-sound-theme" ]; then
+    SOUND_INSTALLED=true
+    echo -e "${GREEN}   ✅ Directorio de sonidos encontrado${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos${NC}"
+    echo -e "${YELLOW}      Puedes instalarlos manualmente después si lo deseas${NC}"
+fi
 
+echo ""
 
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
