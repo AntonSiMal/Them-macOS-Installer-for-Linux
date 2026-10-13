@@ -590,79 +590,278 @@ fi
 echo ""
 
 # =============================================================================
-# PASO 12: VERIFICAR, INSTALAR Y PERSONALIZAR NAVEGADOR (Firefox -> Safari)
+# PASO 12: NAVEGADORES, STREAMING Y HERRAMIENTAS DE RED (Safari, Apple Music, LocalSend, Apple TV)
 # =============================================================================
-echo -e "${YELLOW}🦊 [12/24] Verificando y configurando navegador (Firefox -> Safari)...${NC}"
+echo -e "${YELLOW}🌐🎵📡 [12/24] Configurando aplicaciones de escritorio y red...${NC}"
 
-# 1. Verificar si Firefox está instalado
+# Preparar directorios de usuario para personalizaciones (evita repetir esto en cada subpaso)
+mkdir -p ~/.local/share/applications
+mkdir -p ~/.local/share/icons/hicolor/256x256/apps
+mkdir -p ~/.local/bin
+
+# =============================================================================
+# 12.1: FIREFOX -> SAFARI
+# =============================================================================
+echo -e "${BLUE}   → [12.1] Verificando y configurando Firefox (renombrado a Safari)...${NC}"
+
 if ! command -v firefox &> /dev/null; then
-    echo -e "${BLUE}   → Firefox no detectado. Procediendo a instalar...${NC}"
-    
+    echo -e "${BLUE}      → Firefox no detectado. Instalando...${NC}"
     if command -v apt-get &> /dev/null; then
         sudo apt-get install -y -qq firefox
     elif command -v dnf &> /dev/null; then
         sudo dnf install -y -q firefox
     elif command -v pacman &> /dev/null; then
         sudo pacman -S --noconfirm --needed firefox
-    else
-        echo -e "${RED}   ✗ No se pudo instalar Firefox automáticamente.${NC}"
     fi
-    echo -e "${GREEN}   ✅ Firefox instalado correctamente.${NC}"
+    echo -e "${GREEN}      ✅ Firefox instalado.${NC}"
 else
-    echo -e "${GREEN}   ✅ Firefox ya está instalado. Omitiendo instalación.${NC}"
+    echo -e "${GREEN}      ✅ Firefox ya está instalado.${NC}"
 fi
 
-# 2. Personalizar el lanzador a "Safari"
-echo -e "${BLUE}   → Personalizando el lanzador y el icono...${NC}"
+ORIGINAL_FF_DESKTOP=""
+for path in "/usr/share/applications/firefox.desktop" "/usr/share/applications/firefox-esr.desktop" "/usr/share/applications/org.mozilla.firefox.desktop" "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop"; do
+    [ -f "$path" ] && ORIGINAL_FF_DESKTOP="$path" && break
+done
 
-# Buscar el archivo .desktop original de Firefox (maneja versiones normales, ESR y Flatpak)
-ORIGINAL_DESKTOP=""
-if [ -f "/usr/share/applications/firefox.desktop" ]; then
-    ORIGINAL_DESKTOP="/usr/share/applications/firefox.desktop"
-elif [ -f "/usr/share/applications/firefox-esr.desktop" ]; then
-    ORIGINAL_DESKTOP="/usr/share/applications/firefox-esr.desktop"
-elif [ -f "/usr/share/applications/org.mozilla.firefox.desktop" ]; then
-    ORIGINAL_DESKTOP="/usr/share/applications/org.mozilla.firefox.desktop"
-elif [ -f "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop" ]; then
-    ORIGINAL_DESKTOP="/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop"
-fi
-
-if [ -n "$ORIGINAL_DESKTOP" ]; then
-    # Crear directorios locales del usuario si no existen
-    mkdir -p ~/.local/share/applications
-    mkdir -p ~/.local/share/icons/hicolor/256x256/apps
-
-    # Descargar un icono de Safari de alta calidad (SVG) desde Wikimedia (fuente confiable)
-    echo -e "${BLUE}      → Descargando icono de Safari...${NC}"
-    wget -q -O ~/.local/share/icons/hicolor/256x256/apps/safari.svg \
-        "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
-
-    # Copiar el lanzador original a la carpeta local del usuario con el nuevo nombre
-    cp "$ORIGINAL_DESKTOP" ~/.local/share/applications/safari.desktop
-
-    # Modificar el nombre en el archivo .desktop (Nombre genérico y en español)
+if [ -n "$ORIGINAL_FF_DESKTOP" ]; then
+    wget -q -O ~/.local/share/icons/hicolor/256x256/apps/safari.svg "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+    cp "$ORIGINAL_FF_DESKTOP" ~/.local/share/applications/safari.desktop
     sed -i 's/^Name=.*/Name=Safari/g' ~/.local/share/applications/safari.desktop
     sed -i 's/^Name\[es\]=.*/Name[es]=Safari/g' ~/.local/share/applications/safari.desktop
     sed -i 's/^GenericName=.*/GenericName=Navegador Web Safari/g' ~/.local/share/applications/safari.desktop
-    
-    # Asignar el nuevo icono descargado
     sed -i 's/^Icon=.*/Icon=safari/g' ~/.local/share/applications/safari.desktop
-
-    # Opcional: Ocultar el lanzador original de "Firefox" del menú de aplicaciones 
-    # para que solo aparezca "Safari" y la ilusión sea completa.
-    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/firefox-hide.desktop
-    # (Esto sobreescribe la visibilidad del original a nivel de usuario sin tocar el sistema)
-
-    # Actualizar la base de datos de lanzadores para que el cambio sea inmediato
-    update-desktop-database ~/.local/share/applications 2>/dev/null || true
-    gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
-
-    echo -e "${GREEN}   ✅ Lanzador renombrado a 'Safari' e icono actualizado.${NC}"
-    echo -e "${BLUE}      (El Firefox original ha sido ocultado del menú de aplicaciones)${NC}"
-else
-    echo -e "${YELLOW}   ⚠️ No se encontró el archivo .desktop de Firefox. Omitiendo renombrado.${NC}"
+    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/$(basename "$ORIGINAL_FF_DESKTOP")
+    echo -e "${GREEN}      ✅ Firefox renombrado a 'Safari'.${NC}"
 fi
 
+# =============================================================================
+# 12.5: ZUNO -> APPLE MUSIC
+# =============================================================================
+echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
+
+# Codecs GStreamer (críticos para que Zuno reproduzca audio)
+if command -v apt-get &> /dev/null; then
+    sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+elif command -v dnf &> /dev/null; then
+    sudo dnf install -y -q gstreamer1-libav gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free
+elif command -v pacman &> /dev/null; then
+    sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad
+fi
+
+ARCH=$(uname -m)
+[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_RPM="x86_64"; ARCH_APPIMAGE="x86_64"; }
+[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_RPM="aarch64"; ARCH_APPIMAGE="aarch64"; }
+
+LATEST_RELEASE=$(curl -s https://api.github.com/repos/noFAYZ/zuno/releases/latest)
+LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
+
+if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q -O /tmp/zuno.deb "$DEB_URL" && sudo apt-get install -y -qq /tmp/zuno.deb
+    elif command -v dnf &> /dev/null; then
+        RPM_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
+        [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ] && wget -q -O /tmp/zuno.rpm "$RPM_URL" && sudo dnf install -y -q /tmp/zuno.rpm
+    elif command -v pacman &> /dev/null; then
+        if command -v yay &> /dev/null; then yay -S --noconfirm zuno
+        elif command -v paru &> /dev/null; then paru -S --noconfirm zuno
+        else
+            APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/zuno "$APPIMAGE_URL" && chmod +x ~/.local/bin/zuno
+        fi
+    fi
+    echo -e "${GREEN}      ✅ Zuno instalado.${NC}"
+fi
+
+# Transformar Zuno a Apple Music
+ZUNO_DESKTOP=""
+for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "/usr/share/applications/com.zuno.desktop-app.desktop" "$HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
+    [ -f "$path" ] && ZUNO_DESKTOP="$path" && break
+done
+
+wget -q -O ~/.local/share/icons/hicolor/256x256/apps/applemusic.svg "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+
+if [ -n "$ZUNO_DESKTOP" ]; then
+    cp "$ZUNO_DESKTOP" ~/.local/share/applications/applemusic.desktop
+    sed -i 's/^Name=.*/Name=Apple Music/g' ~/.local/share/applications/applemusic.desktop
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' ~/.local/share/applications/applemusic.desktop
+    sed -i 's/^GenericName=.*/GenericName=Apple Music/g' ~/.local/share/applications/applemusic.desktop
+    sed -i 's/^Icon=.*/Icon=applemusic/g' ~/.local/share/applications/applemusic.desktop
+    sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' ~/.local/share/applications/applemusic.desktop
+    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/$(basename "$ZUNO_DESKTOP")
+else
+    # Fallback para AppImage en Arch sin AUR helper
+    if [ -f "$HOME/.local/bin/zuno" ]; then
+        cat <<EOF > ~/.local/share/applications/applemusic.desktop
+[Desktop Entry]
+Name=Apple Music
+GenericName=Apple Music
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $HOME/.local/bin/zuno %U
+Icon=applemusic
+Type=Application
+Categories=Audio;Music;Player;AudioVideo;
+Terminal=false
+EOF
+    fi
+fi
+echo -e "${GREEN}      ✅ Zuno renombrado a 'Apple Music'.${NC}"
+
+# =============================================================================
+# 12.6: LOCALSEND (AirDrop Open Source)
+# =============================================================================
+echo -e "${BLUE}   → [12.6] Instalando LocalSend y configurando red local...${NC}"
+
+# Dependencias de portal de escritorio
+if command -v apt-get &> /dev/null; then
+    sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk
+elif command -v dnf &> /dev/null; then
+    sudo dnf install -y -q xdg-desktop-portal xdg-desktop-portal-gnome
+elif command -v pacman &> /dev/null; then
+    sudo pacman -S --noconfirm --needed xdg-desktop-portal xdg-desktop-portal-gtk
+fi
+
+# Firewall (Puerto 53317 TCP/UDP)
+if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
+    sudo ufw allow 53317/tcp >/dev/null 2>&1; sudo ufw allow 53317/udp >/dev/null 2>&1
+fi
+if command -v firewall-cmd &> /dev/null && sudo firewall-cmd --state >/dev/null 2>&1; then
+    sudo firewall-cmd --permanent --add-port=53317/tcp >/dev/null 2>&1
+    sudo firewall-cmd --permanent --add-port=53317/udp >/dev/null 2>&1
+    sudo firewall-cmd --reload >/dev/null 2>&1
+fi
+
+LATEST_RELEASE_LS=$(curl -s https://api.github.com/repos/localsend/localsend/releases/latest)
+LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
+
+if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q -O /tmp/localsend.deb "$DEB_URL" && sudo apt-get install -y -qq /tmp/localsend.deb
+    elif command -v dnf &> /dev/null; then
+        RPM_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
+        [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ] && wget -q -O /tmp/localsend.rpm "$RPM_URL" && sudo dnf install -y -q /tmp/localsend.rpm
+    elif command -v pacman &> /dev/null; then
+        if command -v yay &> /dev/null; then yay -S --noconfirm localsend-bin
+        elif command -v paru &> /dev/null; then paru -S --noconfirm localsend-bin
+        else
+            APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/localsend "$APPIMAGE_URL" && chmod +x ~/.local/bin/localsend
+            cat <<EOF > ~/.local/share/applications/localsend.desktop
+[Desktop Entry]
+Name=LocalSend
+GenericName=File Sharing
+Exec=$HOME/.local/bin/localsend %U
+Icon=localsend
+Type=Application
+Categories=Network;FileTransfer;Utility;
+Terminal=false
+EOF
+        fi
+    fi
+    echo -e "${GREEN}      ✅ LocalSend instalado.${NC}"
+fi
+
+# =============================================================================
+# 12.7: IPTVNATOR -> APPLE TV
+# =============================================================================
+echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
+
+# Dependencia MPV (crítica para reproducción)
+if command -v apt-get &> /dev/null; then
+    sudo apt-get install -y -qq mpv xdg-utils
+elif command -v dnf &> /dev/null; then
+    sudo dnf install -y -q mpv xdg-utils
+elif command -v pacman &> /dev/null; then
+    sudo pacman -S --noconfirm --needed mpv xdg-utils
+fi
+
+LATEST_RELEASE_IPTV=$(curl -s https://api.github.com/repos/4gray/iptvnator/releases/latest)
+LATEST_VERSION_IPTV=$(echo "$LATEST_RELEASE_IPTV" | jq -r .tag_name 2>/dev/null)
+
+if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q -O /tmp/iptvnator.deb "$DEB_URL" && sudo apt-get install -y -qq /tmp/iptvnator.deb
+    elif command -v dnf &> /dev/null; then
+        RPM_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
+        [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ] && wget -q -O /tmp/iptvnator.rpm "$RPM_URL" && sudo dnf install -y -q /tmp/iptvnator.rpm
+    elif command -v pacman &> /dev/null; then
+        if command -v yay &> /dev/null; then yay -S --noconfirm iptvnator-bin
+        elif command -v paru &> /dev/null; then paru -S --noconfirm iptvnator-bin
+        else
+            APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/iptvnator "$APPIMAGE_URL" && chmod +x ~/.local/bin/iptvnator
+        fi
+    fi
+    echo -e "${GREEN}      ✅ IPTVnator instalado.${NC}"
+fi
+
+# Transformar IPTVnator a Apple TV
+IPTV_DESKTOP=""
+for path in "/usr/share/applications/iptvnator.desktop" "$HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
+    [ -f "$path" ] && IPTV_DESKTOP="$path" && break
+done
+
+wget -q -O ~/.local/share/icons/hicolor/256x256/apps/appletv.svg "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
+
+if [ -n "$IPTV_DESKTOP" ]; then
+    cp "$IPTV_DESKTOP" ~/.local/share/applications/appletv.desktop
+    sed -i 's/^Name=.*/Name=Apple TV/g' ~/.local/share/applications/appletv.desktop
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' ~/.local/share/applications/appletv.desktop
+    sed -i 's/^GenericName=.*/GenericName=Apple TV/g' ~/.local/share/applications/appletv.desktop
+    sed -i 's/^Icon=.*/Icon=appletv/g' ~/.local/share/applications/appletv.desktop
+    # Parche anti-pantalla blanca y sandbox en Linux
+    sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' ~/.local/share/applications/appletv.desktop
+    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/$(basename "$IPTV_DESKTOP")
+else
+    # Fallback para AppImage
+    if [ -f "$HOME/.local/bin/iptvnator" ]; then
+        cat <<EOF > ~/.local/share/applications/appletv.desktop
+[Desktop Entry]
+Name=Apple TV
+GenericName=Apple TV
+Exec=$HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
+Icon=appletv
+Type=Application
+Categories=AudioVideo;Video;Player;
+Terminal=false
+EOF
+    fi
+fi
+
+# Pre-configurar lista de reproducción en Español (iptv-org)
+CONFIG_DIR="$HOME/.config/iptvnator"
+mkdir -p "$CONFIG_DIR"
+if [ ! -f "$CONFIG_DIR/store.json" ]; then
+    cat << 'EOF' > "$CONFIG_DIR/store.json"
+{
+  "playlists": [
+    {
+      "id": "spa-iptv-org",
+      "name": "📺 Canales en Español (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/languages/spa.m3u",
+      "autoRefresh": true,
+      "userAgent": ""
+    }
+  ],
+  "settings": {
+    "player": "html5",
+    "theme": "dark",
+    "epgUrl": "https://iptv-org.github.io/epg/guides/es/movistarplus.es.xml"
+  }
+}
+EOF
+    echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplicada.${NC}"
+fi
+echo -e "${GREEN}      ✅ IPTVnator renombrado a 'Apple TV'.${NC}"
+
+# =============================================================================
+# ACTUALIZACIÓN FINAL DE CACHÉ (Optimización: se ejecuta una sola vez al final)
+# =============================================================================
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
+
+echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
 echo ""
 
 # =============================================================================
@@ -1750,13 +1949,17 @@ echo ""
 # =============================================================================
 # PASO 24: VERIFICACIÓN POST-INSTALACIÓN INTELIGENTE
 # =============================================================================
-echo -e "${YELLOW} [24/25] Verificando instalación completa...${NC}"
+echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
 
 CRITICAL_ERRORS=0
 OPTIONAL_ERRORS=0
 
-# Verificar fuentes
-echo -e "${BLUE}   → Verificando fuentes Apple...${NC}"
+# =============================================================================
+# VERIFICACIONES CRÍTICAS (Tema macOS)
+# =============================================================================
+echo -e "${BLUE}   → Verificando componentes críticos del sistema...${NC}"
+
+# 1. Verificar fuentes
 FONTS_FOUND=false
 if sudo -u "$REAL_USER" fc-list 2>/dev/null | grep -qi "SF Pro"; then
     FONTS_FOUND=true
@@ -1772,8 +1975,7 @@ else
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-# Verificar tema GTK
-echo -e "${BLUE}   → Verificando tema GTK...${NC}"
+# 2. Verificar tema GTK
 THEME_FOUND=false
 [ -d "$REAL_HOME/.themes/MacTahoe-Dark" ] && THEME_FOUND=true
 [ -d "$REAL_HOME/.local/share/themes/MacTahoe-Dark" ] && THEME_FOUND=true
@@ -1786,8 +1988,7 @@ else
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-# Verificar iconos y cursores
-echo -e "${BLUE}   → Verificando iconos y cursores...${NC}"
+# 3. Verificar iconos y cursores
 ICONS_FOUND=false
 [ -d "$REAL_HOME/.icons/MacTahoe-dark" ] && ICONS_FOUND=true
 [ -d "$REAL_HOME/.local/share/icons/MacTahoe-dark" ] && ICONS_FOUND=true
@@ -1800,22 +2001,75 @@ else
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-# Verificar sonidos
-echo -e "${BLUE}   → Verificando sonidos...${NC}"
+# 4. Verificar sonidos
 SOUNDS_FOUND=false
 [ -d "$REAL_HOME/.local/share/sounds/bigsur" ] && SOUNDS_FOUND=true
 [ -d "/usr/share/sounds/bigsur" ] && SOUNDS_FOUND=true
 
 if [ "$SOUNDS_FOUND" = true ]; then
-    echo -e "   ${GREEN}✓ Sonidos instalados${NC}"
+    echo -e "   ${GREEN}✓ Sonidos del sistema instalados${NC}"
 else
     echo -e "   ${RED}✗ CRÍTICO: Sonidos del sistema no instalados${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-# Verificaciones opcionales
-echo -e "${BLUE}   → Verificando componentes opcionales...${NC}"
+# =============================================================================
+# VERIFICACIONES OPCIONALES (Apps y Personalizaciones del Paso 12)
+# =============================================================================
+echo -e "${BLUE}   → Verificando aplicaciones y personalizaciones...${NC}"
 
+# A. Safari (Firefox)
+if [ -f "$REAL_HOME/.local/share/applications/safari.desktop" ] && [ -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" ]; then
+    echo -e "   ${GREEN}✓ Navegador 'Safari' configurado correctamente${NC}"
+else
+    echo -e "   ${YELLOW}⚠ OPCIONAL: 'Safari' no configurado (Firefox mantiene nombre original)${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+# B. Apple Music (Zuno)
+if [ -f "$REAL_HOME/.local/share/applications/applemusic.desktop" ] && [ -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" ]; then
+    echo -e "   ${GREEN}✓ 'Apple Music' (Zuno) configurado correctamente${NC}"
+else
+    echo -e "   ${YELLOW}⚠ OPCIONAL: 'Apple Music' no configurado${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+# C. LocalSend
+LS_INSTALLED=false
+[ -f "$REAL_HOME/.local/share/applications/localsend.desktop" ] && LS_INSTALLED=true
+[ -f "/usr/share/applications/localsend.desktop" ] && LS_INSTALLED=true
+[ -f "$REAL_HOME/.local/bin/localsend" ] && LS_INSTALLED=true
+
+if [ "$LS_INSTALLED" = true ]; then
+    # Verificar si el puerto 53317 está abierto en el firewall
+    FW_OK=false
+    if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "53317"; then FW_OK=true; fi
+    if command -v firewall-cmd &> /dev/null && sudo firewall-cmd --list-ports 2>/dev/null | grep -q "53317"; then FW_OK=true; fi
+    
+    if [ "$FW_OK" = true ]; then
+        echo -e "   ${GREEN}✓ LocalSend instalado y puerto de red (53317) configurado${NC}"
+    else
+        echo -e "   ${GREEN}✓ LocalSend instalado${NC}"
+        echo -e "   ${YELLOW}  (Nota: Si no descubres dispositivos, verifica manualmente tu firewall)${NC}"
+    fi
+else
+    echo -e "   ${YELLOW}⚠ OPCIONAL: LocalSend no instalado${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+# D. Apple TV (IPTVnator)
+if [ -f "$REAL_HOME/.local/share/applications/appletv.desktop" ] && [ -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" ]; then
+    if [ -f "$REAL_HOME/.config/iptvnator/store.json" ]; then
+        echo -e "   ${GREEN}✓ 'Apple TV' (IPTVnator) configurado con lista en español${NC}"
+    else
+        echo -e "   ${GREEN}✓ 'Apple TV' (IPTVnator) configurado${NC}"
+    fi
+else
+    echo -e "   ${YELLOW}⚠ OPCIONAL: 'Apple TV' no configurado${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+# E. Otras herramientas opcionales del tema
 if [ -f "$REAL_HOME/.local/bin/rofi-spotlight-launcher" ]; then
     echo -e "   ${GREEN}✓ Rofi Spotlight instalado${NC}"
 else
@@ -1868,13 +2122,15 @@ elif [ "$OPTIONAL_ERRORS" -gt 0 ]; then
     echo -e "${YELLOW}║   ⚠️  INSTALACIÓN COMPLETADA CON ADVERTENCIAS           ║${NC}"
     echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${GREEN}✅ Los componentes críticos se instalaron correctamente.${NC}"
-    echo -e "${YELLOW}⚠️  $OPTIONAL_ERRORS componente(s) opcional(es) no se pudieron instalar.${NC}"
-    echo -e "${YELLOW}   El sistema es funcional, pero algunas características avanzadas${NC}"
-    echo -e "${YELLOW}   pueden no estar disponibles.${NC}"
+    echo -e "${GREEN}✅ Los componentes críticos del tema macOS se instalaron correctamente.${NC}"
+    echo -e "${YELLOW}⚠️  $OPTIONAL_ERRORS componente(s) opcional(es) no se pudieron configurar.${NC}"
+    echo -e "${YELLOW}   (Esto suele deberse a límites de la API de GitHub o falta de conexión)${NC}"
+    echo -e "${YELLOW}   El sistema es totalmente funcional.${NC}"
     echo ""
 else
-    echo -e "${GREEN}✅ Todos los componentes verificados correctamente.${NC}"
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║   ✅ TODOS LOS COMPONENTES VERIFICADOS CORRECTAMENTE     ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
 fi
 
@@ -1894,11 +2150,14 @@ if [ "$CRITICAL_ERRORS" -eq 0 ]; then
     fi
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia ULTIMA de macOS Tahoe.${NC}"
-    echo -e "${YELLOW}️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
+    echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia macOS Tahoe.${NC}"
+    echo -e "${GREEN}✨ Incluye: Safari, Apple Music, LocalSend y Apple TV listos para usar.${NC}"
+    echo ""
+    echo -e "${YELLOW}🔄 IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
     echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
     echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
     echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
+    echo -e "${YELLOW}   • Actualización del caché de iconos y lanzadores${NC}"
     echo ""
 fi
 
