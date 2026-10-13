@@ -47,6 +47,7 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | 🎵 | **Apple Music (Zuno)** | Cliente nativo de YouTube Music con codecs GStreamer y parches de estabilidad preconfigurados |
 | 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall para descubrimiento de dispositivos |
 | 📺 | **Apple TV (IPTVnator)** | Reproductor IPTV con lista de canales en español y guía EPG preconfigurada, optimizado para Wayland/X11 |
+| 📝 | **Suite Office** | ONLYOFFICE Desktop Editors instalado vía Flatpak y renombrado visualmente como "Office" con su icono oficial |
 | 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS |
 | 🪟 | **Gestión avanzada de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra |
 | ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente |
@@ -85,8 +86,8 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 ## 📋 Requisitos
 
 - **Sistema operativo:** Linux con GNOME 46+, Cinnamon 5.4+ o XFCE 4.18+
-- **Conexión a internet:** Para descargar los repositorios, dependencias y aplicaciones
-- **Espacio en disco:** ~3 GB (incluyendo wallpapers, fuentes, sonidos y apps adicionales)
+- **Conexión a internet:** Para descargar los repositorios, dependencias y aplicaciones (incluyendo Flatpak)
+- **Espacio en disco:** ~4 GB (incluyendo entorno Flatpak, ONLYOFFICE, wallpapers, fuentes, sonidos y apps adicionales)
 - **Permisos de `sudo`:** Para instalar dependencias del sistema, configurar el firewall y Plymouth/GDM
 
 ---
@@ -128,7 +129,7 @@ sudo ./install.sh
 
 ## 🔄 Actualización
 
-¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos. Además, **verifica y repara automáticamente** las personalizaciones de Safari, Apple Music, LocalSend y Apple TV por si una actualización del sistema las hubiera sobrescrito.
+¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos. Además, **verifica y repara automáticamente** las personalizaciones de Safari, Apple Music, LocalSend, Apple TV y Office por si una actualización del sistema las hubiera sobrescrito.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/mac-updater.sh && chmod +x /tmp/mac-updater.sh && sudo /tmp/mac-updater.sh
@@ -157,7 +158,7 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Súper + X` | Maximizar / Restaurar |
 | `Súper + C` | Centrar ventana en la pantalla |
 | `Súper + F` | Fijar ventana siempre al frente |
-| `Súper + O` | Disminuir opacidad de la窗口 |
+| `Súper + O` | Disminuir opacidad de la ventana |
 | `Súper + Ctrl + O` | Aumentar opacidad de la ventana |
 | `Ctrl + Q` | Cerrar app completamente (incluyendo procesos en segundo plano) |
 | `Súper + ←/→/↑/↓` | Acoplar (snap) ventana a los bordes |
@@ -175,13 +176,13 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 
 ## 🗑️ Desinstalación
 
-Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original (incluyendo el nombre del equipo, el tamaño del cursor, las reglas del firewall y las personalizaciones de aplicaciones), utiliza el script de desinstalación:
+Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original (incluyendo el nombre del equipo, el tamaño del cursor, las reglas del firewall, las apps Flatpak y las personalizaciones de aplicaciones), utiliza el script de desinstalación:
 
 ```bash
 # Método seguro recomendado:
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh -o /tmp/mac-uninstaller.sh && chmod +x /tmp/mac-uninstaller.sh && sudo /tmp/mac-uninstaller.sh
 ```
-*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones, revierte el hostname, limpia el firewall y restaura los lanzadores originales de Firefox y otras aplicaciones.*
+*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones, revierte el hostname, limpia el firewall, elimina ONLYOFFICE y restaura los lanzadores originales de Firefox y otras aplicaciones.*
 
 ---
 
@@ -224,6 +225,11 @@ El script aplica parches automáticos (`--no-sandbox` y `--ozone-platform=x11`) 
 </details>
 
 <details>
+<summary><strong>Office (ONLYOFFICE) tarda en abrir la primera vez</strong></summary>
+Es normal. Al ser una aplicación Flatpak, la primera ejecución extrae y configura el entorno de ejecución (runtime). Las siguientes aperturas serán instantáneas.
+</details>
+
+<details>
 <summary><strong>El botón "Actualización de software" no hace nada</strong></summary>
 Asegúrate de tener instalado <code>zenity</code> o <code>yad</code>. El script abrirá una terminal para ejecutar <code>apt/dnf/pacman upgrade</code> y luego el script de actualización del tema. Necesitarás ingresar tu contraseña de sudo en esa terminal.
 </details>
@@ -254,6 +260,7 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 | [Zuno (YouTube Music Client)](https://github.com/noFAYZ/zuno) | noFAYZ | MIT |
 | [LocalSend](https://github.com/localsend/localsend) | localsend | MIT |
 | [IPTVnator](https://github.com/4gray/iptvnator) | 4gray | MIT |
+| [ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors) | ONLYOFFICE | AGPL v3 / MPL v2 |
 
 ---
 
@@ -263,7 +270,7 @@ Este script está licenciado bajo la [Licencia MIT](LICENSE).
 
 > **⚠️ Importante:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple, basándose en repositorios comunitarios de terceros. El uso de estos activos está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
 > 
-> **Nota sobre aplicaciones de terceros:** Zuno e IPTVnator son reproductores de código abierto. No proporcionan, alojan ni venden contenido multimedia, listas de reproducción o suscripciones. El usuario es responsable del contenido que decida reproducir a través de estas herramientas.
+> **Nota sobre aplicaciones de terceros:** ONLYOFFICE es una suite ofimática de código abierto. Zuno e IPTVnator son reproductores de código abierto. Este proyecto no proporciona, aloja ni vende contenido multimedia, listas de reproducción o suscripciones. El usuario es responsable del contenido que decida reproducir o crear a través de estas herramientas.
 
 ---
 
