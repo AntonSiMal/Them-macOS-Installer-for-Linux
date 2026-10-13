@@ -1074,7 +1074,6 @@ echo -e "${BLUE}   → Configurando sonido de arranque estilo macOS...${NC}"
 AUTOSTART_DIR="$REAL_HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR" 2>/dev/null || true
 
-# Verificar que el archivo de sonido exista (instalado en Paso 8)
 SOUND_FILE="$REAL_HOME/.local/share/sounds/bigsur/stereo/desktop-login.oga"
 
 if [ -f "$SOUND_FILE" ]; then
@@ -1094,23 +1093,88 @@ else
 fi
 
 # =============================================================================
-# 2. VENTANA "ACERCA DE ESTE MAC" (EL FACTOR WOW)
+# 2. VENTANA "ACERCA DE ESTE MAC" (CON ACTUALIZACIÓN REAL DEL SISTEMA Y TEMA)
 # =============================================================================
-echo -e "${BLUE}   → Creando ventana 'Acerca de este Mac'...${NC}"
+echo -e "${BLUE}   → Creando ventana 'Acerca de este Mac' con actualización real...${NC}"
 
 ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
 mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
 
 cat > "$ABOUT_SCRIPT" << 'ABOUTEOF'
 #!/bin/bash
-# Simulación de "Acerca de este Mac" estilo macOS
-CPU=$(lscpu | grep "Model name" | cut -d':' -f2 | xargs | sed 's/(R)//g; s/(TM)//g; s/(C)//g' 2>/dev/null || echo "Procesador desconocido")
-RAM=$(free -h | awk '/^Mem:/ {print $2}' 2>/dev/null || echo "Desconocida")
-DISK=$(df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "Desconocido")
-GRAPHICS=$(lspci 2>/dev/null | grep -i "vga\|3d\|display" | head -1 | cut -d':' -f3 | xargs | sed 's/Corporation//g; s/Inc.//g' 2>/dev/null || echo "Gráficos integrados")
-KERNEL=$(uname -r 2>/dev/null || echo "Desconocido")
+# Simulación de "Acerca de este Mac" con Actualización de Software Real
 
-zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
+CPU=$(lscpu | grep "Model name" | cut -d':' -f2 | xargs | sed 's/(R)//g; s/(TM)//g; s/(C)//g' 2>/dev/null || echo "Procesador")
+RAM=$(free -h | awk '/^Mem:/ {print $2}' 2>/dev/null || echo "RAM")
+DISK=$(df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "Disco")
+GRAPHICS=$(lspci 2>/dev/null | grep -i "vga\|3d\|display" | head -1 | cut -d':' -f3 | xargs | sed 's/Corporation//g; s/Inc.//g' 2>/dev/null || echo "Gráficos")
+KERNEL=$(uname -r 2>/dev/null || echo "Kernel")
+
+# Función para ejecutar la actualización real en una terminal
+run_real_update() {
+    # Detectar emulador de terminal disponible
+    TERM_CMD=""
+    for term in gnome-terminal xfce4-terminal konsole x-terminal-emulator xterm; do
+        if command -v $term &> /dev/null; then
+            TERM_CMD=$term
+            break
+        fi
+    done
+
+    if [ -z "$TERM_CMD" ]; then
+        zenity --error --text="No se encontró una terminal para ejecutar la actualización." 2>/dev/null
+        return
+    fi
+
+    # Crear script temporal de actualización
+    TEMP_UPDATE=$(mktemp /tmp/macos-update-XXXXXX.sh)
+    cat > "$TEMP_UPDATE" << 'UPDATEEOF'
+#!/bin/bash
+clear
+echo "🍎 Iniciando Actualización de Software de macOS Tahoe..."
+echo "=========================================================="
+echo ""
+echo "📦 [1/2] Actualizando paquetes del sistema base..."
+if command -v apt-get &> /dev/null; then
+    sudo apt-get update
+    sudo apt-get upgrade -y
+elif command -v dnf &> /dev/null; then
+    sudo dnf upgrade -y
+elif command -v pacman &> /dev/null; then
+    sudo pacman -Syu --noconfirm
+fi
+
+echo ""
+echo "🔄 [2/2] Actualizando componentes del tema macOS Tahoe..."
+# Descargar la última versión del script de actualización
+curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/tahoe-updater.sh
+chmod +x /tmp/tahoe-updater.sh
+
+# Ejecutar el script de actualización
+sudo /tmp/tahoe-updater.sh
+
+echo ""
+echo "✅ ¡Proceso de actualización finalizado con éxito!"
+echo "Presiona [ENTER] para cerrar esta ventana."
+read -r
+UPDATEEOF
+    chmod +x "$TEMP_UPDATE"
+
+    # Ejecutar en la terminal detectada
+    if [ "$TERM_CMD" = "gnome-terminal" ]; then
+        gnome-terminal -- bash -c "$TEMP_UPDATE"
+    elif [ "$TERM_CMD" = "xfce4-terminal" ]; then
+        xfce4-terminal -x bash -c "$TEMP_UPDATE"
+    elif [ "$TERM_CMD" = "konsole" ]; then
+        konsole -e bash -c "$TEMP_UPDATE"
+    else
+        $TERM_CMD -e bash -c "$TEMP_UPDATE"
+    fi
+}
+
+# Mostrar ventana "Acerca de este Mac"
+# Usamos --question para tener dos botones: "Aceptar" y "Actualización de software..."
+if zenity --question --title="Acerca de este Mac" --width=360 --height=420 \
 --text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
 <span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
 <span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
@@ -1118,21 +1182,19 @@ zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
 <span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
 <span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
 <span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
---ok-label="Actualización de software..." 2>/dev/null || \
-yad --info --title="Acerca de este Mac" --width=340 --height=400 \
---text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
-<span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
-<span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
-<span font='SF Pro Text 11'><b>Disco de arranque:</b> Macintosh HD ($DISK)</span>\n\
-<span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
-<span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
-<span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
---button="Actualización de software...:0" 2>/dev/null || \
-kdialog --msgbox "<html><h2>macOS Tahoe</h2><p><b>Chip:</b> $CPU<br><b>Memoria:</b> $RAM<br><b>Disco:</b> Macintosh HD ($DISK)<br><b>Gráficos:</b> $GRAPHICS<br><b>Sistema:</b> Linux (Kernel $KERNEL)</p><p style='color:gray;font-size:9px'>TM y © 1983-2026 Apple Inc.</p></html>" --title "Acerca de este Mac" 2>/dev/null || true
+--ok-label="Actualización de software..." \
+--cancel-label="Aceptar" 2>/dev/null; then
+    
+    # Si el usuario hace clic en "Actualización de software..." (salida 0), ejecutamos la función
+    run_real_update
+fi
 ABOUTEOF
 
 chmod +x "$ABOUT_SCRIPT"
-echo -e "${GREEN}   ✓ Script 'Acerca de este Mac' creado${NC}"
+if [ -n "$SUDO_USER" ]; then 
+    chown "$SUDO_USER:$SUDO_USER" "$ABOUT_SCRIPT" 2>/dev/null || true 
+fi
+echo -e "${GREEN}   ✓ Script 'Acerca de este Mac' creado con actualización real${NC}"
 
 # Asignar atajo Super+I para abrir la ventana (universal)
 if [ "$IS_GNOME" = true ]; then
@@ -1140,7 +1202,6 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 binding "'<Super>i'" 2>/dev/null || true
     
-    # Agregar a la lista de custom-keybindings existentes
     EXISTING=$(run_as_user gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null || echo "[]")
     if echo "$EXISTING" | grep -q "custom0"; then
         echo -e "${GREEN}   ✓ Atajo Super+I ya configurado${NC}"
