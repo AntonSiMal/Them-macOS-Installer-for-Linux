@@ -135,15 +135,18 @@ if command -v apt-get &> /dev/null; then
         qt5ct qt6ct ruby libinput-tools \
         clipit xfce4-clipman-plugin 2>/dev/null || true
     
-    echo -e "${BLUE}   → Instalando paquetes específicos de GNOME...${NC}"
-    # gnome-sushi (Quick Look) - nombre correcto en Ubuntu/Zorin
-    sudo apt-get install -y -qq gnome-sushi 2>/dev/null || \
-        echo -e "${YELLOW}   ⚠️  gnome-sushi no disponible, Quick Look omitido${NC}"
+    echo -e "${BLUE}   → Instalando Quick Look (Sushi)...${NC}"
+    # En Ubuntu/Zorin el paquete se llama gnome-sushi
+    sudo apt-get install -y -qq gnome-sushi 2>/dev/null || {
+        echo -e "${YELLOW}   ⚠️  No se pudo instalar gnome-sushi automáticamente.${NC}"
+        echo -e "${YELLOW}      (Es opcional. Puedes instalarlo después con: sudo apt install gnome-sushi)${NC}"
+    }
     
-    # gpaste como alternativa al clipboard indicator
-    sudo apt-get install -y -qq gpaste 2>/dev/null || \
-        echo -e "${YELLOW}   ⚠️  gpaste no disponible, portapapeles omitido${NC}"
-        
+    echo -e "${BLUE}   → Instalando gestor de portapapeles...${NC}"
+    sudo apt-get install -y -qq gpaste 2>/dev/null || {
+        echo -e "${YELLOW}   ⚠️  gpaste no disponible. Se usará la extensión de GNOME más adelante.${NC}"
+    }
+
 elif command -v dnf &> /dev/null; then
     echo -e "${BLUE}   → Instalando paquetes (Fedora)...${NC}"
     sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
@@ -160,7 +163,7 @@ elif command -v pacman &> /dev/null; then
         xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
         clipit xfce4-clipman-plugin 2>/dev/null || true
 else
-    echo -e "${RED}    No se detectó un gestor de paquetes compatible${NC}"
+    echo -e "${RED}    No se detectó un gestor de paquetes compatible (apt, dnf, pacman)${NC}"
     exit 1
 fi
 
