@@ -2,7 +2,7 @@
 
 # 🍎 macOS Tahoe Installer for Linux
 
-### Transforma tu escritorio Linux en una experiencia macOS auténtica
+### Transforma tu escritorio Linux en una experiencia macOS auténtica e inteligente
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GNOME](https://img.shields.io/badge/GNOME-46%20%E2%80%93%2051-green.svg)](https://www.gnome.org/)
@@ -10,9 +10,9 @@
 [![XFCE](https://img.shields.io/badge/XFCE-4.18%20%2B-blue.svg)](https://www.xfce.org/)
 [![Bash](https://img.shields.io/badge/Bash-4.0%2B-black.svg)](https://www.gnu.org/software/bash/)
 
-**Instalación 100% automatizada · Sin intervención manual · Compatible con GNOME, Cinnamon y XFCE**
+**Instalación 100% automatizada · Actualización inteligente · Compatible con GNOME, Cinnamon y XFCE**
 
-[Instalación rápida](#-instalación-rápida) · [Características](#-características) · [Atajos](#-atajos-de-teclado) · [Desinstalación](#-desinstalación)
+[Instalación rápida](#-instalación-rápida) · [Actualización](#-actualización) · [Características](#-características) · [Atajos](#-atajos-de-teclado) · [Desinstalación](#-desinstalación)
 
 </div>
 
@@ -22,43 +22,42 @@
 
 <div align="center">
   <img src="assets/preview.png" alt="macOS Tahoe en Linux" width="100%"/>
-  <p><em>Escritorio Linux transformado con el tema macOS Tahoe, fuentes oficiales Apple, sonidos, wallpapers dinámicos, efecto Magic Lamp y lanzador Spotlight.</em></p>
+  <p><em>Escritorio Linux transformado con el tema macOS Tahoe, fuentes oficiales Apple, sonidos, wallpapers dinámicos, efecto Magic Lamp, panel superior estilo macOS y lanzador Spotlight.</em></p>
 </div>
 
 ---
 
 ## ✨ ¿Qué hace este script?
 
-Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **24 pasos** de instalación y configuración sin que tengas que hacer nada manualmente:
+Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **25+ pasos inteligentes** de instalación, configuración y verificación sin que tengas que hacer nada manualmente:
 
 | # | Componente | Descripción |
 |---|------------|-------------|
 | 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas necesarias |
 | 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0) |
 | 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME) |
-| 🌅 | **Dynamic Wallpaper (Cinnamon)** | Extensión para wallpapers dinámicos en Cinnamon |
-| 🎨 | **Tema MacTahoe GTK** | Tema visual estilo macOS Tahoe con ventanas redondeadas |
+| 🌅 | **Dynamic Wallpaper** | Fondos dinámicos Mojave/Sonoma que cambian con la hora real |
+| 🎨 | **Tema MacTahoe GTK** | Tema visual estilo macOS con ventanas redondeadas |
 | 🖼️ | **Iconos MacTahoe** | Iconos oficiales estilo macOS (versión bold automática para 4K) |
-| 🌄 | **Wallpaper dinámico Mojave** | 16 imágenes que cambian según la hora del día (horarios reales) |
-| 🏞️ | **Wallpapers Sonoma** | Fondos de respaldo estáticos y dinámicos |
-| 🔊 | **Sonidos macOS Big Sur** | 44 eventos de sonido (startup chime, notificaciones, etc.) |
-| 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda de archivos y web |
-| 🚀 | **Temas de Plank** | Dock estilo macOS con múltiples temas BigSur |
+| 🔊 | **Sonidos macOS Big Sur** | 44 eventos de sonido, incluyendo el *Startup Chime* al iniciar sesión |
+| 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda global de archivos y web |
+| 🚀 | **Temas de Plank** | Dock estilo macOS inferior con ocultamiento inteligente |
 | 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple |
-| 🦊 | **Tema Firefox Safari** | Firefox con apariencia de Safari |
+| 🦊 | **Tema Firefox Safari** | Firefox con apariencia nativa de Safari |
 | 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS |
-| 🪟 | **Script de ventanas avanzadas** | Gestión de opacidad, centrado, mover/redimensionar sin barra |
+| 🪟 | **Gestión avanzada de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra |
 | ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente |
-| ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para SF Pro nítida |
-| 💻 | **Terminal estilo macOS** | Perfil con SF Mono y colores auténticos |
-| 🎬 | **Animaciones suaves** | Activación de composición y transiciones fluidas |
-| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar (GNOME y Cinnamon) |
-| ✅ | **Verificación automática** | Comprobación post-instalación de componentes |
-| 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden con el tema macOS |
-| 👁️ | **Quick Look** | Vista previa de archivos con barra espaciadora (Sushi/Gloobus) |
-| 📜 | **Scroll Natural** | Desplazamiento estilo trackpad macOS universal |
-| 👆 | **Gestos Fusuma + Arrastre 3 dedos** | Deslizar para espacios/zoom y arrastrar sin hacer clic |
-| 📋 | **Gestor de Portapapeles** | Historial de portapapeles minimalista (Clipboard Indicator/Clipit) |
+| ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para SF Pro nítida y perfecta |
+| 💻 | **Terminal estilo macOS** | Perfil con SF Mono, colores auténticos y cursor I-Beam |
+| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar ventanas (GNOME y Cinnamon) |
+| 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden perfectamente con el tema |
+| 👁️ | **Quick Look** | Vista previa de archivos con la barra espaciadora |
+| 📜 | **Scroll Natural y Trackpad** | Desplazamiento invertido y "tap-to-click" activados |
+| 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y arrastre |
+| 🍏 | **Acerca de este Mac** | Ventana real con specs del sistema y botón de *Actualización* funcional |
+| 💻 | **Identidad del Equipo** | Cambia el hostname a "MacBook-Pro", "MacBook-Air" o "MacBook-Neo" |
+| 🌙 | **Modo Oscuro Automático** | Cambia entre tema claro y oscuro según la hora del día (6:00 - 18:00) |
+| 📁 | **Sidebar estilo Finder** | Carpetas Desktop, Downloads, Documents, etc., en el explorador |
 
 ---
 
@@ -91,13 +90,15 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 
 ## 🚀 Instalación rápida
 
-### Método recomendado (una sola línea)
+> ⚠️ **Importante:** No uses `sudo curl ... | bash`. Usa el método seguro de una línea o el manual para evitar problemas de permisos y variables de entorno.
+
+### Método recomendado (una sola línea segura)
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/install.sh -o /tmp/mac-installer.sh && chmod +x /tmp/mac-installer.sh && sudo /tmp/mac-installer.sh
 ```
 
-### Método manual
+### Método manual (El más seguro)
 
 ```bash
 # 1. Clonar el repositorio
@@ -107,18 +108,29 @@ cd Them-macOS-Tahoe-Installer-for-Linux
 # 2. Dar permisos de ejecución
 chmod +x install.sh
 
-# 3. Ejecutar el script
-./install.sh
+# 3. Ejecutar el script con sudo
+sudo ./install.sh
 ```
 
 ### Después de la instalación
 
 | Entorno | Acción requerida |
 |---------|------------------|
-| **GNOME (Wayland)** | Cierra sesión y vuelve a entrar para activar extensiones |
+| **GNOME (Wayland)** | Cierra sesión y vuelve a entrar para activar extensiones y sonidos |
 | **GNOME (X11)** | El script reinicia GNOME Shell automáticamente |
 | **Cinnamon** | El script reinicia Cinnamon automáticamente |
-| **XFCE** | No se requiere ninguna acción |
+| **XFCE** | Cierra sesión y vuelve a entrar para aplicar el cursor y atajos |
+
+---
+
+## 🔄 Actualización
+
+¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos, manteniendo tus configuraciones personales intactas.
+
+```bash
+curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/mac-updater.sh && chmod +x /tmp/mac-updater.sh && sudo /tmp/mac-updater.sh
+```
+*El actualizador también ejecutará una actualización completa de tu sistema (`apt upgrade` / `dnf upgrade` / `pacman -Syu`) antes de aplicar los cambios del tema.*
 
 ---
 
@@ -130,6 +142,7 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | Atajo | Acción |
 |-------|--------|
 | `Ctrl + Espacio` | Abrir **Spotlight** (búsqueda global de archivos y web) |
+| `Súper + I` | Abrir **"Acerca de este Mac"** (incluye botón de Actualización real) |
 | `Súper + E` | Abrir Explorador de Archivos |
 | `Súper + A` | Abrir Configuración del Sistema |
 | `Ctrl + Alt + T` | Abrir Terminal |
@@ -156,22 +169,17 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Súper + L` | Bloquear pantalla |
 | `Alt + Ctrl + Esc` | Forzar cierre de app congelada (xkill) |
 
-> 📖 Consulta la guía completa de atajos en `~/.macos-keybindings.md` después de la instalación.
-
 ---
 
 ## 🗑️ Desinstalación
 
-Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original, utiliza el script de desinstalación incluido:
+Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original (incluyendo el nombre del equipo y el tamaño del cursor), utiliza el script de desinstalación:
 
 ```bash
-# Si clonaste el repositorio:
-./uninstall.sh
-
-# O si usaste el método de una línea:
-curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash
+# Método seguro recomendado:
+curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh -o /tmp/mac-uninstaller.sh && chmod +x /tmp/mac-uninstaller.sh && sudo /tmp/mac-uninstaller.sh
 ```
-*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones y restaura el tema de arranque Plymouth automáticamente.*
+*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones, revierte el hostname y restaura el tema de arranque Plymouth automáticamente.*
 
 ---
 
@@ -203,6 +211,11 @@ fc-list | grep -i "SF Pro"
 ```
 </details>
 
+<details>
+<summary><strong>El botón "Actualización de software" no hace nada</strong></summary>
+Asegúrate de tener instalado <code>zenity</code> o <code>yad</code>. El script abrirá una terminal para ejecutar <code>apt/dnf/pacman upgrade</code> y luego el script de actualización del tema. Necesitarás ingresar tu contraseña de sudo en esa terminal.
+</details>
+
 ---
 
 ## 🙏 Créditos
@@ -230,15 +243,11 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 
 ---
 
-> **⚠️ Aviso legal:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple, basándose en repositorios comunitarios. El uso de estas fuentes está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
-
----
-
-## ⚖️ Licencia
+## ⚖️ Licencia y Aviso Legal
 
 Este script está licenciado bajo la [Licencia MIT](LICENSE).
 
-> **⚠️ Aviso legal:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple. El uso de estas fuentes está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
+> **⚠️ Importante:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple, basándose en repositorios comunitarios de terceros. El uso de estos activos está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
 
 ---
 
