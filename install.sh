@@ -378,6 +378,85 @@ fi
 echo ""
 
 # =============================================================================
+# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (DESCARGA DIRECTA DE ZIP)
+# =============================================================================
+echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
+
+# Detectar usuario real si no está definido
+if [ -z "$REAL_HOME" ]; then
+    if [ -n "$SUDO_USER" ]; then
+        REAL_HOME=$(eval echo "~$SUDO_USER")
+    else
+        REAL_HOME="$HOME"
+    fi
+fi
+
+SOUNDS_DIR="$REAL_HOME/.local/share/sounds"
+SOUND_INSTALLED=false
+
+# Crear directorio en la home del usuario real
+mkdir -p "$SOUNDS_DIR" 2>/dev/null || true
+
+echo -e "${BLUE}   → Descargando sonidos desde GitHub (rama main)...${NC}"
+
+ZIP_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/archive/refs/heads/main.zip"
+ZIP_FILE="/tmp/bigsur-sounds-main.zip"
+EXTRACT_DIR="/tmp/bigsur-sounds-extract"
+
+# Limpiar archivos anteriores si existen
+rm -f "$ZIP_FILE" 2>/dev/null
+rm -rf "$EXTRACT_DIR" 2>/dev/null
+
+# Descargar el ZIP
+if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ]; then
+    echo -e "${BLUE}   → Extrayendo archivo ZIP...${NC}"
+    
+    # Extraer el ZIP
+    if unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR" 2>/dev/null; then
+        # La carpeta extraída se llamará "macos-bigsur-sound-theme-linux-main"
+        SOURCE_DIR="$EXTRACT_DIR/macos-bigsur-sound-theme-linux-main/bigsur"
+        
+        if [ -d "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/index.theme" ]; then
+            echo -e "${BLUE}   → Copiando sonidos a $SOUNDS_DIR...${NC}"
+            cp -r "$SOURCE_DIR" "$SOUNDS_DIR/" 2>/dev/null
+            
+            if [ -d "$SOUNDS_DIR/bigsur" ]; then
+                SOUND_INSTALLED=true
+                echo -e "${GREEN}   ✅ Sonidos instalados correctamente.${NC}"
+                
+                # Ajustar permisos para el usuario real
+                if [ -n "$SUDO_USER" ]; then
+                    chown -R "$SUDO_USER:$SUDO_USER" "$SOUNDS_DIR/bigsur" 2>/dev/null || true
+                fi
+            else
+                echo -e "${YELLOW}   ⚠️  Error al copiar la carpeta de sonidos.${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ⚠️  No se encontró la carpeta 'bigsur' en el ZIP extraído.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}   ⚠️  Error al extraer el archivo ZIP.${NC}"
+    fi
+else
+    echo -e "${YELLOW}   ⚠️  No se pudo descargar el archivo ZIP.${NC}"
+fi
+
+# Limpieza de archivos temporales
+rm -f "$ZIP_FILE" 2>/dev/null
+rm -rf "$EXTRACT_DIR" 2>/dev/null
+
+# Verificación final
+if [ "$SOUND_INSTALLED" = true ]; then
+    echo -e "${GREEN}   ✅ Directorio de sonidos verificado en: $SOUNDS_DIR/bigsur${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos automáticamente.${NC}"
+    echo -e "${YELLOW}      (Es un componente opcional, el script continuará)${NC}"
+fi
+
+echo ""
+
+
+# =============================================================================
 # PASO 7: WALLPAPERS SONOMA (RESPALDO)
 # =============================================================================
 echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
@@ -392,92 +471,6 @@ echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
 echo ""
 
 
-# =============================================================================
-# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (MÉTODO DIRECTO)
-# =============================================================================
-echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
-
-# Detectar usuario real si no está definido
-if [ -z "$REAL_HOME" ]; then
-    if [ -n "$SUDO_USER" ]; then
-        REAL_HOME=$(eval echo "~$SUDO_USER")
-    else
-        REAL_HOME="$HOME"
-    fi
-fi
-
-SOUNDS_DIR="$REAL_HOME/.local/share/sounds"
-ALT_REPO="$WORKDIR/bigsur-sound-theme"
-SOUND_INSTALLED=false
-
-# Crear directorio en la home del usuario real
-mkdir -p "$SOUNDS_DIR" 2>/dev/null || true
-
-echo -e "${BLUE}   → Intentando descargar release pre-compilado...${NC}"
-
-# URL directa al último release
-RELEASE_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/latest/download/bigsur-sound-theme.tar.gz"
-
-if curl -sL "$RELEASE_URL" --max-time 30 -o /tmp/bigsur.tar.gz 2>/dev/null && [ -s /tmp/bigsur.tar.gz ]; then
-    # Verificar que sea un archivo tar/gzip válido y no una página HTML de error 404
-    if file /tmp/bigsur.tar.gz 2>/dev/null | grep -qi "gzip\|tar\|archive"; then
-        echo -e "${BLUE}   → Extrayendo sonidos...${NC}"
-        if tar -xzf /tmp/bigsur.tar.gz -C "$SOUNDS_DIR" 2>/dev/null; then
-            SOUND_INSTALLED=true
-            echo -e "${GREEN}   ✅ Sonidos instalados desde release.${NC}"
-        else
-            echo -e "${YELLOW}   ⚠️  Error al extraer el archivo tar.${NC}"
-        fi
-    else
-        echo -e "${YELLOW}   ⚠️  El archivo descargado no es válido (posible error 404).${NC}"
-    fi
-    rm -f /tmp/bigsur.tar.gz
-else
-    echo -e "${YELLOW}   ⚠️  No se pudo descargar el release.${NC}"
-fi
-
-# Método alternativo: Clonar y copiar la carpeta 'bigsur' si existe pre-compilada
-if [ "$SOUND_INSTALLED" = false ]; then
-    echo -e "${BLUE}   → Método alternativo: Clonando repositorio...${NC}"
-    
-    [ -d "$ALT_REPO" ] && rm -rf "$ALT_REPO"
-    
-    if timeout 60 git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" 2>/dev/null; then
-        echo -e "${BLUE}   → Buscando carpeta 'bigsur' pre-compilada...${NC}"
-        
-        if [ -d "$ALT_REPO/bigsur" ] && [ -f "$ALT_REPO/bigsur/index.theme" ]; then
-            echo -e "${BLUE}   → Copiando carpeta 'bigsur' a $SOUNDS_DIR...${NC}"
-            cp -r "$ALT_REPO/bigsur" "$SOUNDS_DIR/" 2>/dev/null
-            
-            if [ -d "$SOUNDS_DIR/bigsur" ]; then
-                SOUND_INSTALLED=true
-                echo -e "${GREEN}   ✅ Sonidos instalados desde repositorio.${NC}"
-            else
-                echo -e "${YELLOW}   ⚠️  Error al copiar la carpeta de sonidos.${NC}"
-            fi
-        else
-            echo -e "${YELLOW}   ⚠️  No se encontró la carpeta 'bigsur' pre-compilada en el repositorio.${NC}"
-        fi
-    else
-        echo -e "${YELLOW}   ⚠️  No se pudo clonar el repositorio.${NC}"
-    fi
-fi
-
-# Verificación final y ajuste de permisos
-if [ -d "$SOUNDS_DIR/bigsur" ]; then
-    SOUND_INSTALLED=true
-    echo -e "${GREEN}   ✅ Directorio de sonidos verificado en: $SOUNDS_DIR/bigsur${NC}"
-    
-    # Ajustar permisos para el usuario real
-    if [ -n "$SUDO_USER" ]; then
-        chown -R "$SUDO_USER:$SUDO_USER" "$SOUNDS_DIR/bigsur" 2>/dev/null || true
-    fi
-else
-    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos automáticamente.${NC}"
-    echo -e "${YELLOW}      (Es un componente opcional, el script continuará)${NC}"
-fi
-
-echo ""
 
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
