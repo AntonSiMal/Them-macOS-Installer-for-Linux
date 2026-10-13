@@ -53,23 +53,38 @@ else
 fi
 
 cleanup_on_error() {
-    echo -e "\n${RED}⚠️  ERROR CRÍTICO DETECTADO DURANTE LA INSTALACIÓN.${NC}"
-    echo -e "${YELLOW}Para evitar dejar el sistema en un estado inconsistente, se ejecutará una limpieza automática...${NC}"
+    local exit_code=$?
+    local failed_command="$BASH_COMMAND"
+    local line_number="${BASH_LINENO[0]}"
+
+    echo -e "\n${RED}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║   ❌ ERROR CRÍTICO DETECTADO EN LA INSTALACIÓN           ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}📍 Detalles técnicos del fallo:${NC}"
+    echo -e "   • Línea del script: ${RED}$line_number${NC}"
+    echo -e "   • Comando fallido:  ${RED}$failed_command${NC}"
+    echo -e "   • Código de salida: ${RED}$exit_code${NC}"
+    echo ""
+    echo -e "${YELLOW}💡 Posibles causas:${NC}"
+    echo -e "   1. Falta de conexión a internet o DNS bloqueado."
+    echo -e "   2. La contraseña de sudo caducó o fue denegada."
+    echo -e "   3. Un repositorio de GitHub está temporalmente inaccesible."
+    echo -e "   4. Falta de espacio en disco o dependencia del sistema en conflicto."
+    echo ""
+    echo -e "${YELLOW}🔄 Para evitar dejar el sistema en un estado inconsistente, se ejecutará una limpieza automática...${NC}"
     
     if [ -f "$ROLLBACK_SCRIPT" ]; then
         echo -e "${BLUE}Ejecutando limpieza automática (modo forzado)...${NC}"
         bash "$ROLLBACK_SCRIPT" --auto
-        echo -e "${RED}❌ La instalación ha sido revertida. Revisa tu conexión a internet e inténtalo de nuevo.${NC}"
+        echo -e "${RED}❌ La instalación ha sido revertida. Revisa el error de arriba e inténtalo de nuevo.${NC}"
     else
-        echo -e "${RED}❌ El script de limpieza no está disponible (fallo de red previo).${NC}"
+        echo -e "${RED}❌ El script de restauración no está disponible (fallo de red previo).${NC}"
         echo -e "${YELLOW}Por favor, ejecuta manualmente cuando tengas conexión:${NC}"
         echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
     fi
     exit 1
 }
-
-trap cleanup_on_error ERR
-echo ""
 
 # =============================================================================
 # DETECCIÓN DEL ENTORNO
