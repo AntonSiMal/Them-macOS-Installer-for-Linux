@@ -15,6 +15,18 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Detectar el usuario real (no root) cuando se ejecuta con sudo
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME=$(eval echo "~$SUDO_USER")
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+fi
+
+# Sobrescribir WORKDIR para usar la home del usuario real
+WORKDIR="$REAL_HOME/.macos-theme-setup"
+
 MACOS_VERSION="Tahoe"
 GTK_THEME="MacTahoe-Dark"
 SHELL_THEME="MacTahoe-Dark"
@@ -415,26 +427,28 @@ fi
 
 echo ""
 
+
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
 # =============================================================================
 echo -e "${YELLOW}🔍 [9/24] Instalando Rofi Spotlight...${NC}"
 
-ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
-ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
+# Usar la home del usuario real, no de root
+ROFI_SPOTLIGHT_DIR="$REAL_HOME/.local/share/rofi-spotlight"
+ROFI_THEMES_DIR="$REAL_HOME/.local/share/rofi/themes"
+ROFI_BIN_DIR="$REAL_HOME/.local/bin"
+ROFI_APPS_DIR="$REAL_HOME/.local/share/applications"
 
-# Crear directorios si no existen
-mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR"
-mkdir -p "$HOME/.local/bin"
-mkdir -p "$HOME/.local/share/applications"
+# Crear TODOS los directorios necesarios
+mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR" "$ROFI_BIN_DIR" "$ROFI_APPS_DIR"
 
 echo -e "${BLUE}   → Clonando Rofi Spotlight...${NC}"
 if [ ! -d "$WORKDIR/rofi-spotlight" ]; then
     if ! git clone --depth=1 https://github.com/eromatiya/rofi-spotlight.git "$WORKDIR/rofi-spotlight" -q 2>/dev/null; then
-        echo -e "${YELLOW}   ⚠️  No se pudo clonar rofi-spotlight.${NC}"
+        echo -e "${YELLOW}   ️  No se pudo clonar rofi-spotlight.${NC}"
         echo -e "${BLUE}   → Continuando sin Rofi Spotlight...${NC}"
         echo ""
-        continue
+        continue 2>/dev/null || true
     fi
 fi
 
@@ -451,7 +465,7 @@ fi
 [ -d "$WORKDIR/rofi-themes-collection/themes" ] && cp "$WORKDIR/rofi-themes-collection/themes/"*.rasi "$ROFI_THEMES_DIR/" 2>/dev/null || true
 
 echo -e "${BLUE}   → Creando lanzador...${NC}"
-ROFI_LAUNCHER="$HOME/.local/bin/rofi-spotlight-launcher"
+ROFI_LAUNCHER="$ROFI_BIN_DIR/rofi-spotlight-launcher"
 cat > "$ROFI_LAUNCHER" << 'EOF'
 #!/bin/bash
 ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
@@ -469,7 +483,7 @@ EOF
 chmod +x "$ROFI_LAUNCHER"
 
 echo -e "${BLUE}   → Creando archivo .desktop...${NC}"
-cat > "$HOME/.local/share/applications/rofi-spotlight.desktop" << 'EOF'
+cat > "$ROFI_APPS_DIR/rofi-spotlight.desktop" << 'EOF'
 [Desktop Entry]
 Name=Spotlight Search
 Comment=macOS-style file and web search
@@ -479,6 +493,11 @@ Type=Application
 Categories=Utility;
 Keywords=search;spotlight;files;web;
 EOF
+
+# Asegurar permisos correctos para el usuario real
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/share/rofi-spotlight" 2>/dev/null || true
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/share/rofi" 2>/dev/null || true
+chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.local/bin" 2>/dev/null || true
 
 echo -e "${GREEN}✅ Rofi Spotlight instalado.${NC}"
 echo ""
