@@ -369,14 +369,45 @@ SOUNDS_DIR="$HOME/.local/share/sounds"
 SOUNDS_TEMP="$WORKDIR/bigsur-sounds-temp"
 mkdir -p "$SOUNDS_DIR" "$SOUNDS_TEMP"
 
-RELEASE_URL=$(curl -s https://api.github.com/repos/gxanshu/macos-bigsur-sound-theme-linux/releases/latest 2>/dev/null | grep "browser_download_url" | grep -E "\.tar\.gz|\.zip" | head -1 | cut -d '"' -f 4)
 SOUND_INSTALLED=false
 
-if [ -n "$RELEASE_URL" ]; then
+# Intentar obtener la URL del release desde GitHub API
+echo -e "${BLUE}   → Buscando última versión en GitHub...${NC}"
+RELEASE_URL=$(curl -s --max-time 10 https://api.github.com/repos/gxanshu/macos-bigsur-sound-theme-linux/releases/latest 2>/dev/null | grep "browser_download_url" | grep -E "\.tar\.gz|\.zip" | head -1 | cut -d '"' -f 4)
+
+if [ -z "$RELEASE_URL" ]; then
+    echo -e "${YELLOW}   ⚠️  No se pudo obtener la URL del release de GitHub.${NC}"
+    echo -e "${YELLOW}      Posibles causas: API rate-limited, sin internet, o repositorio sin releases.${NC}"
+    echo -e "${BLUE}   → Intentando método alternativo (clonar repositorio)...${NC}"
+    
+    ALT_REPO="$WORKDIR/bigsur-sound-theme"
+    if [ ! -d "$ALT_REPO" ]; then
+        git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null
+    fi
+    
+    if [ -d "$ALT_REPO" ]; then
+        echo -e "${BLUE}   → Construyendo desde fuente...${NC}"
+        ( cd "$ALT_REPO" && make install > /dev/null 2>&1 ) 2>/dev/null
+        if [ -d "$SOUNDS_DIR/bigsur" ]; then
+            SOUND_INSTALLED=true
+            echo -e "${GREEN}   ✅ Tema de sonidos construido e instalado.${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  No se pudo construir el tema de sonidos.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}   ️  No se pudo clonar el repositorio de sonidos.${NC}"
+    fi
+else
+    echo -e "${BLUE}   → Descargando desde: $RELEASE_URL${NC}"
     ARCHIVE_FILE="$SOUNDS_TEMP/bigsur-sounds.tar.gz"
+    
     if curl -L "$RELEASE_URL" -o "$ARCHIVE_FILE" --silent --fail --max-time 120 2>/dev/null; then
-        if file "$ARCHIVE_FILE" | grep -q "gzip"; then tar -xzf "$ARCHIVE_FILE" -C "$SOUNDS_TEMP" 2>/dev/null
-        elif file "$ARCHIVE_FILE" | grep -q "Zip"; then unzip -q "$ARCHIVE_FILE" -d "$SOUNDS_TEMP" 2>/dev/null; fi
+        echo -e "${BLUE}   → Extrayendo archivos...${NC}"
+        if file "$ARCHIVE_FILE" | grep -q "gzip"; then
+            tar -xzf "$ARCHIVE_FILE" -C "$SOUNDS_TEMP" 2>/dev/null
+        elif file "$ARCHIVE_FILE" | grep -q "Zip"; then
+            unzip -q "$ARCHIVE_FILE" -d "$SOUNDS_TEMP" 2>/dev/null
+        fi
         
         EXTRACTED_DIR=$(find "$SOUNDS_TEMP" -maxdepth 1 -type d -name "bigsur*" -o -name "*sound*" | head -1)
         [ -z "$EXTRACTED_DIR" ] && EXTRACTED_DIR="$SOUNDS_TEMP"
@@ -384,19 +415,18 @@ if [ -n "$RELEASE_URL" ]; then
         if [ -f "$EXTRACTED_DIR/index.theme" ] || [ -d "$EXTRACTED_DIR/stereo" ]; then
             rm -rf "$SOUNDS_DIR/bigsur"
             cp -r "$EXTRACTED_DIR" "$SOUNDS_DIR/bigsur"
-            [ -d "$SOUNDS_DIR/bigsur/stereo" ] || [ -f "$SOUNDS_DIR/bigsur/index.theme" ] && SOUND_INSTALLED=true && echo -e "${GREEN}✅ Tema de sonidos macOS Big Sur instalado.${NC}"
+            if [ -d "$SOUNDS_DIR/bigsur/stereo" ] || [ -f "$SOUNDS_DIR/bigsur/index.theme" ]; then
+                SOUND_INSTALLED=true
+                echo -e "${GREEN}   ✅ Tema de sonidos macOS Big Sur instalado.${NC}"
+            fi
+        else
+            echo -e "${YELLOW}   ⚠️  Estructura de archivos no válida.${NC}"
         fi
+    else
+        echo -e "${YELLOW}   ️  Falló la descarga del archivo.${NC}"
     fi
 fi
 
-if [ "$SOUND_INSTALLED" != "true" ]; then
-    ALT_REPO="$WORKDIR/bigsur-sound-theme"
-    [ ! -d "$ALT_REPO" ] && git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null
-    if [ -d "$ALT_REPO" ]; then
-        ( cd "$ALT_REPO" && make install > /dev/null 2>&1 ) 2>/dev/null
-        [ -d "$SOUNDS_DIR/bigsur" ] && SOUND_INSTALLED=true && echo -e "${GREEN}✅ Tema de sonidos construido e instalado.${NC}"
-    fi
-fi
 rm -rf "$SOUNDS_TEMP"
 echo ""
 
