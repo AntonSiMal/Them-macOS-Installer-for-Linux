@@ -54,34 +54,35 @@ fi
 
 cleanup_on_error() {
     local exit_code=$?
-    local failed_command="$BASH_COMMAND"
-    local line_number="${BASH_LINENO[0]}"
+    # Fallback por si BASH_COMMAND no está disponible en este entorno
+    local failed_command="${BASH_COMMAND:-Comando ejecutado justo antes del fallo}"
+    local line_number="${BASH_LINENO[0]:-Desconocida}"
 
     echo -e "\n${RED}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║   ❌ ERROR CRÍTICO DETECTADO EN LA INSTALACIÓN           ║${NC}"
+    echo -e "${RED}║   ❌ EL SCRIPT SE DETUVO INESPERADAMENTE                ║${NC}"
     echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "${YELLOW}📍 Detalles técnicos del fallo:${NC}"
-    echo -e "   • Línea del script: ${RED}$line_number${NC}"
-    echo -e "   • Comando fallido:  ${RED}$failed_command${NC}"
-    echo -e "   • Código de salida: ${RED}$exit_code${NC}"
+    echo -e "${YELLOW}📍 Último comando ejecutado antes del fallo:${NC}"
+    echo -e "   ${RED}$failed_command${NC}"
+    echo -e "   (Línea aproximada del script: $line_number)"
+    echo -e "   (Código de salida: $exit_code)"
     echo ""
-    echo -e "${YELLOW}💡 Posibles causas:${NC}"
-    echo -e "   1. Falta de conexión a internet o DNS bloqueado."
-    echo -e "   2. La contraseña de sudo caducó o fue denegada."
-    echo -e "   3. Un repositorio de GitHub está temporalmente inaccesible."
-    echo -e "   4. Falta de espacio en disco o dependencia del sistema en conflicto."
+    echo -e "${YELLOW}📝 Para ver el detalle completo del error, revisa el log:${NC}"
+    echo -e "   ${BLUE}tail -n 20 $LOG_FILE${NC}"
     echo ""
-    echo -e "${YELLOW}🔄 Para evitar dejar el sistema en un estado inconsistente, se ejecutará una limpieza automática...${NC}"
+    echo -e "${YELLOW}💡 Causas más comunes:${NC}"
+    echo -e "   1. Ejecutaste 'sudo curl ... | bash' en lugar de 'curl ... | sudo bash'"
+    echo -e "   2. Se acabó el espacio en disco o se cayó la conexión a internet."
+    echo -e "   3. El sistema pidió contraseña de sudo y se agotó el tiempo de espera."
+    echo ""
+    echo -e "${YELLOW}🔄 Ejecutando restauración del sistema para evitar conflictos...${NC}"
     
     if [ -f "$ROLLBACK_SCRIPT" ]; then
-        echo -e "${BLUE}Ejecutando limpieza automática (modo forzado)...${NC}"
         bash "$ROLLBACK_SCRIPT" --auto
-        echo -e "${RED}❌ La instalación ha sido revertida. Revisa el error de arriba e inténtalo de nuevo.${NC}"
+        echo -e "${RED}❌ La instalación ha sido revertida. Corrige el error e inténtalo de nuevo.${NC}"
     else
-        echo -e "${RED}❌ El script de restauración no está disponible (fallo de red previo).${NC}"
-        echo -e "${YELLOW}Por favor, ejecuta manualmente cuando tengas conexión:${NC}"
-        echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
+        echo -e "${RED}❌ No se pudo ejecutar la restauración automática.${NC}"
+        echo -e "${YELLOW}Ejecuta manualmente: curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | sudo bash -s -- --auto${NC}"
     fi
     exit 1
 }
