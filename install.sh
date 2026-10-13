@@ -590,52 +590,79 @@ fi
 echo ""
 
 # =============================================================================
-# PASO 12: TEMA DE FIREFOX (WhiteSur Safari Theme)
+# PASO 12: VERIFICAR, INSTALAR Y PERSONALIZAR NAVEGADOR (Firefox -> Safari)
 # =============================================================================
-echo -e "${YELLOW}🦊 [12/24] Instalando tema de Firefox (Estilo Safari)...${NC}"
+echo -e "${YELLOW}🦊 [12/24] Verificando y configurando navegador (Firefox -> Safari)...${NC}"
 
-# Verificar si hay algún navegador basado en Firefox instalado
-HAS_FIREFOX=false
-command -v firefox &> /dev/null && HAS_FIREFOX=true
-command -v firefox-bin &> /dev/null && HAS_FIREFOX=true
-command -v flatpak &> /dev/null && flatpak list --columns=application 2>/dev/null | grep -q "org.mozilla.firefox" && HAS_FIREFOX=true
-command -v snap &> /dev/null && snap list firefox &> /dev/null && HAS_FIREFOX=true
-command -v librewolf &> /dev/null && HAS_FIREFOX=true
-command -v floorp &> /dev/null && HAS_FIREFOX=true
-
-if [ "$HAS_FIREFOX" = true ]; then
-    echo -e "${BLUE}   → Navegador compatible detectado. Preparando instalación...${NC}"
+# 1. Verificar si Firefox está instalado
+if ! command -v firefox &> /dev/null; then
+    echo -e "${BLUE}   → Firefox no detectado. Procediendo a instalar...${NC}"
     
-    # Cerrar navegadores en ejecución para evitar bloqueos de perfil
-    pkill -f "firefox" 2>/dev/null || true
-    pkill -f "librewolf" 2>/dev/null || true
-    pkill -f "floorp" 2>/dev/null || true
-    sleep 2
-    
-    # Clonar el repositorio del tema WhiteSur Firefox
-    FIREFOX_THEME_REPO="$WORKDIR/WhiteSur-firefox-theme"
-    if [ ! -d "$FIREFOX_THEME_REPO" ]; then
-        echo -e "${BLUE}   → Clonando WhiteSur Firefox Theme...${NC}"
-        git clone --depth=1 https://github.com/vinceliuice/WhiteSur-firefox-theme.git "$FIREFOX_THEME_REPO" -q 2>/dev/null
-    fi
-    
-    if [ -d "$FIREFOX_THEME_REPO" ]; then
-        echo -e "${BLUE}   → Aplicando tema 'Monterey' (Estilo Safari moderno)...${NC}"
-        
-        # Ejecutar el script de instalación como el usuario real para evitar instalar en /root
-        # Se usa la variante '-m' (Monterey) que es la más parecida a macOS moderno
-        # El script interno detecta automáticamente el perfil (estándar, flatpak o snap)
-        sudo -u "$REAL_USER" HOME="$REAL_HOME" "$FIREFOX_THEME_REPO/install.sh" -m > /dev/null 2>&1
-        
-        echo -e "${GREEN}   ✅ Tema de Firefox instalado correctamente.${NC}"
-        echo -e "${BLUE}   💡 Nota: Si usas Wayland y las esquinas de la ventana se ven rectas,${NC}"
-        echo -e "${BLUE}      ve a about:config y activa 'layers.acceleration.force-enabled'${NC}"
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get install -y -qq firefox
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y -q firefox
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -S --noconfirm --needed firefox
     else
-        echo -e "${YELLOW}   ⚠️  No se pudo clonar el tema de Firefox.${NC}"
+        echo -e "${RED}   ✗ No se pudo instalar Firefox automáticamente.${NC}"
     fi
+    echo -e "${GREEN}   ✅ Firefox instalado correctamente.${NC}"
 else
-    echo -e "${YELLOW}   ⏭️  Firefox, Librewolf o Floorp no detectados. Omitiendo.${NC}"
+    echo -e "${GREEN}   ✅ Firefox ya está instalado. Omitiendo instalación.${NC}"
 fi
+
+# 2. Personalizar el lanzador a "Safari"
+echo -e "${BLUE}   → Personalizando el lanzador y el icono...${NC}"
+
+# Buscar el archivo .desktop original de Firefox (maneja versiones normales, ESR y Flatpak)
+ORIGINAL_DESKTOP=""
+if [ -f "/usr/share/applications/firefox.desktop" ]; then
+    ORIGINAL_DESKTOP="/usr/share/applications/firefox.desktop"
+elif [ -f "/usr/share/applications/firefox-esr.desktop" ]; then
+    ORIGINAL_DESKTOP="/usr/share/applications/firefox-esr.desktop"
+elif [ -f "/usr/share/applications/org.mozilla.firefox.desktop" ]; then
+    ORIGINAL_DESKTOP="/usr/share/applications/org.mozilla.firefox.desktop"
+elif [ -f "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop" ]; then
+    ORIGINAL_DESKTOP="/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop"
+fi
+
+if [ -n "$ORIGINAL_DESKTOP" ]; then
+    # Crear directorios locales del usuario si no existen
+    mkdir -p ~/.local/share/applications
+    mkdir -p ~/.local/share/icons/hicolor/256x256/apps
+
+    # Descargar un icono de Safari de alta calidad (SVG) desde Wikimedia (fuente confiable)
+    echo -e "${BLUE}      → Descargando icono de Safari...${NC}"
+    wget -q -O ~/.local/share/icons/hicolor/256x256/apps/safari.svg \
+        "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+
+    # Copiar el lanzador original a la carpeta local del usuario con el nuevo nombre
+    cp "$ORIGINAL_DESKTOP" ~/.local/share/applications/safari.desktop
+
+    # Modificar el nombre en el archivo .desktop (Nombre genérico y en español)
+    sed -i 's/^Name=.*/Name=Safari/g' ~/.local/share/applications/safari.desktop
+    sed -i 's/^Name\[es\]=.*/Name[es]=Safari/g' ~/.local/share/applications/safari.desktop
+    sed -i 's/^GenericName=.*/GenericName=Navegador Web Safari/g' ~/.local/share/applications/safari.desktop
+    
+    # Asignar el nuevo icono descargado
+    sed -i 's/^Icon=.*/Icon=safari/g' ~/.local/share/applications/safari.desktop
+
+    # Opcional: Ocultar el lanzador original de "Firefox" del menú de aplicaciones 
+    # para que solo aparezca "Safari" y la ilusión sea completa.
+    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/firefox-hide.desktop
+    # (Esto sobreescribe la visibilidad del original a nivel de usuario sin tocar el sistema)
+
+    # Actualizar la base de datos de lanzadores para que el cambio sea inmediato
+    update-desktop-database ~/.local/share/applications 2>/dev/null || true
+    gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
+
+    echo -e "${GREEN}   ✅ Lanzador renombrado a 'Safari' e icono actualizado.${NC}"
+    echo -e "${BLUE}      (El Firefox original ha sido ocultado del menú de aplicaciones)${NC}"
+else
+    echo -e "${YELLOW}   ⚠️ No se encontró el archivo .desktop de Firefox. Omitiendo renombrado.${NC}"
+fi
+
 echo ""
 
 # =============================================================================
