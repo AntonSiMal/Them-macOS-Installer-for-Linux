@@ -1,1103 +1,795 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#=============================================================================
+# 🐧 FlyTux v26.2 - Sistema Cognitivo Cooperativo (Safe Edition)
+# Correcciones vs v26.1:
+#  • Ya NO desactiva el servicio Bluetooth (bluetooth)
+#  • Ya NO desactiva el servicio de Impresoras (cups)
+#  • Mantiene todo el hardening, detección y optimización de CPU/GPU/RAM
+#=============================================================================
 
-# =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition)
-# Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
-# =============================================================================
+set -Eeuo pipefail
 
-set -e
+# ═══════════════════════════════════════════════════════════════════════════
+# CONFIGURACIÓN GLOBAL
+# ═══════════════════════════════════════════════════════════════════════════
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+FX="/etc/flytux"
+FV="/var/lib/flytux"
+LOG="/var/log/flytux-$(date +%F-%H%M).log"
+BKP="/var/backups/flytux-$(date +%F).tar.gz"
+ERRORS=()
+WARNINGS=()
 
-MACOS_VERSION="Tahoe"
-GTK_THEME="MacTahoe-Dark"
-SHELL_THEME="MacTahoe-Dark"
-ICON_THEME="MacTahoe-dark"
-CURSOR_THEME="MacTahoe-dark"
-SOUND_THEME="bigsur"
-UI_FONT="SF Pro Text 11"
-MONO_FONT="SF Mono Regular 11"
-SERIF_FONT="New York Medium 11"
-PLANK_THEME="MacOS-BigSur-Dark"
-WORKDIR="$HOME/.macos-theme-setup"
-LOG_FILE="$WORKDIR/install.log"
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPERS DE LOGGING
+# ═══════════════════════════════════════════════════════════════════════════
 
-mkdir -p "$WORKDIR"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Iniciando instalación de macOS Tahoe Theme" > "$LOG_FILE"
+log()   { echo "✅ $*"; logger -t flytux "$*"; }
+info()  { echo "ℹ️  $*"; }
+warn()  { echo "⚠️  $*" >&2; WARNINGS+=("$*"); logger -t flytux "WARN: $*"; }
+error() { echo "❌ $*" >&2; ERRORS+=("$*"); logger -t flytux "ERROR: $*"; }
+fatal() { echo "💀 $*" >&2; logger -t flytux "FATAL: $*"; exit 1; }
 
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║   🍎 macOS Tahoe Theme Installer - Ultimate Edition     ║${NC}"
-echo -e "${CYAN}║   Instalación 100% automatizada (24 pasos)              ║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
-echo ""
+# ═══════════════════════════════════════════════════════════════════════════
+# GESTIÓN DE ERRORES
+# ═══════════════════════════════════════════════════════════════════════════
 
-# =============================================================================
-# 🛡️ MECANISMO DE SEGURIDAD: ROLLBACK AUTOMÁTICO EN CASO DE ERROR
-# =============================================================================
-INSTALLATION_SUCCESS=false
-ROLLBACK_SCRIPT="$WORKDIR/uninstall_rollback.sh"
-UNINSTALL_URL="https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh"
+run() {
+  local desc="$1"; shift
+  if "$@" >/dev/null 2>&1; then
+    return 0
+  else
+    local rc=$?
+    error "[$desc] falló (rc=$rc): $*"
+    return $rc
+  fi
+}
 
-echo -e "${BLUE}🛡️  [0/24] Descargando script de restauración de emergencia...${NC}"
-if curl -sSL "$UNINSTALL_URL" -o "$ROLLBACK_SCRIPT" 2>/dev/null; then
-    chmod +x "$ROLLBACK_SCRIPT"
-    echo -e "${GREEN}✅ Script de restauración guardado localmente. Sistema protegido.${NC}"
-else
-    echo -e "${YELLOW}⚠️  No se pudo descargar el script de restauración. La limpieza automática podría no estar disponible si falla la instalación.${NC}"
-fi
+run_visible() {
+  local desc="$1"; shift
+  if "$@"; then
+    return 0
+  else
+    local rc=$?
+    error "[$desc] falló (rc=$rc): $*"
+    return $rc
+  fi
+}
 
-cleanup_on_error() {
-    echo -e "\n${RED}⚠️  ERROR CRÍTICO DETECTADO DURANTE LA INSTALACIÓN.${NC}"
-    echo -e "${YELLOW}Para evitar dejar el sistema en un estado inconsistente, se ejecutará una limpieza automática...${NC}"
-    
-    if [ -f "$ROLLBACK_SCRIPT" ]; then
-        echo -e "${BLUE}Ejecutando limpieza automática (modo forzado)...${NC}"
-        # El flag --auto evita que el uninstall.sh pida confirmación al usuario
-        bash "$ROLLBACK_SCRIPT" --auto
-        echo -e "${RED}❌ La instalación ha sido revertida. Revisa tu conexión a internet e inténtalo de nuevo.${NC}"
+# ═══════════════════════════════════════════════════════════════════════════
+# HELPERS DE PAQUETES Y SERVICIOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+pkg_exists() { apt-cache madison "$1" 2>/dev/null | grep -q '|' || false; }
+
+inst() {
+  local desc="$1"; shift
+  info "📦 $desc: $*"
+  if run "inst:$desc" apt install -y "$@"; then
+    log "$desc instalado"
+  else
+    warn "$desc: algunos paquetes fallaron"
+  fi
+}
+
+svc_on() {
+  systemctl list-unit-files "$1.service" &>/dev/null | grep -q "$1" || return 0
+  run "svc_on:$1" systemctl enable --now "$1"
+}
+
+svc_off() {
+  systemctl list-unit-files "$1.service" &>/dev/null | grep -q "$1" || return 0
+  run "svc_off:$1" systemctl disable --now "$1"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JSON SEGURO
+# ═══════════════════════════════════════════════════════════════════════════
+
+json_escape() {
+  local s="$1"
+  s="${s//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  s="${s//$'\t'/\\t}"
+  echo "$s"
+}
+
+json_write() {
+  local file="$1"; shift
+  local json="{"
+  local first=true
+  while [ $# -ge 2 ]; do
+    local key="$1" val="$2"; shift 2
+    $first || json+=","
+    first=false
+    if [[ "$val" == "true" || "$val" == "false" || "$val" =~ ^[0-9]+$ ]]; then
+      json+="\"$key\":$val"
     else
-        echo -e "${RED}❌ El script de limpieza no está disponible (fallo de red previo).${NC}"
-        echo -e "${YELLOW}Por favor, ejecuta manualmente cuando tengas conexión:${NC}"
-        echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
+      json+="\"$key\":\"$(json_escape "$val")\""
     fi
-    exit 1
+  done
+  json+="}"
+  echo "$json" > "$file"
 }
 
-# Activar la trampa: si cualquier comando falla (debido a 'set -e'), se ejecuta cleanup_on_error
-trap cleanup_on_error ERR
-echo ""
+# ═══════════════════════════════════════════════════════════════════════════
+# DETECCIÓN DE CPU (perfil completo + CPUID real)
+# ═══════════════════════════════════════════════════════════════════════════
 
-# =============================================================================
-# DETECCIÓN DEL ENTORNO
-# =============================================================================
-DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-unknown}" | tr '[:upper:]' '[:lower:]')
-SESSION_TYPE="${XDG_SESSION_TYPE:-unknown}"
-DISTRO=""
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    DISTRO=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
-fi
+read_cpuinfo() {
+  CV=""; CF=""; CM=""; CS=""; CN=""; FLG=""
+  CPU_CUR_MHZ=0; CPU_PHYS_CORES=""; CPU_SIBLINGS=""; CPU_CACHE=""; CPU_SOCKETS=1
 
-IS_GNOME=false; IS_CINNAMON=false
-[[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]] && IS_GNOME=true
-[[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && IS_CINNAMON=true
-
-if command -v xrandr &> /dev/null; then
-    SCREEN_WIDTH=$(xrandr --current | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1)
-    [ -n "$SCREEN_WIDTH" ] && {
-        if [ "$SCREEN_WIDTH" -ge 3840 ]; then SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
-        elif [ "$SCREEN_WIDTH" -ge 2560 ]; then SCREEN_VARIANT="2k"; ICON_BOLD_FLAG=""
-        else SCREEN_VARIANT="1080p"; ICON_BOLD_FLAG=""; fi
-    } || { SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"; }
-else
-    SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
-fi
-
-HAS_FLATPAK=false; command -v flatpak &> /dev/null && HAS_FLATPAK=true
-HAS_DASH_TO_DOCK=false
-[ -d "$HOME/.local/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] || \
-[ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
-
-# =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA
-# =============================================================================
-echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
-if command -v apt-get &> /dev/null; then
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
-        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
-        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
-        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct sushi ruby libinput-tools \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
-        plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
-        unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
-        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
-elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
-        dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
-        gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
-        xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
-fi
-echo -e "${GREEN}✅ Dependencias listas.${NC}"
-
-# =============================================================================
-# PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
-# =============================================================================
-echo -e "${YELLOW}🔤 [2/24] Instalando fuentes oficiales de Apple (WWDC26)...${NC}"
-FONTS_DIR="$HOME/.local/share/fonts"
-SF_TEMP="$WORKDIR/sf-windows-temp"
-mkdir -p "$FONTS_DIR" "$SF_TEMP"
-
-SF_INSTALLED=false
-SF_PRO_URL="https://github.com/bradleyhodges/SFWindows/raw/refs/heads/main/SF%20Pro/SF-Pro.ttf"
-SF_COMPACT_URL="https://github.com/bradleyhodges/SFWindows/raw/refs/heads/main/SF%20Compact/SF-Compact.ttf"
-NEW_YORK_URL="https://github.com/bradleyhodges/SFWindows/raw/refs/heads/main/New%20York/NewYork.ttf"
-
-download_font() {
-    local url="$1" output="$2" name="$3"
-    if curl -L "$url" -o "$output" --silent --fail --max-time 60 2>/dev/null; then
-        if file "$output" | grep -q "TrueType\|OpenType\|font"; then
-            echo -e "   ${GREEN}✓ $name descargada${NC}"
-            return 0
-        fi
+  eval "$(awk -F: '
+    /^vendor_id/ && !v {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CV=" tolower($2); v=1}
+    /^cpu family/ && !f {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CF=" $2; f=1}
+    /^model[ \t]*:/ && !m {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CM=" $2; m=1}
+    /^stepping/ && !s {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CS=" $2; s=1}
+    /^model name/ && !n {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CN=\"" $2 "\""; n=1}
+    /^flags/ && !fl {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "FLG=\"" $2 "\""; fl=1}
+    /^cpu MHz/ && !mhz {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CPU_CUR_MHZ=" int($2); mhz=1}
+    /^cpu cores/ && !cores {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CPU_PHYS_CORES=" $2; cores=1}
+    /^siblings/ && !sib {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CPU_SIBLINGS=" $2; sib=1}
+    /^physical id/ && !pid {gsub(/^[ \t]+|[ \t]+$/, "", $2); SOCKETS[$2]=1}
+    /^cache size/ && !cache {gsub(/^[ \t]+|[ \t]+$/, "", $2); print "CPU_CACHE=\"" $2 "\""; cache=1}
+    END {
+      print "CPU_SOCKETS=" length(SOCKETS)
+    }
+  ' /proc/cpuinfo)"
+  
+  CC=$(nproc)
+  AVX2=$(echo "$FLG" | grep -qw avx2 && echo true || echo false)
+  AVX512=$(echo "$FLG" | grep -qw avx512f && echo true || echo false)
+  
+  SMT=false
+  [ -n "$CPU_PHYS_CORES" ] && [ -n "$CPU_SIBLINGS" ] && [ "$CPU_SIBLINGS" -gt "$CPU_PHYS_CORES" ] && SMT=true
+  
+  CPU_MAX_MHZ=0
+  CPU_MIN_MHZ=0
+  if [ -f /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq ]; then
+    CPU_MAX_MHZ=$(( $(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq) / 1000 ))
+    [ -f /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq ] && \
+      CPU_MIN_MHZ=$(( $(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq) / 1000 ))
+  elif command -v lscpu &>/dev/null; then
+    if lscpu -J &>/dev/null; then
+      CPU_MAX_MHZ=$(lscpu -J 2>/dev/null | awk -F'"' '/CPU max MHz/{for(i=1;i<=NF;i++) if($i=="CPU max MHz") print $(i+4)}' | tr -d ' ,')
+      CPU_MIN_MHZ=$(lscpu -J 2>/dev/null | awk -F'"' '/CPU min MHz/{for(i=1;i<=NF;i++) if($i=="CPU min MHz") print $(i+4)}' | tr -d ' ,')
     fi
-    return 1
+    [ -z "$CPU_MAX_MHZ" ] || [ "$CPU_MAX_MHZ" -eq 0 ] && \
+      CPU_MAX_MHZ=$(lscpu 2>/dev/null | awk '/CPU max MHz/{printf "%d",$4}')
+    [ -z "$CPU_MIN_MHZ" ] || [ "$CPU_MIN_MHZ" -eq 0 ] && \
+      CPU_MIN_MHZ=$(lscpu 2>/dev/null | awk '/CPU min MHz/{printf "%d",$4}')
+  fi
+  [ -z "$CPU_MAX_MHZ" ] || [ "$CPU_MAX_MHZ" -eq 0 ] && CPU_MAX_MHZ=2000
+  [ -z "$CPU_MIN_MHZ" ] || [ "$CPU_MIN_MHZ" -eq 0 ] && CPU_MIN_MHZ=800
+  
+  HYB=false
+  CAPS=$(cat /sys/devices/system/cpu/cpu*/cpu_capacity 2>/dev/null | sort -u | wc -l)
+  [ "$CAPS" -gt 1 ] && HYB=true
+  
+  VIRT="none"
+  echo "$FLG" | grep -qw vmx && VIRT="vmx"
+  echo "$FLG" | grep -qw svm && VIRT="svm"
+  command -v systemd-detect-virt &>/dev/null && {
+    VIRT_TYPE=$(systemd-detect-virt 2>/dev/null)
+    [ "$VIRT_TYPE" != "none" ] && VIRT="$VIRT_TYPE"
+  }
+  
+  NUMA_NODES=1
+  [ -d /sys/devices/system/node ] && NUMA_NODES=$(ls -d /sys/devices/system/node/node* 2>/dev/null | wc -l)
 }
 
-if download_font "$SF_PRO_URL" "$SF_TEMP/SF-Pro.ttf" "SF Pro" && \
-   download_font "$SF_COMPACT_URL" "$SF_TEMP/SF-Compact.ttf" "SF Compact" && \
-   download_font "$NEW_YORK_URL" "$SF_TEMP/NewYork.ttf" "New York"; then
-    
-    cp "$SF_TEMP/SF-Pro.ttf" "$FONTS_DIR/" 2>/dev/null
-    cp "$SF_TEMP/SF-Compact.ttf" "$FONTS_DIR/" 2>/dev/null
-    cp "$SF_TEMP/NewYork.ttf" "$FONTS_DIR/" 2>/dev/null
-    
-    SF_REPO="$WORKDIR/SFWindows"
-    [ ! -d "$SF_REPO" ] && git clone --depth=1 https://github.com/bradleyhodges/SFWindows.git "$SF_REPO" -q 2>/dev/null
-    
-    [ -d "$SF_REPO/SF Mono" ] && find "$SF_REPO/SF Mono" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
-    [ -d "$SF_REPO/SF Multilingual Extensions" ] && find "$SF_REPO/SF Multilingual Extensions" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
-    
-    SF_INSTALLED=true
-else
-    SF_REPO="$WORKDIR/SFWindows"
-    [ ! -d "$SF_REPO" ] && git clone --depth=1 https://github.com/bradleyhodges/SFWindows.git "$SF_REPO" -q 2>/dev/null
-    [ -d "$SF_REPO" ] && find "$SF_REPO" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
-    SF_INSTALLED=true
-fi
+# ═══════════════════════════════════════════════════════════════════════════
+# BASE CPUID
+# ═══════════════════════════════════════════════════════════════════════════
 
-fc-cache -f "$FONTS_DIR" > /dev/null 2>&1
-[ "$SF_INSTALLED" = true ] && echo -e "${GREEN}✅ Fuentes oficiales Apple instaladas.${NC}"
-rm -rf "$SF_TEMP"
-echo ""
-
-# =============================================================================
-# PASO 3: EXTENSIÓN LIQUID GLASS (SOLO GNOME/ZORIN)
-# =============================================================================
-IS_GNOME=false
-if [[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]]; then
-    IS_GNOME=true
-    echo -e "${YELLOW}🧩 [3/24] Instalando extensión 'Liquid Glass'...${NC}"
-    mkdir -p ~/.local/share/gnome-shell/extensions/
-
-    [ ! -d "$WORKDIR/liquid-glass" ] && git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git "$WORKDIR/liquid-glass" -q
-    cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" ~/.local/share/gnome-shell/extensions/
-
-    GNOME_VERSION=$(gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1)
-    EXT_DIR=~/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com
-    if [ -n "$GNOME_VERSION" ] && [ -f "$EXT_DIR/metadata.json" ]; then
-        if ! grep -q "\"$GNOME_VERSION\"" "$EXT_DIR/metadata.json"; then
-            python3 -c "
-import json
-with open('$EXT_DIR/metadata.json', 'r') as f: data = json.load(f)
-if '$GNOME_VERSION' not in data.get('shell-version', []):
-    data.setdefault('shell-version', []).append('$GNOME_VERSION')
-    with open('$EXT_DIR/metadata.json', 'w') as f: json.dump(data, f, indent=2)
-" 2>/dev/null
-        fi
-    fi
-    echo -e "${GREEN}✅ Liquid Glass instalada.${NC}"
-else
-    echo -e "${YELLOW}⏭️  [3/24] Liquid Glass omitida.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 4: EXTENSIÓN CINNAMON DYNAMIC WALLPAPER (SOLO CINNAMON)
-# =============================================================================
-IS_CINNAMON=false
-if [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]]; then
-    IS_CINNAMON=true
-    echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
-    mkdir -p ~/.local/share/cinnamon/extensions/
-
-    [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q
-    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ~/.local/share/cinnamon/extensions/ 2>/dev/null
-
-    CINNAMON_EXTENSIONS=$(gsettings get org.cinnamon enabled-extensions 2>/dev/null)
-    if ! echo "$CINNAMON_EXTENSIONS" | grep -q "cinnamon-dynamic-wallpaper@TobiZog"; then
-        if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
-            gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null
-        else
-            NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$, 'cinnamon-dynamic-wallpaper@TobiZog']/")
-            gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
-        fi
-    fi
-    echo -e "${GREEN}✅ Cinnamon Dynamic Wallpaper instalada.${NC}"
-else
-    echo -e "${YELLOW}⏭️  [4/24] Cinnamon Dynamic Wallpaper omitida.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 5: TEMA GTK + ICONOS + CURSORES (macOS Tahoe)
-# =============================================================================
-echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...${NC}"
-
-# Clonar repositorios si no existen
-[ ! -d "$WORKDIR/MacTahoe-gtk-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q
-[ ! -d "$WORKDIR/MacTahoe-icon-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$WORKDIR/MacTahoe-icon-theme" -q
-
-# Configurar flags de instalación
-INSTALL_FLAGS="-c dark --silent-mode --round --darker"
-if [ "$IS_GNOME" = true ]; then
-    INSTALL_FLAGS="$INSTALL_FLAGS -l" # Soporte para libadwaita (GTK4)
-    # Activar modo blur si la extensión Blur-my-shell ya está presente
-    if [ -d "$HOME/.local/share/gnome-shell/extensions/blur-my-shell@aunetx" ] || [ -d "/usr/share/gnome-shell/extensions/blur-my-shell@aunetx" ]; then
-        INSTALL_FLAGS="$INSTALL_FLAGS -b"
-    fi
-fi
-
-# 1. Instalar tema GTK
-( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 )
-
-# 2. Instalar Iconos y Cursores 
-# (El script oficial de MacTahoe ejecuta 'install_theme && install_cursor_theme' automáticamente)
-if [ -n "$ICON_BOLD_FLAG" ]; then
-    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 )
-else
-    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
-fi
-
-# Aplicar tweaks adicionales si el sistema lo requiere
-[ "$HAS_FLATPAK" = true ] && ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -F -c dark > /dev/null 2>&1 )
-[ "$HAS_DASH_TO_DOCK" = true ] && [ "$IS_GNOME" = true ] && ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -d > /dev/null 2>&1 )
-
-echo -e "${GREEN}✅ Tema GTK, Iconos y Cursores MacTahoe instalados correctamente.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 6: WALLPAPER DINÁMICO MOJAVE CON HORARIOS REALES
-# =============================================================================
-MOJAVE_INSTALLED=false
-if [ "$IS_GNOME" = true ]; then
-    echo -e "${YELLOW}🌄 [6/24] Instalando wallpaper dinámico Mojave...${NC}"
-    MOJAVE_TEMP="$WORKDIR/gnome-kde-mojave-dynamic"
-    [ ! -d "$MOJAVE_TEMP" ] && git clone --depth=1 https://github.com/japamax/gnome-kde-dynamic-wallpaper-mojave.git "$MOJAVE_TEMP" -q 2>/dev/null
-    
-    if [ -d "$MOJAVE_TEMP/mojave" ] && [ -f "$MOJAVE_TEMP/mojave-timed.xml" ]; then
-        sudo mkdir -p /usr/share/dynamicwallpapers/mojave-solar/contents/images
-        sudo cp "$MOJAVE_TEMP/mojave/"* /usr/share/dynamicwallpapers/mojave-solar/contents/images/ 2>/dev/null
-        sudo chmod 755 /usr/share/dynamicwallpapers/mojave-solar/contents/images 2>/dev/null
-        sudo chmod 644 /usr/share/dynamicwallpapers/mojave-solar/contents/images/* 2>/dev/null
-        
-        sudo mkdir -p /usr/share/dynamicwallpapers/mojave-timed/contents
-        sudo chmod 755 /usr/share/dynamicwallpapers/mojave-timed/contents 2>/dev/null
-        sudo ln -sf /usr/share/dynamicwallpapers/mojave-solar/contents/images /usr/share/dynamicwallpapers/mojave-timed/contents/images 2>/dev/null
-        
-        sudo mkdir -p /usr/share/backgrounds/macOS
-        sudo ln -sf /usr/share/dynamicwallpapers/mojave-solar/contents/images /usr/share/backgrounds/macOS/mojave 2>/dev/null
-        
-        [ -f "$MOJAVE_TEMP/mojave-solar.json" ] && sudo cp "$MOJAVE_TEMP/mojave-solar.json" /usr/share/dynamicwallpapers/mojave-solar/metadata.json 2>/dev/null
-        [ -f "$MOJAVE_TEMP/mojave-timed.json" ] && sudo cp "$MOJAVE_TEMP/mojave-timed.json" /usr/share/dynamicwallpapers/mojave-timed/metadata.json 2>/dev/null
-        [ -f "$MOJAVE_TEMP/mojave-timed.xml" ] && sudo cp "$MOJAVE_TEMP/mojave-timed.xml" /usr/share/backgrounds/macOS/mojave-timed.xml 2>/dev/null
-        
-        sudo mkdir -p /usr/share/gnome-background-properties
-        [ -f "$MOJAVE_TEMP/mojave.xml" ] && sudo cp "$MOJAVE_TEMP/mojave.xml" /usr/share/gnome-background-properties/mojave.xml 2>/dev/null
-        
-        MOJAVE_INSTALLED=true
-        echo -e "${GREEN}✅ Wallpaper Mojave con horarios reales instalado.${NC}"
-    else
-        echo -e "${YELLOW}⚠️  No se pudo descargar Mojave dinámico.${NC}"
-    fi
-else
-    echo -e "${YELLOW}⏭️  [6/24] Mojave dinámico omitido.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 7: WALLPAPERS SONOMA (RESPALDO)
-# =============================================================================
-echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
-[ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q
-
-if [ "$IS_GNOME" = true ]; then
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
-else
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
-fi
-echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR
-# =============================================================================
-echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
-SOUNDS_DIR="$HOME/.local/share/sounds"
-SOUNDS_TEMP="$WORKDIR/bigsur-sounds-temp"
-mkdir -p "$SOUNDS_DIR" "$SOUNDS_TEMP"
-
-RELEASE_URL=$(curl -s https://api.github.com/repos/gxanshu/macos-bigsur-sound-theme-linux/releases/latest 2>/dev/null | grep "browser_download_url" | grep -E "\.tar\.gz|\.zip" | head -1 | cut -d '"' -f 4)
-SOUND_INSTALLED=false
-
-if [ -n "$RELEASE_URL" ]; then
-    ARCHIVE_FILE="$SOUNDS_TEMP/bigsur-sounds.tar.gz"
-    if curl -L "$RELEASE_URL" -o "$ARCHIVE_FILE" --silent --fail --max-time 120 2>/dev/null; then
-        if file "$ARCHIVE_FILE" | grep -q "gzip"; then tar -xzf "$ARCHIVE_FILE" -C "$SOUNDS_TEMP" 2>/dev/null
-        elif file "$ARCHIVE_FILE" | grep -q "Zip"; then unzip -q "$ARCHIVE_FILE" -d "$SOUNDS_TEMP" 2>/dev/null; fi
-        
-        EXTRACTED_DIR=$(find "$SOUNDS_TEMP" -maxdepth 1 -type d -name "bigsur*" -o -name "*sound*" | head -1)
-        [ -z "$EXTRACTED_DIR" ] && EXTRACTED_DIR="$SOUNDS_TEMP"
-        
-        if [ -f "$EXTRACTED_DIR/index.theme" ] || [ -d "$EXTRACTED_DIR/stereo" ]; then
-            rm -rf "$SOUNDS_DIR/bigsur"
-            cp -r "$EXTRACTED_DIR" "$SOUNDS_DIR/bigsur"
-            [ -d "$SOUNDS_DIR/bigsur/stereo" ] || [ -f "$SOUNDS_DIR/bigsur/index.theme" ] && SOUND_INSTALLED=true && echo -e "${GREEN}✅ Tema de sonidos macOS Big Sur instalado.${NC}"
-        fi
-    fi
-fi
-
-if [ "$SOUND_INSTALLED" != "true" ]; then
-    ALT_REPO="$WORKDIR/bigsur-sound-theme"
-    [ ! -d "$ALT_REPO" ] && git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null
-    if [ -d "$ALT_REPO" ]; then
-        ( cd "$ALT_REPO" && make install > /dev/null 2>&1 ) 2>/dev/null
-        [ -d "$SOUNDS_DIR/bigsur" ] && SOUND_INSTALLED=true && echo -e "${GREEN}✅ Tema de sonidos construido e instalado.${NC}"
-    fi
-fi
-rm -rf "$SOUNDS_TEMP"
-echo ""
-
-# =============================================================================
-# PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
-# =============================================================================
-echo -e "${YELLOW}🔍 [9/24] Instalando Rofi Spotlight...${NC}"
-ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
-ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
-mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR"
-
-[ ! -d "$WORKDIR/rofi-spotlight" ] && git clone --depth=1 https://github.com/eromatiya/rofi-spotlight.git "$WORKDIR/rofi-spotlight" -q 2>/dev/null
-if [ -d "$WORKDIR/rofi-spotlight" ]; then
-    cp -r "$WORKDIR/rofi-spotlight"/* "$ROFI_SPOTLIGHT_DIR/" 2>/dev/null
-    chmod +x "$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" "$ROFI_SPOTLIGHT_DIR/web-search.py" 2>/dev/null
-fi
-
-[ ! -d "$WORKDIR/rofi-themes-collection" ] && git clone --depth=1 https://github.com/newmanls/rofi-themes-collection.git "$WORKDIR/rofi-themes-collection" -q 2>/dev/null
-[ -d "$WORKDIR/rofi-themes-collection/themes" ] && cp "$WORKDIR/rofi-themes-collection/themes/"*.rasi "$ROFI_THEMES_DIR/" 2>/dev/null
-
-ROFI_LAUNCHER="$HOME/.local/bin/rofi-spotlight-launcher"
-mkdir -p "$HOME/.local/bin"
-cat > "$ROFI_LAUNCHER" << 'EOF'
-#!/bin/bash
-ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
-ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
-if ! command -v rofi &> /dev/null; then notify-send "Error" "Rofi no está instalado" -i dialog-error; exit 1; fi
-if [ -f "$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" ]; then
-    rofi -modi "Global Search:$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" -show "Global Search" -theme "$ROFI_THEMES_DIR/spotlight.rasi" -config "$ROFI_SPOTLIGHT_DIR/rofi.rasi"
-else
-    rofi -show drun -theme "$ROFI_THEMES_DIR/spotlight.rasi"
-fi
-EOF
-chmod +x "$ROFI_LAUNCHER"
-
-cat > "$HOME/.local/share/applications/rofi-spotlight.desktop" << 'EOF'
-[Desktop Entry]
-Name=Spotlight Search
-Comment=macOS-style file and web search
-Exec=rofi-spotlight-launcher
-Icon=search
-Type=Application
-Categories=Utility;
-Keywords=search;spotlight;files;web;
-EOF
-echo -e "${GREEN}✅ Rofi Spotlight instalado.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 10: TEMAS DE PLANK
-# =============================================================================
-echo -e "${YELLOW}🚀 [10/24] Instalando temas de Plank...${NC}"
-[ ! -d "$WORKDIR/MacOS-Mojave-Plank-themes" ] && git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git "$WORKDIR/MacOS-Mojave-Plank-themes" -q
-mkdir -p ~/.local/share/plank/themes
-find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do
-    [ -d "$theme_dir" ] && cp -r "$theme_dir" ~/.local/share/plank/themes/
-done
-echo -e "${GREEN}✅ Temas de Plank instalados.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 11: TEMA PLYMOUTH (PANTALLA DE ARRANQUE)
-# =============================================================================
-echo -e "${YELLOW}🖥️  [11/24] Instalando tema Plymouth...${NC}"
-if command -v plymouth &> /dev/null || [ -d /usr/share/plymouth/themes ]; then
-    [ ! -d "$WORKDIR/apple-mac-plymouth" ] && git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git "$WORKDIR/apple-mac-plymouth" -q
-    sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null
-    sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null
-    echo "1" | sudo update-alternatives --config default.plymouth > /dev/null 2>&1
-    command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1
-    command -v dracut &> /dev/null && sudo dracut --force > /dev/null 2>&1
-    echo -e "${GREEN}✅ Tema Plymouth instalado.${NC}"
-else
-    echo -e "${YELLOW}⏭️  Plymouth no disponible.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 12: TEMA DE FIREFOX
-# =============================================================================
-echo -e "${YELLOW}🦊 [12/24] Instalando tema de Firefox...${NC}"
-if command -v firefox &> /dev/null || command -v firefox-bin &> /dev/null; then
-    pidof firefox &> /dev/null || pidof firefox-bin &> /dev/null && pkill -f firefox 2>/dev/null && sleep 2
-    ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -f > /dev/null 2>&1 )
-    echo -e "${GREEN}✅ Tema de Firefox instalado.${NC}"
-else
-    echo -e "${YELLOW}⏭️  Firefox no instalado.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 13: GDM (PANTALLA DE LOGIN)
-# =============================================================================
-echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
-if [ "$IS_GNOME" = true ]; then
-    ( cd "$WORKDIR/MacTahoe-gtk-theme" && sudo ./tweaks.sh -g -b default > /dev/null 2>&1 )
-    echo -e "${GREEN}✅ Pantalla de login configurada.${NC}"
-else
-    echo -e "${YELLOW}⏭️  GDM omitido.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS
-# =============================================================================
-echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
-ADVANCED_WM_SCRIPT="$HOME/.local/bin/macos-wm-actions"
-mkdir -p "$HOME/.local/bin"
-
-cat > "$ADVANCED_WM_SCRIPT" << 'WMEOF'
-#!/bin/bash
-ACTION="${1}"
-case "$ACTION" in
-    "center")
-        if command -v xdotool &> /dev/null; then
-            WIN_ID=$(xdotool getactivewindow)
-            WIN_W=$(xdotool getwindowgeometry --shell "$WIN_ID" | grep WIDTH | cut -d= -f2)
-            WIN_H=$(xdotool getwindowgeometry --shell "$WIN_ID" | grep HEIGHT | cut -d= -f2)
-            SCREEN_W=$(xdpyinfo | grep dimensions | awk '{print $2}' | cut -dx -f1)
-            SCREEN_H=$(xdpyinfo | grep dimensions | awk '{print $2}' | cut -dx -f2)
-            xdotool windowmove "$WIN_ID" $(( (SCREEN_W - WIN_W) / 2 )) $(( (SCREEN_H - WIN_H) / 2 ))
-        fi ;;
-    "toggle-maximize")
-        command -v xdotool &> /dev/null && xdotool getactivewindow windowtogglemaximize 2>/dev/null || wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz 2>/dev/null ;;
-    "toggle-fullscreen")
-        command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,fullscreen ;;
-    "toggle-always-on-top")
-        command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,above ;;
-    "opacity-decrease")
-        if command -v xprop &> /dev/null; then
-            CURRENT=$(xprop -id $(xdotool getactivewindow) _NET_WM_WINDOW_OPACITY 2>/dev/null | awk '{print $3}')
-            CURRENT=${CURRENT:-0xffffffff}; CURRENT=$((CURRENT)); NEW=$((CURRENT - 427819008))
-            [ "$NEW" -lt 858993459 ] && NEW=858993459
-            xprop -id $(xdotool getactivewindow) -f _NET_WM_WINDOW_OPACITY 32c -set _NET_WM_WINDOW_OPACITY "$NEW"
-        fi ;;
-    "opacity-increase")
-        if command -v xprop &> /dev/null; then
-            CURRENT=$(xprop -id $(xdotool getactivewindow) _NET_WM_WINDOW_OPACITY 2>/dev/null | awk '{print $3}')
-            CURRENT=${CURRENT:-0xffffffff}; CURRENT=$((CURRENT)); NEW=$((CURRENT + 427819008))
-            [ "$NEW" -gt 4294967295 ] && NEW=4294967295
-            xprop -id $(xdotool getactivewindow) -f _NET_WM_WINDOW_OPACITY 32c -set _NET_WM_WINDOW_OPACITY "$NEW"
-        fi ;;
-    "opacity-reset")
-        command -v xprop &> /dev/null && xprop -id $(xdotool getactivewindow) -remove _NET_WM_WINDOW_OPACITY 2>/dev/null ;;
-    "move-window")
-        command -v xdotool &> /dev/null && xdotool getactivewindow windowmove --sync 0 0 2>/dev/null ;;
-    "resize-window")
-        command -v xdotool &> /dev/null && xdotool getactivewindow windowsize 50% 50% 2>/dev/null ;;
-    "force-kill")
-        command -v xkill &> /dev/null && xkill || notify-send "Error" "xkill no está instalado" -i dialog-error ;;
-    "close-app-completely")
-        if command -v xdotool &> /dev/null; then
-            WIN_ID=$(xdotool getactivewindow); PID=$(xdotool getwindowpid "$WIN_ID" 2>/dev/null)
-            if [ -n "$PID" ]; then
-                PROCESS_NAME=$(ps -p "$PID" -o comm=)
-                xdotool windowclose "$WIN_ID"; sleep 0.3; pkill -f "$PROCESS_NAME" 2>/dev/null
-                notify-send "Aplicación cerrada" "$PROCESS_NAME finalizado completamente" -t 1500
-            fi
-        fi ;;
-    "open-preferences")
-        command -v xdotool &> /dev/null && xdotool key --clearmodifiers ctrl+comma ;;
-    "restart-cinnamon")
-        if [ "$XDG_CURRENT_DESKTOP" = "X-Cinnamon" ] || [ "$XDG_CURRENT_DESKTOP" = "cinnamon" ]; then
-            dbus-send --session --dest=org.Cinnamon.LookingGlass --type=method_call /org/Cinnamon/LookingGlass org.Cinnamon.LookingGlass.ExecuteCommand string:"global.reexec_self()"
-            notify-send "Cinnamon reiniciado" -t 1500
-        fi ;;
-esac
-WMEOF
-chmod +x "$ADVANCED_WM_SCRIPT"
-echo -e "${GREEN}✅ Script auxiliar creado.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 15: CONFIGURACIÓN DEL SISTEMA Y ATAJO DE TECLADO
-# =============================================================================
-echo -e "${YELLOW}⚙️  [15/24] Configurando sistema y atajos de teclado macOS...${NC}"
-
-gnome_set_keybinding() {
-    local name="$1" command="$2" binding="$3" index="$4"
-    local PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${index}/"
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH name "$name" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH command "$command" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH binding "$binding" 2>/dev/null
+detect_cpu_generation() {
+  CG="unknown"; TLE=100
+  
+  if [[ "$CV" == *"intel"* && "$CF" == "6" ]]; then
+    case "$CM" in
+      198) CG="ArrowLake-S"; TLE=105;; 185) CG="LunarLake"; TLE=105;; 183) CG="ArrowLake-H"; TLE=105;;
+      173) CG="MeteorLake"; TLE=105;; 170|171) CG="RaptorLake-R"; TLE=100;; 167) CG="RocketLake"; TLE=100;;
+      158|165) CG="RaptorLake"; TLE=100;; 151|154|155) CG="AlderLake"; TLE=100;; 140|141) CG="TigerLake"; TLE=100;;
+      142) CG="KabyLake-R"; TLE=100;; 126) CG="CometLake-U"; TLE=100;; 125) CG="IceLake-Y"; TLE=100;;
+      102) CG="CannonLake"; TLE=100;; 150) CG="AlderLake-N"; TLE=105;; 166) CG="CometLake-H"; TLE=100;;
+      162) CG="CoffeeLake-R"; TLE=100;; 152) CG="CoffeeLake"; TLE=100;; 122) CG="GeminiLake"; TLE=105;;
+      92) CG="ApolloLake"; TLE=105;; 78|94) CG="Skylake"; TLE=100;; 61|71) CG="Broadwell"; TLE=100;;
+      60|69|70) CG="Haswell"; TLE=100;; 58) CG="IvyBridge"; TLE=105;; 42) CG="SandyBridge"; TLE=100;;
+      37|44|53) CG="Westmere"; TLE=105;; 26|30|31|46) CG="Nehalem"; TLE=100;; 23|29) CG="Penryn"; TLE=105;;
+      15) CG="Merom"; TLE=100;; *) CG="Intel-F6-M$CM";;
+    esac
+  elif [[ "$CV" == *"amd"* ]]; then
+    case "$CF" in
+      26) CG="Zen5"; TLE=95;;
+      25)
+        if [ "$CM" -ge 112 ] 2>/dev/null; then CG="Zen4-Dragon"; TLE=95
+        elif [ "$CM" -ge 96 ] 2>/dev/null; then CG="Zen4-Phoenix"; TLE=95
+        elif [ "$CM" -ge 80 ] 2>/dev/null; then CG="Zen4-Raphael"; TLE=95
+        elif [ "$CM" -ge 64 ] 2>/dev/null; then CG="Zen3+-Rembrandt"; TLE=95
+        elif [ "$CM" -ge 32 ] 2>/dev/null; then CG="Zen3-Vermeer"; TLE=90
+        elif [ "$CM" -ge 16 ] 2>/dev/null; then CG="Zen3-Cezanne"; TLE=90
+        else CG="Zen3"; TLE=90; fi;;
+      23)
+        if [ "$CM" -ge 112 ] 2>/dev/null; then CG="Zen2-Vermeer"; TLE=95
+        elif [ "$CM" -ge 96 ] 2>/dev/null; then CG="Zen2-Matisse"; TLE=95
+        elif [ "$CM" -ge 48 ] 2>/dev/null; then CG="Zen2-Renoir"; TLE=95
+        elif [ "$CM" -ge 16 ] 2>/dev/null; then CG="Zen+-Picasso"; TLE=95
+        else CG="Zen-Summit"; TLE=95; fi;;
+      21) CG="Bulldozer/Piledriver"; TLE=90;; *) CG="AMD-F$CF";;
+    esac
+  fi
 }
 
-cinnamon_set_keybinding() {
-    local name="$1" command="$2" binding="$3" id="$4"
-    local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH name "$name" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH command "$command" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH binding "$binding" 2>/dev/null
+# ═══════════════════════════════════════════════════════════════════════════
+# GPU
+# ═══════════════════════════════════════════════════════════════════════════
+
+cache_lspci() {
+  LSPCI_NN=$(lspci -nn 2>/dev/null || echo "")
+  LSPCI_NNK=$(lspci -nnk 2>/dev/null || echo "")
 }
 
-xfce_set_keybinding() {
-    local command="$1" binding="$2"
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -s "$command" 2>/dev/null
+detect_gpu() {
+  GV=""; HI=false; HA=false; HN=false; GC=0; PD="unknown"; HYB_GPU=false
+  
+  if [ -n "$LSPCI_NN" ]; then
+    echo "$LSPCI_NN" | grep -iE "vga|3d|display" | grep -q "\[8086:" && { GV+="intel,"; HI=true; GC=$((GC+1)); }
+    echo "$LSPCI_NN" | grep -iE "vga|3d|display" | grep -q "\[1002:" && { GV+="amd,"; HA=true; GC=$((GC+1)); }
+    echo "$LSPCI_NN" | grep -iE "vga|3d|display" | grep -q "\[10de:" && { GV+="nvidia,"; HN=true; GC=$((GC+1)); }
+    [ "$GC" -gt 1 ] && HYB_GPU=true || HYB_GPU=false
+    PD=$(echo "$LSPCI_NNK" | grep -i "vga compatible controller" -A2 | grep "Kernel driver in use:" | awk '{print $4}' | tr A-Z a-z | head -1)
+    [ -z "$PD" ] && PD=$(echo "$LSPCI_NNK" | grep -i "3d controller" -A2 | grep "Kernel driver in use:" | awk '{print $4}' | tr A-Z a-z | head -1)
+    [ -z "$PD" ] && PD="unknown"
+  fi
+  GV="${GV%,}"; [ -z "$GV" ] && GV="unknown"
 }
 
-if [ "$MOJAVE_INSTALLED" = true ]; then
-    WALLPAPER_PATH="/usr/share/backgrounds/macOS/mojave-timed.xml"; WALLPAPER_DESC="dinámico Mojave"
-elif [ "$IS_GNOME" = true ]; then
-    WALLPAPER_PATH="$HOME/.local/share/backgrounds/Sonoma/Sonoma-timed.xml"; WALLPAPER_DESC="dinámico Sonoma"
-else
-    WALLPAPER_PATH="$HOME/.local/share/backgrounds/Sonoma-dark.jpg"; WALLPAPER_DESC="estático Sonoma"
-fi
+get_gpu_score() {
+  local GPU_ID=$(echo "$LSPCI_NN" | grep -iE "vga|3d" | head -1 | grep -oE '\[[0-9a-f]{4}:[0-9a-f]{4}\]' | tr -d '[]')
+  case "$GPU_ID" in
+    10de:2f00|10de:2f01|10de:2f02|10de:2f03|10de:2f04|10de:2f05|10de:2f06|10de:2f07) echo 20;;
+    10de:2684|10de:2685|10de:2686|10de:2687|10de:2700|10de:2701|10de:2702|10de:2703|10de:2704|10de:2705|10de:2706|10de:2707|10de:2708|10de:2709) echo 18;;
+    10de:2204|10de:2206|10de:2207|10de:2208|10de:2216|10de:2484|10de:2486|10de:2487|10de:2489|10de:24b0|10de:24b4|10de:24b6|10de:24b8|10de:24b9|10de:24ba|10de:24bb|10de:24bc|10de:24bd|10de:24be|10de:24bf) echo 16;;
+    10de:1e04|10de:1e07|10de:1e30|10de:1e37|10de:1e84|10de:1e87|10de:1e89|10de:1ec2|10de:1ec7|10de:1f07|10de:1f08|10de:1f10|10de:1f11|10de:1f14|10de:1f15|10de:1f42|10de:1f50|10de:1f51|10de:1f54|10de:1f55|10de:1fb0|10de:1fb1|10de:1fb2|10de:1fb9|10de:1fba|10de:1fbb|10de:1ffc|10de:1ffd|10de:1ff6) echo 14;;
+    10de:1b00|10de:1b06|10de:1b80|10de:1b81|10de:1b82|10de:1b84|10de:1ba1|10de:1be0|10de:1be1|10de:1c02|10de:1c03|10de:1c20|10de:1c30|10de:1c31|10de:1c81|10de:1c82|10de:1c8d|10de:1d01|10de:1d02|10de:1d10|10de:1d12|10de:1d33|10de:1d35) echo 10;;
+    1002:744c|1002:744d|1002:747c|1002:747e|1002:743f|1002:7440|1002:7441|1002:7445|1002:7447|1002:7448|1002:744a|1002:744b|1002:744e|1002:744f|1002:745a|1002:745c|1002:745e|1002:7460|1002:7461|1002:747d|1002:747f) echo 18;;
+    1002:73a1|1002:73a2|1002:73a3|1002:73a5|1002:73ab|1002:73ae|1002:73b5|1002:73bf|1002:73c1|1002:73c3|1002:73d1|1002:73d3|1002:73d5|1002:73db|1002:73dd|1002:73df|1002:73e0|1002:73e1|1002:73e2|1002:73e3|1002:73e5|1002:73eb|1002:73ed|1002:73ef|1002:73ff) echo 15;;
+    1002:7310|1002:7312|1002:731a|1002:731b|1002:731f|1002:7340|1002:7341|1002:7360|1002:7362) echo 12;;
+    8086:4c8a|8086:4c8b|8086:4c8c|8086:4c90|8086:5690|8086:5691|8086:5692|8086:56a0|8086:56a1|8086:56a5|8086:56a6|8086:56b0|8086:56b1|8086:56c0|8086:7d55|8086:7d60|8086:7dd5) echo 14;;
+    8086:9a40|8086:9a49|8086:9a60|8086:9a68|8086:9a78|8086:9ac0|8086:9ac9|8086:9ad9|8086:9af8) echo 6;;
+    *) echo 6;;
+  esac
+}
 
-if [ "$IS_GNOME" = true ]; then
-    gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null
-    gsettings set org.gnome.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { gsettings set org.gnome.desktop.interface font-name "$UI_FONT" 2>/dev/null; gsettings set org.gnome.desktop.interface document-font-name "$SERIF_FONT" 2>/dev/null; gsettings set org.gnome.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null; }
-    gsettings set org.gnome.shell.extensions.user-theme name "$SHELL_THEME" 2>/dev/null
-    [ -f "$WALLPAPER_PATH" ] && { gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null; gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null; }
-    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.gnome.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null; gsettings set org.gnome.desktop.sound event-sounds true 2>/dev/null; gsettings set org.gnome.desktop.sound input-feedback-sounds true 2>/dev/null; }
-    
-    gsettings set org.gnome.desktop.wm.keybindings show-desktop "['<Super>d']" 2>/dev/null
-    gsettings set org.gnome.mutter.keybindings toggle-tiled-left "['<Super>Left']" 2>/dev/null
-    gsettings set org.gnome.mutter.keybindings toggle-tiled-right "['<Super>Right']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-1 "['<Super>1']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-2 "['<Super>2']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-3 "['<Super>3']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-1 "['<Super><Shift>1']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-2 "['<Super><Shift>2']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-3 "['<Super><Shift>3']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Ctrl><Alt>t']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys screenshot "['Print']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys window-screenshot "['<Alt>Print']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys area-screenshot "['<Shift>Print']" 2>/dev/null
-    
-    CUSTOM_PATHS=(); INDEX=0
-    gnome_set_keybinding "Explorador" "nautilus" "<Super>e" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Configuración" "gnome-control-center" "<Super>a" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Monitor Sistema" "gnome-system-monitor" "<Ctrl><Shift>Escape" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Cerrar App Completo" "macos-wm-actions close-app-completely" "<Ctrl>q" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Maximizar/Restaurar" "macos-wm-actions toggle-maximize" "<Super>x" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Pantalla Completa" "macos-wm-actions toggle-fullscreen" "F11" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Siempre al Frente" "macos-wm-actions toggle-always-on-top" "<Super>f" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Mover Ventana" "macos-wm-actions move-window" "<Super>v" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Redimensionar" "macos-wm-actions resize-window" "<Super>r" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Menos Opacidad" "macos-wm-actions opacity-decrease" "<Super>o" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Más Opacidad" "macos-wm-actions opacity-increase" "<Super><Ctrl>o" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Preferencias" "macos-wm-actions open-preferences" "<Ctrl>comma" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Cerrar Sesión" "gnome-session-quit --logout --no-prompt" "<Ctrl><Alt>Delete" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    gnome_set_keybinding "Apagar/Reiniciar" "gnome-session-quit --power-off" "<Ctrl><Alt>End" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
-    
-    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$(IFS=,; echo "[${CUSTOM_PATHS[*]}]")" 2>/dev/null
-    
-    command -v gnome-extensions &> /dev/null && { gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null; gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null; gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null; }
-    
-    LG_SCHEMA="org.gnome.shell.extensions.liquid-glass"
-    gsettings list-schemas 2>/dev/null | grep -q "$LG_SCHEMA" && { gsettings set "$LG_SCHEMA" enable-top-bar true 2>/dev/null; gsettings set "$LG_SCHEMA" enable-dash-to-dock true 2>/dev/null; gsettings set "$LG_SCHEMA" enable-notifications true 2>/dev/null; }
-    
-    DOCK_SCHEMA="org.gnome.shell.extensions.dash-to-dock"
-    gsettings list-schemas 2>/dev/null | grep -q "$DOCK_SCHEMA" && { gsettings set "$DOCK_SCHEMA" dock-position 'BOTTOM' 2>/dev/null; gsettings set "$DOCK_SCHEMA" transparency-mode 'FIXED' 2>/dev/null; gsettings set "$DOCK_SCHEMA" background-opacity 0.4 2>/dev/null; }
+# ═══════════════════════════════════════════════════════════════════════════
+# DETECCIÓN RESTANTE
+# ═══════════════════════════════════════════════════════════════════════════
 
-elif [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]]; then
-    gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null
-    gsettings set org.cinnamon.theme name "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.wm.preferences theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.interface font-name "$UI_FONT" 2>/dev/null; gsettings set org.cinnamon.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null; }
-    [ -f "$WALLPAPER_PATH" ] && gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null
-    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null; gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null; }
-    
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-1 "['<Super>1']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-left "['<Ctrl><Alt>Left']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-right "['<Ctrl><Alt>Right']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm tile-left "['<Super>Left']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm tile-right "['<Super>Right']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings show-desktop "['<Super>d']" 2>/dev/null
-    
-    CUSTOM_IDS=()
-    cinnamon_set_keybinding "Explorador" "nemo" "<Super>e" "app-explorer"; CUSTOM_IDS+=("'app-explorer'")
-    cinnamon_set_keybinding "Configuración" "cinnamon-settings" "<Super>a" "app-settings"; CUSTOM_IDS+=("'app-settings'")
-    cinnamon_set_keybinding "Monitor" "gnome-system-monitor" "<Ctrl><Shift>Escape" "app-monitor"; CUSTOM_IDS+=("'app-monitor'")
-    cinnamon_set_keybinding "Terminal" "gnome-terminal" "<Ctrl><Alt>t" "app-terminal"; CUSTOM_IDS+=("'app-terminal'")
-    cinnamon_set_keybinding "Cerrar Completo" "macos-wm-actions close-app-completely" "<Ctrl>q" "wm-close-full"; CUSTOM_IDS+=("'wm-close-full'")
-    cinnamon_set_keybinding "Minimizar" "xdotool getactivewindow windowminimize" "<Super>m" "wm-minimize"; CUSTOM_IDS+=("'wm-minimize'")
-    cinnamon_set_keybinding "Maximizar" "macos-wm-actions toggle-maximize" "<Super>x" "wm-maximize"; CUSTOM_IDS+=("'wm-maximize'")
-    cinnamon_set_keybinding "Pantalla Completa" "macos-wm-actions toggle-fullscreen" "F11" "wm-fullscreen"; CUSTOM_IDS+=("'wm-fullscreen'")
-    cinnamon_set_keybinding "Centrar" "macos-wm-actions center" "<Super>c" "wm-center"; CUSTOM_IDS+=("'wm-center'")
-    cinnamon_set_keybinding "Siempre Frente" "macos-wm-actions toggle-always-on-top" "<Super>f" "wm-top"; CUSTOM_IDS+=("'wm-top'")
-    cinnamon_set_keybinding "Mover" "macos-wm-actions move-window" "<Super>v" "wm-move"; CUSTOM_IDS+=("'wm-move'")
-    cinnamon_set_keybinding "Redimensionar" "macos-wm-actions resize-window" "<Super>r" "wm-resize"; CUSTOM_IDS+=("'wm-resize'")
-    cinnamon_set_keybinding "Menos Opacidad" "macos-wm-actions opacity-decrease" "<Super>o" "wm-opacity-dec"; CUSTOM_IDS+=("'wm-opacity-dec'")
-    cinnamon_set_keybinding "Más Opacidad" "macos-wm-actions opacity-increase" "<Super><Ctrl>o" "wm-opacity-inc"; CUSTOM_IDS+=("'wm-opacity-inc'")
-    cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "spotlight"; CUSTOM_IDS+=("'spotlight'")
-    cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "force-kill"; CUSTOM_IDS+=("'force-kill'")
-    cinnamon_set_keybinding "Bloquear" "cinnamon-screensaver-command --lock" "<Super>l" "lock-screen"; CUSTOM_IDS+=("'lock-screen'")
-    cinnamon_set_keybinding "Reiniciar Cinnamon" "macos-wm-actions restart-cinnamon" "<Ctrl><Alt>Escape" "restart-cinnamon"; CUSTOM_IDS+=("'restart-cinnamon'")
-    cinnamon_set_keybinding "Cerrar Sesión" "cinnamon-session-quit --logout" "<Ctrl><Alt>Delete" "logout"; CUSTOM_IDS+=("'logout'")
-    cinnamon_set_keybinding "Apagar" "cinnamon-session-quit --power-off" "<Ctrl><Alt>End" "poweroff"; CUSTOM_IDS+=("'poweroff'")
-    
-    gsettings set org.cinnamon.desktop.keybindings custom-list "$(IFS=,; echo "[${CUSTOM_IDS[*]}]")" 2>/dev/null
-    gsettings set org.cinnamon panels-enabled "['1:0:bottom']" 2>/dev/null
+detect_storage() {
+  DN=""; DT="hdd"; TRIM="false"
+  eval "$(lsblk -ndo NAME,TYPE,SIZE,MODEL,ROTA,DISC-GRAN,DISC-MAX 2>/dev/null | awk '
+    NR==1 {next}
+    $2=="disk" && !found {
+      print "DN=" $1
+      print "DT=" ($7 ~ /^[0-9]/ && $7 > 0 ? "ssd" : "hdd")
+      if ($1 ~ /nvme/) print "DT=nvme"
+      print "TRIM=" ($8 ~ /^[0-9]/ && $8 > 0 ? "true" : "false")
+      found=1
+    }
+  ')"
+  [ -z "$DT" ] && DT="hdd"
+  [ -z "$TRIM" ] && TRIM="false"
+}
 
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/ThemeName -s "$GTK_THEME" 2>/dev/null
-    xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$ICON_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICON_THEME" 2>/dev/null
-    xfconf-query -c xsettings -p /Net/CursorThemeName -n -t string -s "$CURSOR_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/CursorThemeName -s "$CURSOR_THEME" 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/theme -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xfwm4 -p /general/theme -s "$GTK_THEME" 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/show_dock_shadow -n -t bool -s false 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/button_layout -n -t string -s "O|HMC" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Gtk/FontName -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/FontName -s "$UI_FONT" 2>/dev/null; xfconf-query -c xfwm4 -p /general/title_font -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xfwm4 -p /general/title_font -s "$UI_FONT" 2>/dev/null; }
-    xfconf-query -c xsettings -p /Gtk/MonospaceFontName -n -t string -s "$MONO_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/MonospaceFontName -s "$MONO_FONT" 2>/dev/null
-    [ "$SOUND_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Net/SoundThemeName -n -t string -s "$SOUND_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/SoundThemeName -s "$SOUND_THEME" 2>/dev/null; xfconf-query -c xsettings -p /Net/EnableEventSounds -n -t bool -s true 2>/dev/null; xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -n -t bool -s true 2>/dev/null; }
-    
-    xfce_set_keybinding "thunar" "<Super>e"
-    xfce_set_keybinding "xfce4-settings-manager" "<Super>a"
-    xfce_set_keybinding "xfce4-terminal" "<Ctrl><Alt>t"
-    xfce_set_keybinding "xfce4-taskmanager" "<Ctrl><Shift>Escape"
-    xfce_set_keybinding "xfce4-screensaver-command --lock" "<Super>l"
-    xfce_set_keybinding "xfce4-session-logout" "<Ctrl><Alt>Delete"
-    xfce_set_keybinding "rofi-spotlight-launcher" "<Ctrl>space"
-    xfce_set_keybinding "macos-wm-actions force-kill" "<Ctrl><Alt>Escape"
-    xfce_set_keybinding "macos-wm-actions close-app-completely" "<Ctrl>q"
-    xfce_set_keybinding "macos-wm-actions center" "<Super>c"
-    xfce_set_keybinding "macos-wm-actions toggle-always-on-top" "<Super>f"
-    xfce_set_keybinding "macos-wm-actions move-window" "<Super>v"
-    xfce_set_keybinding "macos-wm-actions resize-window" "<Super>r"
-    xfce_set_keybinding "macos-wm-actions opacity-decrease" "<Super>o"
-    xfce_set_keybinding "macos-wm-actions opacity-increase" "<Super><Ctrl>o"
-    xfce_set_keybinding "xfce4-screenshooter -f" "Print"
-    xfce_set_keybinding "xfce4-screenshooter -w" "<Alt>Print"
-    xfce_set_keybinding "xfce4-screenshooter -r" "<Shift>Print"
-    
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>m" -n -t string -s "hide_window_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>x" -n -t string -s "maximize_toggle_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Left" -n -t string -s "tile_left_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Right" -n -t string -s "tile_right_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Up" -n -t string -s "tile_up_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Down" -n -t string -s "tile_down_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/F11" -n -t string -s "fullscreen_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>1" -n -t string -s "workspace_1_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>2" -n -t string -s "workspace_2_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>3" -n -t string -s "workspace_3_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Left" -n -t string -s "left_workspace_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Right" -n -t string -s "right_workspace_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>d" -n -t string -s "show_desktop_key" 2>/dev/null
-    
-    [ -f "$WALLPAPER_PATH" ] && xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s "$WALLPAPER_PATH" 2>/dev/null || xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALLPAPER_PATH" 2>/dev/null
-    
-    if ! command -v plank &> /dev/null; then
-        sudo apt-get install -y -qq plank 2>/dev/null || sudo dnf install -y -q plank 2>/dev/null || sudo pacman -S --noconfirm plank 2>/dev/null
-    fi
-    if command -v plank &> /dev/null; then
-        PLANK_DCONF="/net/launchpad/plank/docks/dock1"
-        dconf write "$PLANK_DCONF/theme" "'$PLANK_THEME'" 2>/dev/null
-        dconf write "$PLANK_DCONF/position" "'bottom'" 2>/dev/null
-        dconf write "$PLANK_DCONF/icon-size" "48" 2>/dev/null
-        dconf write "$PLANK_DCONF/hide-mode" "'intelligent'" 2>/dev/null
-        mkdir -p ~/.config/autostart
-        cat > ~/.config/autostart/plank.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Plank
-Exec=plank
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-        nohup plank > /dev/null 2>&1 &
-    fi
-fi
-echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
-echo ""
+detect_peripherals() {
+  BT=false
+  lsusb 2>/dev/null | grep -qi bluetooth && BT=true
+  [ "$BT" = "false" ] && [ -n "$LSPCI_NN" ] && echo "$LSPCI_NN" | grep -qi bluetooth && BT=true
+  [ "$BT" = "false" ] && command -v hciconfig &>/dev/null && hciconfig 2>/dev/null | grep -q hci && BT=true
+  MD=$(lsusb 2>/dev/null | grep -qiE "modem|lte|4g|5g" && echo true || echo false)
+  PR=$(lpstat -p 2>/dev/null | grep -q printer && echo true || echo false)
+  SN=false; command -v sensors &>/dev/null && sensors 2>/dev/null | grep -qE "Core|Tctl|Package" && SN=true
+}
 
-# =============================================================================
-# PASO 16: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
-# =============================================================================
-echo -e "${YELLOW}🎨 [16/24] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
-if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment; then
-    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null
-fi
-mkdir -p ~/.config/qt5ct
-cat > ~/.config/qt5ct/qt5ct.conf << 'EOF'
-[Appearance]
-style=gtk2
-color_scheme_path=
-icon_theme=MacTahoe-dark
-EOF
+detect_system() {
+  RAM=0; SWAP=0
+  eval "$(awk '
+    /^MemTotal:/ {print "RAM=" int($2/1024)}
+    /^SwapTotal:/ {print "SWAP=" $2}
+  ' /proc/meminfo)"
+  
+  LAPTOP=$(ls /sys/class/power_supply/BAT* &>/dev/null && echo true || echo false)
+  BOOT=$([ -d /sys/firmware/efi ] && echo uefi || echo bios)
+  SB="unknown"; command -v mokutil &>/dev/null && { mokutil --sb-state 2>/dev/null | grep -q "enabled" && SB="on"; mokutil --sb-state 2>/dev/null | grep -q "disabled" && SB="off"; }
+  AU=$(logname 2>/dev/null || who | awk '{print $1;exit}')
+  DE="${XDG_CURRENT_DESKTOP:-unknown}"; DE=$(echo "$DE" | tr A-Z a-z)
+  
+  AM=""
+  systemctl is-active -q power-profiles-daemon 2>/dev/null && AM+="ppd,"
+  systemctl is-active -q tlp 2>/dev/null && AM+="tlp,"
+  systemctl is-active -q thermald 2>/dev/null && AM+="thermald,"
+  AM="${AM%,}"; [ -z "$AM" ] && AM="none"
+  FM=$([ "$AM" = "none" ] && echo "exclusive" || echo "cooperative")
+}
 
-if [ "$IS_GNOME" = true ]; then
-    sudo apt-get install -y -qq sushi 2>/dev/null || sudo dnf install -y -q sushi 2>/dev/null || sudo pacman -S --noconfirm sushi 2>/dev/null
-else
-    sudo apt-get install -y -qq gloobus-preview 2>/dev/null || sudo dnf install -y -q gloobus-preview 2>/dev/null || sudo pacman -S --noconfirm gloobus-preview 2>/dev/null
-fi
-echo -e "${GREEN}✅ Qt tematizado y Quick Look instalado.${NC}"
-echo ""
+# ═══════════════════════════════════════════════════════════════════════════
+# HAL FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════════
 
-# =============================================================================
-# PASO 17: SCROLL NATURAL UNIVERSAL
-# =============================================================================
-echo -e "${YELLOW}📜 [17/24] Activando Scroll Natural (Estilo macOS)...${NC}"
-if [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; then
-    gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null
-    gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null
-fi
-
-if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    for device in $(xinput list 2>/dev/null | grep -i "pointer" | grep -i "libinput" | sed 's/.*id=\([0-9]*\).*/\1/'); do
-        xinput set-prop "$device" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
+thermal_get_temp() {
+  local T=0
+  for H in /sys/class/hwmon/hwmon*/temp1_input; do
+    [ -f "$H" ] || continue
+    LABEL=$(cat "${H%temp1_input}/name" 2>/dev/null)
+    case "$LABEL" in coretemp*|k10temp*|cpu*|zen*|acpitz*) ;; *) continue;; esac
+    V=$(cat "$H" 2>/dev/null); V=$((V/1000))
+    [ "$V" -gt "$T" ] && T=$V
+  done
+  if [ "$T" -eq 0 ]; then
+    for Z in /sys/class/thermal/thermal_zone*; do
+      [ -d "$Z" ] || continue
+      TYPE=$(cat "$Z/type" 2>/dev/null)
+      case "$TYPE" in x86_pkg_temp*|k10temp*|coretemp*|cpu_thermal*) ;; *) continue;; esac
+      V=$(cat "$Z/temp" 2>/dev/null); V=$((V/1000))
+      [ "$V" -gt "$T" ] && T=$V
     done
-    xfconf-query -c pointers -p /-1/Properties/libinput_Natural_Scrolling_Enabled -n -t bool -s true 2>/dev/null || true
-fi
-echo -e "${GREEN}✅ Scroll natural activado.${NC}"
-echo ""
+  fi
+  echo "$T"
+}
 
-# =============================================================================
-# PASO 18: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA) + ARRASTRE 3 DEDOS
-# =============================================================================
-echo -e "${YELLOW}👆 [18/24] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
-sudo gpasswd -a $USER input 2>/dev/null || true
-sudo gem install fusuma --no-document 2>/dev/null || true
+thermal_get_limit() {
+  local L=0
+  for H in /sys/class/hwmon/hwmon*/temp1_crit; do
+    [ -f "$H" ] || continue
+    V=$(cat "$H" 2>/dev/null); V=$((V/1000))
+    [ "$V" -ge 70 ] && [ "$V" -le 115 ] && [ "$V" -gt "$L" ] && L=$V
+  done
+  [ "$L" -eq 0 ] && L=${TLE:-100}
+  [ -z "$L" ] || [ "$L" -eq 0 ] && L=100
+  echo "$L"
+}
 
-mkdir -p ~/.config/fusuma
-cat > ~/.config/fusuma/config.yml << 'EOF'
-plugin:
-  inputs:
-    libinput_command_input:
-      enable-tap: true
-swipe:
-  3:
-    left:
-      command: 'xdotool key ctrl+alt+Right'
-    right:
-      command: 'xdotool key ctrl+alt+Left'
-    up:
-      command: 'xdotool key super'
-    down:
-      command: 'xdotool key super'
-  4:
-    left:
-      command: 'xdotool key alt+Left'
-    right:
-      command: 'xdotool key alt+Right'
-pinch:
-  2:
-    in:
-      command: 'xdotool keydown ctrl click 4 keyup ctrl'
-    out:
-      command: 'xdotool keydown ctrl click 5 keyup ctrl'
-hold:
-  3:
-    begin:
-      command: 'xdotool mousedown 1'
-    end:
-      command: 'xdotool mouseup 1'
-EOF
+thermal_profile() {
+  local T=$(thermal_get_temp) L=$(thermal_get_limit) P=$((T*100/L))
+  if [ "$P" -lt 75 ]; then echo performance
+  elif [ "$P" -lt 88 ]; then echo balanced
+  else echo powersave; fi
+}
 
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/fusuma.service << 'EOF'
+cpu_set_governor() {
+  local REQ="$1" NOW=$(date +%s)
+  local SF="/var/lib/flytux/history/cpu-state"
+  [ -f "$SF" ] && { LAST=$(cut -d'|' -f1 "$SF"); LC=$(cut -d'|' -f2 "$SF"); }
+  [ "$LAST" = "$REQ" ] && return
+  [ $((NOW - ${LC:-0})) -lt 120 ] && return
+  
+  local DRV=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver 2>/dev/null)
+  local GOV="schedutil"
+  case "$DRV" in
+    intel_pstate|amd_pstate*)
+      case "$REQ" in performance) GOV="performance";; *) GOV="powersave";; esac;;
+    *)
+      case "$REQ" in performance) GOV="performance";; balanced) GOV="schedutil";; powersave|silent) GOV="powersave";; esac;;
+  esac
+  grep -q "$GOV" /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors 2>/dev/null || return
+  echo "$GOV" | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor &>/dev/null || true
+  echo "${REQ}|${NOW}" > "$SF"
+  logger -t flytux "gov=$GOV ($REQ) drv=$DRV"
+}
+
+gpu_set_mode() {
+  local MODE="$1"
+  if command -v prime-select &>/dev/null; then
+    case "$MODE" in
+      integrated) prime-select intel 2>/dev/null || prime-select amd 2>/dev/null;;
+      nvidia)     prime-select nvidia 2>/dev/null;;
+      on-demand)  prime-select on-demand 2>/dev/null;;
+    esac
+  elif command -v envycontrol &>/dev/null; then
+    case "$MODE" in
+      integrated) envycontrol -s integrated 2>/dev/null;;
+      nvidia)     envycontrol -s nvidia 2>/dev/null;;
+      hybrid)     envycontrol -s hybrid 2>/dev/null;;
+    esac
+  fi
+}
+
+battery_get_source() {
+  for P in /sys/class/power_supply/*/type; do
+    [ -f "$P" ] && grep -q Mains "$P" 2>/dev/null && [ "$(cat "${P%type}online" 2>/dev/null)" = "1" ] && { echo ac; return; }
+  done
+  echo battery
+}
+
+battery_get_percent() {
+  for C in /sys/class/power_supply/BAT*/capacity; do
+    [ -f "$C" ] && { cat "$C"; return; }
+  done
+  echo 100
+}
+
+battery_apply_profile() {
+  local S=$(battery_get_source) B=$(battery_get_percent) G="balanced" GM="on-demand"
+  [ "$S" = "battery" ] && { G="powersave"; GM="integrated"; }
+  cpu_set_governor "$G"
+  gpu_set_mode "$GM"
+  logger -t flytux "power=$S batt=$B gov=$G gpu=$GM"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SCORE PONDERADO
+# ═══════════════════════════════════════════════════════════════════════════
+
+score_calculate() {
+  local S_CPU=0 S_RAM=0 S_GPU=0 S_DISK=0 S_INST=0 S_GEN=0 S_TEMP=0
+  local cpu_pts=0
+  cpu_pts=$((CC > 24 ? 20 : CC > 16 ? 17 : CC > 12 ? 14 : CC > 8 ? 11 : CC > 4 ? 7 : 3))
+  cpu_pts=$((cpu_pts + (CPU_MAX_MHZ > 5000 ? 10 : CPU_MAX_MHZ > 4000 ? 8 : CPU_MAX_MHZ > 3000 ? 5 : 2)))
+  $HYB && cpu_pts=$((cpu_pts + 5))
+  [ "$cpu_pts" -gt 35 ] && cpu_pts=35
+  S_CPU=$cpu_pts
+  
+  S_RAM=$((RAM > 32768 ? 20 : RAM > 16384 ? 17 : RAM > 8192 ? 13 : RAM > 4096 ? 8 : 4))
+  S_GPU=$(get_gpu_score)
+  [ "$S_GPU" -gt 20 ] && S_GPU=20
+  
+  if echo "$DN" | grep -qi nvme; then S_DISK=10
+  elif [ -n "$DN" ] && [ "$(cat /sys/block/$DN/queue/rotational 2>/dev/null)" = "0" ]; then S_DISK=6; fi
+  
+  if echo "$FLG" | grep -qw avx512f; then S_INST=5
+  elif echo "$FLG" | grep -qw avx2; then S_INST=3
+  else S_INST=1; fi
+  
+  case "$CG" in
+    *Zen5*|*Lunar*|*Arrow*|*Meteor*) S_GEN=5;; *Zen4*|*Raptor*|*Alder*) S_GEN=4;;
+    *Zen3*|*Tiger*|*Rocket*) S_GEN=3;; *Zen2*|*Ice*|*Comet*) S_GEN=2;; *) S_GEN=1;;
+  esac
+  
+  local TEMP=$(thermal_get_temp 2>/dev/null)
+  [ -n "$TEMP" ] && [ "$TEMP" -gt 0 ] && {
+    [ "$TEMP" -lt 50 ] && S_TEMP=5 || [ "$TEMP" -lt 65 ] && S_TEMP=4 || [ "$TEMP" -lt 80 ] && S_TEMP=2 || S_TEMP=1
+  } || S_TEMP=3
+  
+  local TOTAL=$((S_CPU + S_RAM + S_GPU + S_DISK + S_INST + S_GEN + S_TEMP))
+  [ "$TOTAL" -gt 100 ] && TOTAL=100
+  echo "$TOTAL|$S_CPU|$S_RAM|$S_GPU|$S_DISK|$S_INST|$S_GEN|$S_TEMP"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DAEMON
+# ═══════════════════════════════════════════════════════════════════════════
+
+daemon_main() {
+  local PF="/run/flytuxd.pid" HD="/var/lib/flytux/history" LOCK="/run/lock/flytuxd.lock"
+  mkdir -p "$HD" /run/lock
+  exec 9>"$LOCK"
+  if ! flock -n 9; then logger -t flytuxd "Otra instancia ya está corriendo"; exit 1; fi
+  trap 'logger -t flytuxd "Daemon detenido (SIGTERM)"; rm -f "$PF"; exit 0' SIGTERM SIGINT
+  trap 'logger -t flytuxd "Daemon recargado (SIGHUP)"' SIGHUP
+  echo $$ > "$PF"
+  [ -n "${NOTIFY_SOCKET:-}" ] && systemd-notify --ready 2>/dev/null || true
+  FM=$(grep -o '"mode":"[^"]*"' /etc/flytux/hw.json 2>/dev/null | cut -d'"' -f4)
+  [ -z "$FM" ] && FM="cooperative"
+  logger -t flytuxd "Daemon iniciado (PID $$, modo: $FM)"
+  LP=""; LT=""; CY=0
+  while true; do
+    PPD=$(systemctl is-active -q power-profiles-daemon 2>/dev/null && echo y || echo n)
+    TLD=$(systemctl is-active -q thermald 2>/dev/null && echo y || echo n)
+    ACT=true; [ "$FM" = "cooperative" ] && [ "$PPD" = "y" ] && ACT=false
+    PS=$(battery_get_source)
+    [ "$PS" != "$LP" ] && { $ACT && battery_apply_profile; LP="$PS"; }
+    if [ "$TLD" = "n" ] || [ "$FM" = "exclusive" ]; then
+      TP=$(thermal_profile)
+      [ "$TP" != "$LT" ] && { cpu_set_governor "$TP"; LT="$TP"; }
+    fi
+    CY=$((CY+1))
+    if [ "$CY" -ge 10 ]; then
+      CY=0
+      T=$(thermal_get_temp); B=$(battery_get_percent)
+      RA=$(awk '/MemAvailable/{printf "%d",$2/1024}' /proc/meminfo)
+      LD=$(cut -d' ' -f1 /proc/loadavg)
+      echo "$(date -Iseconds)|t=${T:-0}|p=$PS|b=$B|r=$RA|l=$LD|g=${LT:-?}" >> "$HD/sys.log"
+      [ -f "$HD/sys.log" ] && [ "$(stat -c%s "$HD/sys.log" 2>/dev/null)" -gt 1048576 ] && tail -1000 "$HD/sys.log" > "$HD/sys.log.tmp" && mv "$HD/sys.log.tmp" "$HD/sys.log"
+      [ -n "${NOTIFY_SOCKET:-}" ] && systemd-notify WATCHDOG=1 2>/dev/null || true
+    fi
+    sleep 30
+  done
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INSTALADOR
+# ═══════════════════════════════════════════════════════════════════════════
+
+install_backup() {
+  info "🔐 [1/12] Backup..."
+  run "backup" tar czf "$BKP" /etc/sysctl.d /etc/default /etc/systemd/system /etc/udev/rules.d \
+    /etc/modprobe.d /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true
+}
+
+install_repos() {
+  info "🔓 [2/12] Repositorios..."
+  for F in /etc/apt/sources.list.d/*.sources /etc/apt/sources.sources; do
+    [ -f "$F" ] && grep -q "^Components:" "$F" && ! grep -q "non-free" "$F" && \
+      sed -i '/^Components:/ s/$/ non-free non-free-firmware/' "$F" 2>/dev/null || true
+  done
+  if [[ "$ID" == "ubuntu" || "$ID_LIKE" == *"ubuntu"* || "$ID" == "linuxmint" || "$ID" == "pop" || "$ID" == "zorin" ]]; then
+    if command -v add-apt-repository &>/dev/null; then
+      run_visible "add-repo-multiverse" add-apt-repository multiverse -y
+      run_visible "add-repo-restricted" add-apt-repository restricted -y
+    fi
+  fi
+  run_visible "apt update" apt update -o Acquire::Retries=3 --allow-releaseinfo-change || warn "apt update con errores"
+}
+
+install_detect() {
+  info "🔍 [3/12] Detectando hardware..."
+  read_cpuinfo; cache_lspci; detect_cpu_generation; detect_gpu
+  detect_storage; detect_peripherals; detect_system
+  info "💾 ${RAM}MB | 💻 $LAPTOP | 🖥️ $CV $CG (F$CF/M$CM/S$CS) TLe≈${TLE}°C"
+  info "💿 $DT | 🎮 $GV ($PD) | 🤝 $AM → $FM"
+  info "🔧 SMT: $SMT | NUMA: $NUMA_NODES | Virtualización: $VIRT | Caché: $CPU_CACHE"
+}
+
+install_profile() {
+  info "💾 [4/12] Guardando perfil..."
+  DU=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null || echo "none")
+  MI=$(cat /etc/machine-id 2>/dev/null || echo "none")
+  UUID=$(echo -n "$DU-$MI" | sha256sum | cut -c1-32 | sed 's/\(........\)\(....\)\(....\)\(....\)\(.*\)/\1-\2-4\3-8\4-\5/')
+  [ -f "$FX/hw.json" ] && OLD_UUID=$(grep -o '"uuid":"[^"]*"' "$FX/hw.json" | cut -d'"' -f4) && [ -n "$OLD_UUID" ] && UUID="$OLD_UUID"
+  json_write "$FX/hw.json" \
+    v "26.2" uuid "$UUID" ts "$(date -Iseconds)" \
+    cpu_vendor "$CV" cpu_gen "$CG" cpu_family "$CF" cpu_model "$CM" cpu_stepping "$CS" \
+    cpu_cores "$CC" cpu_phys_cores "${CPU_PHYS_CORES:-$CC}" cpu_siblings "${CPU_SIBLINGS:-$CC}" \
+    cpu_sockets "${CPU_SOCKETS:-1}" cpu_cache "${CPU_CACHE:-unknown}" \
+    cpu_hybrid "$HYB" cpu_tle "$TLE" cpu_max_mhz "$CPU_MAX_MHZ" cpu_min_mhz "$CPU_MIN_MHZ" cpu_cur_mhz "${CPU_CUR_MHZ:-0}" \
+    cpu_smt "$SMT" cpu_virt "$VIRT" numa_nodes "$NUMA_NODES" \
+    ram "$RAM" disk "$DT" trim "$TRIM" gpu "$GV" hyb_gpu "$HYB_GPU" \
+    laptop "$LAPTOP" bt "$BT" modem "$MD" sb "$SB" de "$DE" managers "$AM" mode "$FM"
+}
+
+install_daemon() {
+  info "🤖 [5/12] Instalando daemon..."
+  run "install-binary" cp "$0" /usr/local/bin/flytux
+  run "chmod-binary" chmod +x /usr/local/bin/flytux
+  cat > /etc/systemd/system/flytuxd.service <<EOF
 [Unit]
-Description=Fusuma Multitouch Gestures
-After=graphical-session.target
+Description=FlyTux Cooperative Daemon
+After=systemd-modules-load.service
+Wants=systemd-modules-load.service
 
 [Service]
-ExecStart=/usr/bin/env fusuma
+Type=notify
+WatchdogSec=120
+ExecStart=/usr/local/bin/flytux --daemon
 Restart=on-failure
+RestartSec=10
+
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryDenyWriteExecute=yes
+ProtectKernelTunables=no
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallFilter=@system-service
+
+ReadWritePaths=/var/lib/flytux /etc/flytux /run /run/lock /sys/devices/system/cpu
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=multi-user.target
 EOF
-
-systemctl --user daemon-reload 2>/dev/null || true
-systemctl --user enable --now fusuma.service 2>/dev/null || true
-echo -e "${GREEN}✅ Fusuma y Arrastre con 3 dedos configurados.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 19: GESTOR DE PORTAPAPELES MINIMALISTA
-# =============================================================================
-echo -e "${YELLOW}📋 [19/24] Configurando Gestor de Portapapeles estilo macOS...${NC}"
-if [ "$IS_GNOME" = true ]; then
-    gnome-extensions enable clipboard-indicator@tudmotu.com 2>/dev/null || true
-    echo -e "${GREEN}✅ Clipboard Indicator activado para GNOME.${NC}"
-elif [ "$IS_CINNAMON" = true ]; then
-    echo -e "${GREEN}✅ Clipit instalado para Cinnamon (inícialo desde el menú).${NC}"
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${GREEN}✅ Clipman instalado para XFCE (añádelo al panel manualmente).${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 20: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
-# =============================================================================
-echo -e "${YELLOW}🔤 [20/24] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
-mkdir -p ~/.config/fontconfig/
-cat > ~/.config/fontconfig/fonts.conf << 'EOF'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match target="font">
-    <edit name="antialias" mode="assign"><bool>true</bool></edit>
-    <edit name="hinting" mode="assign"><bool>true</bool></edit>
-    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
-    <edit name="rgba" mode="assign"><const>rgb</const></edit>
-    <edit name="lcdfilter" mode="assign"><const>lcddefault</const></edit>
-  </match>
-  <match target="font">
-    <test name="family"><string>SF Pro</string></test>
-    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
-    <edit name="autohint" mode="assign"><bool>false</bool></edit>
-  </match>
-</fontconfig>
+  cat > /etc/systemd/system/flytux-battery.service <<EOF
+[Unit]
+Description=Apply FlyTux battery profile
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/flytux --battery-apply
 EOF
-fc-cache -f > /dev/null 2>&1
-echo -e "${GREEN}✅ Renderizado de fuentes optimizado para SF Pro.${NC}"
-echo ""
+  cat > /etc/udev/rules.d/99-flytux-power.rules <<EOF
+ACTION=="change", SUBSYSTEM=="power_supply", ENV{POWER_SUPPLY_TYPE}=="Mains", SYSTEMD_WANTS="flytux-battery.service"
+EOF
+  run "daemon-reload" systemctl daemon-reload
+  svc_on flytuxd
+  run "udev-reload" udevadm control --reload-rules
+}
 
-# =============================================================================
-# PASO 21: CONFIGURACIÓN DE TERMINAL ESTILO macOS
-# =============================================================================
-echo -e "${YELLOW}💻 [21/24] Configurando terminal estilo macOS...${NC}"
+install_kernel() {
+  info "⚙️  [6/12] Configurando kernel..."
+  cat > /etc/sysctl.d/99-flytux.conf <<EOF
+net.core.somaxconn=4096
+net.ipv4.tcp_fastopen=3
+net.core.netdev_max_backlog=4096
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+EOF
+  sysctl net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -q bbr && \
+    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.d/99-flytux.conf
+  run "sysctl" sysctl -p /etc/sysctl.d/99-flytux.conf
+}
 
-if [ "$IS_GNOME" = true ] && command -v gnome-terminal &> /dev/null; then
-    PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-system-font false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/background-color "'rgb(30,30,30)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/foreground-color "'rgb(230,230,230)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/bold-color "'rgb(255,255,255)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-colors false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-transparency false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/audible-bell false
-    dconf write /org/gnome/terminal/legacy/default-profile "'$PROFILE_ID'"
-    echo -e "${GREEN}✅ Terminal GNOME configurada con tema macOS.${NC}"
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]] && command -v xfce4-terminal &> /dev/null; then
-    mkdir -p "$HOME/.config/xfce4/terminal"
-    cat > "$HOME/.config/xfce4/terminal/terminalrc" << 'TERMINALEOF'
-[Configuration]
-FontName=SF Mono 12
-ColorForeground=#e6e6e6
-ColorBackground=#1e1e1e
-ColorBold=#ffffff
-MiscCursorShape=TERMINAL_CURSOR_SHAPE_IBEAM
-MiscCursorBlinks=FALSE
-MiscShowUnsafeUrls=FALSE
-TERMINALEOF
-    echo -e "${GREEN}✅ Terminal XFCE configurada con tema macOS.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 22: CONFIGURACIÓN DE ANIMACIONES SUAVES
-# =============================================================================
-echo -e "${YELLOW}🎬 [22/24] Configurando animaciones suaves...${NC}"
-
-if [ "$IS_GNOME" = true ]; then
-    gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null
-    gsettings set org.gnome.mutter center-new-windows true 2>/dev/null
-fi
-
-if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null
-fi
-
-echo -e "${GREEN}✅ Animaciones configuradas.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 23: EFECTO MAGIC LAMP (GNOME y Cinnamon)
-# =============================================================================
-echo -e "${YELLOW}🪔 [23/24] Instalando efecto Magic Lamp (minimizar ventanas)...${NC}"
-
-if [ "$IS_GNOME" = true ]; then
-    echo -e "   ${BLUE}→ Instalando para GNOME...${NC}"
-    mkdir -p ~/.local/share/gnome-shell/extensions/
-    if [ ! -d "$WORKDIR/compiz-alike-magic-lamp-effect" ]; then
-        git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git "$WORKDIR/compiz-alike-magic-lamp-effect" -q 2>/dev/null
+install_memory() {
+  info "⚡ [7/12] Configurando memoria..."
+  ZS=$((RAM*50/100)); [ "$ZS" -gt 4096 ] && ZS=4096
+  if [ "$RAM" -le 8192 ] && [ ! -b /dev/zram0 ]; then
+    if pkg_exists systemd-zram-generator; then
+      inst "ZRAM" systemd-zram-generator
+      mkdir -p /etc/systemd/zram-generator.conf.d
+      echo -e "[zram0]\nzram-size=ram/2\ncompression-algorithm=zstd" > /etc/systemd/zram-generator.conf.d/fx.conf
+      run "daemon-reload" systemctl daemon-reload
+      svc_on systemd-zram-setup@zram0
+    elif pkg_exists zram-tools; then
+      inst "ZRAM" zram-tools
+      echo -e "ENABLE=yes\nSIZE=$ZS\nALGO=zstd\nPRIORITY=100" > /etc/default/zramswap
+      svc_on zramswap
     fi
-    EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" | head -1)
-    if [ -n "$EXT_MAGIC_LAMP" ]; then
-        cp -r "$EXT_MAGIC_LAMP" ~/.local/share/gnome-shell/extensions/ 2>/dev/null
-        gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null
-        echo -e "${GREEN}✅ Magic Lamp para GNOME instalada y activada.${NC}"
-    fi
-elif [ "$IS_CINNAMON" = true ]; then
-    echo -e "   ${BLUE}→ Instalando para Cinnamon...${NC}"
-    mkdir -p ~/.local/share/cinnamon/extensions/
-    if [ ! -d "$WORKDIR/CinnamonMagicLamp" ]; then
-        git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null
-    fi
-    if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
-        ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ~/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman 2>/dev/null
-        
-        CINNAMON_EXTENSIONS=$(gsettings get org.cinnamon enabled-extensions 2>/dev/null)
-        if ! echo "$CINNAMON_EXTENSIONS" | grep -q "CinnamonMagicLamp@klangman"; then
-            if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
-                gsettings set org.cinnamon enabled-extensions "['CinnamonMagicLamp@klangman']" 2>/dev/null
-            else
-                NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'CinnamonMagicLamp@klangman']/")
-                gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
-            fi
-        fi
-        
-        gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null
-        gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null
-        
-        echo -e "${GREEN}✅ Magic Lamp para Cinnamon instalada y activada.${NC}"
-    fi
-else
-    echo -e "${YELLOW}⏭️  [23/24] Magic Lamp omitido (solo GNOME y Cinnamon).${NC}"
-fi
-echo ""
+  fi
+  [ "$RAM" -le 8192 ] && { inst "EarlyOOM" earlyoom; svc_on earlyoom; }
+  [ "$RAM" -le 4096 ] && [ "$DT" = "hdd" ] && { inst "Preload" preload; svc_on preload; }
+}
 
-# =============================================================================
-# PASO 24: VERIFICACIÓN POST-INSTALACIÓN INTELIGENTE
-# =============================================================================
-echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
-
-CRITICAL_ERRORS=0
-OPTIONAL_ERRORS=0
-
-# Componentes CRÍTICOS (sin estos, el sistema está incompleto)
-if ! fc-list | grep -q "SF Pro"; then
-    echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no instaladas${NC}"
-    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-fi
-
-if [ ! -d "$HOME/.themes/MacTahoe-Dark" ] && [ ! -d "$HOME/.local/share/themes/MacTahoe-Dark" ]; then
-    echo -e "   ${RED}✗ CRÍTICO: Tema GTK no instalado${NC}"
-    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-fi
-
-if [ ! -d "$HOME/.icons/MacTahoe-dark" ] && [ ! -d "$HOME/.local/share/icons/MacTahoe-dark" ]; then
-    echo -e "   ${RED}✗ CRÍTICO: Iconos y cursores no instalados${NC}"
-    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-fi
-
-if [ ! -d "$HOME/.local/share/sounds/bigsur" ]; then
-    echo -e "   ${RED}✗ CRÍTICO: Sonidos del sistema no instalados${NC}"
-    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-fi
-
-# Componentes OPCIONALES (mejoras de experiencia, no críticos)
-if [ ! -f "$HOME/.local/bin/rofi-spotlight-launcher" ]; then
-    echo -e "   ${YELLOW}⚠ OPCIONAL: Rofi Spotlight no instalado${NC}"
-    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
-fi
-
-if ! systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
-    echo -e "   ${YELLOW}⚠ OPCIONAL: Gestos Fusuma no activos${NC}"
-    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
-fi
-
-if ! command -v sushi &> /dev/null && ! command -v gloobus-preview &> /dev/null; then
-    echo -e "   ${YELLOW}⚠ OPCIONAL: Quick Look no disponible${NC}"
-    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
-fi
-
-echo ""
-
-# =============================================================================
-# TOMA DE DECISIÓN AUTOMÁTICA
-# =============================================================================
-if [ "$CRITICAL_ERRORS" -gt 0 ]; then
-    # FALLO CRÍTICO: Ejecutar rollback automático
-    echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${RED}║   ❌ INSTALACIÓN FALLIDA - EJECUTANDO RESTAURACIÓN     ║${NC}"
-    echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${YELLOW}Se detectaron $CRITICAL_ERRORS componente(s) crítico(s) faltante(s).${NC}"
-    echo -e "${YELLOW}Para evitar dejar el sistema en un estado inconsistente, se ejecutará${NC}"
-    echo -e "${YELLOW}el script de restauración automáticamente...${NC}"
-    echo ""
-    sleep 3
-    
-    # Ejecutar rollback
-    if [ -f "$ROLLBACK_SCRIPT" ]; then
-        bash "$ROLLBACK_SCRIPT" --auto
+install_power() {
+  info "🌡️  [8/12] Configurando energía..."
+  if [ "$LAPTOP" = "true" ]; then
+    [[ "$CV" == *"intel"* ]] && { inst "Thermald" thermald; svc_on thermald; }
+    if [[ "$ID" != "debian" && "$ID_LIKE" != *"debian"* ]]; then
+      inst "PPD" power-profiles-daemon; svc_on power-profiles-daemon
     else
-        echo -e "${RED}❌ El script de restauración no está disponible.${NC}"
-        echo -e "${YELLOW}Por favor, ejecuta manualmente:${NC}"
-        echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
+      systemctl is-active -q power-profiles-daemon 2>/dev/null || { inst "TLP" tlp tlp-rdw; svc_on tlp; }
     fi
-    exit 1
-    
-elif [ "$OPTIONAL_ERRORS" -gt 0 ]; then
-    # ÉXITO PARCIAL: Mostrar advertencia pero continuar
-    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║   ⚠️  INSTALACIÓN COMPLETADA CON ADVERTENCIAS           ║${NC}"
-    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${GREEN}✅ Los componentes críticos se instalaron correctamente.${NC}"
-    echo -e "${YELLOW}⚠️  $OPTIONAL_ERRORS componente(s) opcional(es) no se pudieron instalar.${NC}"
-    echo -e "${YELLOW}   El sistema es funcional, pero algunas características avanzadas${NC}"
-    echo -e "${YELLOW}   pueden no estar disponibles.${NC}"
-    echo ""
-    
-else
-    # ÉXITO TOTAL
-    echo -e "${GREEN}✅ Todos los componentes verificados correctamente.${NC}"
-    echo ""
-fi
+  fi
+  inst "Sensors" lm-sensors
+}
 
-# =============================================================================
-# DESACTIVAR TRAMPA DE ERROR (Solo si no hubo fallos críticos)
-# =============================================================================
-if [ "$CRITICAL_ERRORS" -eq 0 ]; then
-    INSTALLATION_SUCCESS=true
-    trap - ERR
-fi
-
-# =============================================================================
-# MENSAJE FINAL (Solo si no hubo rollback)
-# =============================================================================
-if [ "$CRITICAL_ERRORS" -eq 0 ]; then
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-    if [ "$OPTIONAL_ERRORS" -eq 0 ]; then
-        echo -e "${CYAN}║        🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
+install_gpu() {
+  info "🏭 [9/12] Drivers..."
+  [[ "$CV" == *"intel"* ]] && ! dpkg -l intel-microcode 2>/dev/null | grep -q "^ii" && inst "µcode" intel-microcode
+  [[ "$CV" == *"amd"* ]] && ! dpkg -l amd64-microcode 2>/dev/null | grep -q "^ii" && inst "µcode" amd64-microcode
+  $HI && { PK=(); pkg_exists intel-media-driver && PK+=(intel-media-driver); pkg_exists mesa-va-drivers && PK+=(mesa-va-drivers); pkg_exists mesa-vulkan-drivers && PK+=(mesa-vulkan-drivers); [ ${#PK[@]} -gt 0 ] && inst "Intel GPU" "${PK[@]}"; }
+  $HA && { PK=(); pkg_exists firmware-amd-graphics && PK+=(firmware-amd-graphics); pkg_exists mesa-vulkan-drivers && PK+=(mesa-vulkan-drivers); pkg_exists mesa-va-drivers && PK+=(mesa-va-drivers); [ ${#PK[@]} -gt 0 ] && inst "AMD GPU" "${PK[@]}"; }
+  if $HN; then
+    NP="nvidia-driver"
+    command -v ubuntu-drivers &>/dev/null && { R=$(ubuntu-drivers devices 2>/dev/null | awk '/recommended/{print $3}'); [ -n "$R" ] && NP="$R"; }
+    if [ "$SB" = "on" ]; then
+      warn "Secure Boot ON → NVIDIA omitido (requiere MOK enrollment)"
     else
-        echo -e "${YELLOW}║   ⚠️  INSTALACIÓN PARCIAL - REINICIAR PARA APLICAR     ║${NC}"
+      inst "NVIDIA" "$NP" nvidia-settings nvidia-prime
+      $HYB_GPU && command -v prime-select &>/dev/null && run "prime-select" prime-select on-demand || true
     fi
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia de macOS Tahoe.${NC}"
-    echo -e "${YELLOW}⚠️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
-    echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
-    echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
-    echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
-    echo ""
-fi
+  fi
+  inst "Firmware" linux-firmware fwupd; svc_on fwupd
+  $TRIM && svc_on fstrim.timer
+  [ "$DT" = "nvme" ] && inst "NVMe" nvme-cli
+  pkg_exists envycontrol && inst "EnvyControl" envycontrol
+}
+
+install_services() {
+  info "🔕 [10/12] Optimizando servicios..."
+  # MANTENEMOS ACTIVOS: Bluetooth e Impresoras (CUPS)
+  # para que funcionen si los conectas/encendes después de instalar.
+  
+  # Solo desactivamos ModemManager si no hay módem celular
+  $MD || svc_off ModemManager
+}
+
+install_security() {
+  info "🛡️ [11/12] Seguridad..."
+  if command -v ufw &>/dev/null; then
+    run "ufw-reset" ufw --force reset
+    run "ufw-default-in" ufw default deny incoming
+    run "ufw-default-out" ufw default allow outgoing
+    for P in 21 23 135 137 139 445 3389 5900; do run "ufw-deny-$P" ufw deny $P/tcp 2>/dev/null || true; done
+    run "ufw-enable" ufw --force enable
+    svc_on ufw
+  else
+    warn "UFW no detectado. Se omite la configuración del firewall."
+  fi
+  for p in popularity-contest whoopsie apport ubuntu-report; do
+    dpkg -l "$p" &>/dev/null && run "purge:$p" apt purge -y "$p" || true
+  done
+  command -v aa-enforce &>/dev/null && {
+    for f in /etc/apparmor.d/*flatpak* /etc/apparmor.d/*bwrap*; do
+      [ -f "$f" ] && run "apparmor:$f" aa-enforce "$f" || true
+    done
+    svc_on apparmor
+  }
+  if [ -n "$AU" ] && [ "$AU" != "root" ]; then
+    DB="unix:path=/run/user/$(id -u "$AU")/bus"
+    case "$DE" in
+      *gnome*|*zorin*) runuser -u "$AU" -- env DBUS_SESSION_BUS_ADDRESS="$DB" gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null || true;;
+      *cinnamon*) runuser -u "$AU" -- env DBUS_SESSION_BUS_ADDRESS="$DB" gsettings set org.cinnamon.desktop.interface enable-animations true 2>/dev/null || true;;
+      *kde*|*plasma*) runuser -u "$AU" -- kwriteconfig5 --file kwinrc --group Compositing --key Enabled true 2>/dev/null || true;;
+    esac
+  fi
+}
+
+install_cleanup() {
+  info "🧹 [12/12] Limpieza..."
+  run "full-upgrade" apt full-upgrade -y
+  run "autoremove" apt autoremove -y --purge
+  run "clean" apt clean
+  run "journal-vacuum" journalctl --vacuum-size=200M --vacuum-time=14d
+  run "tmpfiles" systemd-tmpfiles --clean
+  cat > "$FV/PRIVACY.txt" <<EOF
+🔒 FlyTux: 100% local. Sin red. Sin telemetría externa.
+Datos en $FV/history/ son SOLO tuyos.
+EOF
+}
+
+install_flytux() {
+  echo "🐧 FlyTux v26.2 - Instalando..."
+  [ "$(id -u)" -ne 0 ] && fatal "Ejecutar con: sudo bash $0"
+  . /etc/os-release
+  [[ "$ID_LIKE" =~ debian|ubuntu || "$ID" =~ debian|ubuntu|linuxmint|pop|zorin ]] || fatal "Distro incompatible"
+  export DEBIAN_FRONTEND=noninteractive
+  mkdir -p /var/backups "$FX" "$FV/history"
+  exec > >(tee -a "$LOG") 2>&1
+  install_backup; install_repos; install_detect; install_profile; install_daemon
+  install_kernel; install_memory; install_power; install_gpu; install_services
+  install_security; install_cleanup
+  SCORE_DATA=$(score_calculate)
+  IFS='|' read -r TOTAL S_CPU S_RAM S_GPU S_DISK S_INST S_GEN S_TEMP <<< "$SCORE_DATA"
+  echo ""
+  echo "════════════════════════════════════════════════════════"
+  echo "🐧 FlyTux v26.2 INSTALADO"
+  echo "════════════════════════════════════════════════════════"
+  echo ""
+  echo "🆔 UUID: $UUID"
+  echo "🖥️  CPU: $CV $CG (F$CF/M$CM) TLe≈${TLE}°C"
+  echo "   Cores: $CC (físicos: ${CPU_PHYS_CORES:-?}, logical: ${CPU_SIBLINGS:-?})"
+  echo "   SMT: $SMT | NUMA: $NUMA_NODES | Virtualización: $VIRT"
+  echo "   Frecuencia: ${CPU_MIN_MHZ}-${CPU_MAX_MHZ} MHz (actual: ${CPU_CUR_MHZ:-?})"
+  echo "   Caché: $CPU_CACHE"
+  echo "💾 RAM: ${RAM}MB | 💿 Disco: $DT | 🎮 GPU: $GV"
+  echo "🤝 Modo: $FM | 🔐 Secure Boot: $SB"
+  echo ""
+  echo "📊 SCORE: $TOTAL/100"
+  echo "   CPU: $S_CPU/35 | RAM: $S_RAM/20 | GPU: $S_GPU/20"
+  echo "   Disco: $S_DISK/10 | Instr: $S_INST/5 | Gen: $S_GEN/5 | Temp: $S_TEMP/5"
+  echo ""
+  if [ ${#ERRORS[@]} -gt 0 ]; then
+    echo "⚠️  ERRORES DURANTE LA INSTALACIÓN (${#ERRORS[@]}):"
+    for e in "${ERRORS[@]}"; do echo "   • $e"; done; echo ""
+  fi
+  if [ ${#WARNINGS[@]} -gt 0 ]; then
+    echo "ℹ️  ADVERTENCIAS (${#WARNINGS[@]}):"
+    for w in "${WARNINGS[@]}"; do echo "   • $w"; done; echo ""
+  fi
+  echo "📁 Archivos:"
+  echo "   • Perfil: $FX/hw.json"
+  echo "   • Historial: $FV/history/"
+  echo "   • Daemon: /usr/local/bin/flytux --daemon"
+  echo ""
+  echo "💡 Reinicia para activar el daemon."
+  echo "🔙 Revertir: sudo tar xzf $BKP -C /"
+  echo "════════════════════════════════════════════════════════"
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════
+
+case "$1" in
+  --daemon)
+    read_cpuinfo; cache_lspci; detect_cpu_generation; detect_storage; daemon_main;;
+  --battery-apply)
+    battery_apply_profile;;
+  --score)
+    read_cpuinfo; cache_lspci; detect_cpu_generation; detect_gpu; detect_storage
+    SCORE_DATA=$(score_calculate)
+    IFS='|' read -r TOTAL S_CPU S_RAM S_GPU S_DISK S_INST S_GEN S_TEMP <<< "$SCORE_DATA"
+    echo "📊 FlyTux Score: $TOTAL/100"
+    echo "   CPU: $S_CPU/35 | RAM: $S_RAM/20 | GPU: $S_GPU/20"
+    echo "   Disco: $S_DISK/10 | Instr: $S_INST/5 | Gen: $S_GEN/5 | Temp: $S_TEMP/5";;
+  --install|"")
+    install_flytux;;
+  *)
+    echo "Uso: $0 [--daemon|--install|--score|--battery-apply]"; exit 1;;
+esac
