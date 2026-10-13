@@ -810,26 +810,61 @@ echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 15.5: BOTÓN DE MENÚ ESTILO macOS
+# PASO 15.5: BOTÓN DE MENÚ CON ICONO DE APPLE (macOS)
 # =============================================================================
-echo -e "${YELLOW}🍎 [15.5/25] Configurando botón de menú estilo macOS...${NC}"
+echo -e "${YELLOW}🍎 [15.5/25] Configurando icono de Apple en el botón de inicio...${NC}"
 
 set +e
 
 if [ "$IS_GNOME" = true ]; then
-    echo -e "${BLUE}   → Configurando menú de GNOME...${NC}"
-    # Dash to Dock ya proporciona el dock inferior estilo macOS
-    # El usuario puede instalar Arc Menu manualmente desde extensions.gnome.org
-    echo -e "${GREEN}   ✓ Menú de GNOME configurado (Dash to Dock activo)${NC}"
+    echo -e "${BLUE}   → Configurando GNOME...${NC}"
+    
+    # Dash to Dock mostrará el botón de aplicaciones en la parte superior del dock.
+    # El tema de iconos MacTahoe reemplaza automáticamente este icono por la manzana de Apple.
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
+    
+    # Opcional: Cambiar el texto "Actividades" por un icono en la barra superior (si la versión de GNOME lo permite)
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Botón de aplicaciones configurado con icono de Apple${NC}"
+    
 elif [ "$IS_CINNAMON" = true ]; then
-    echo -e "${BLUE}   → Configurando menú de Cinnamon...${NC}"
-    run_as_user gsettings set org.cinnamon.menu-enabled true 2>/dev/null || true
+    echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
+    
+    # Forzar el icono del menú a 'distributor-logo' (que el tema MacTahoe reemplaza por la manzana)
+    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon "distributor-logo" 2>/dev/null || true
+    
+    # Ajustar el tamaño del icono para que se vea proporcional en el panel delgado (28px)
+    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon-size 16 2>/dev/null || true
+    
+    # Asegurar que el menú muestre favoritos y categorías (estilo Launchpad)
     run_as_user gsettings set org.cinnamon.menu-favorites-show true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Menú de Cinnamon configurado${NC}"
+    run_as_user gsettings set org.cinnamon.menu-show-category-icons true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.menu-show-application-icons true 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Icono de Apple aplicado al menú de Cinnamon${NC}"
+    
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${BLUE}   → Configurando Whisker Menu para XFCE...${NC}"
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-1 -s "whiskermenu" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Whisker Menu configurado${NC}"
+    echo -e "${BLUE}   → Configurando XFCE...${NC}"
+    
+    # Obtener el ID numérico del plugin whiskermenu en el panel
+    WHISKER_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "whiskermenu" | head -1 | cut -d'/' -f4)
+    
+    if [ -n "$WHISKER_ID" ]; then
+        # 1. Forzar el icono a 'distributor-logo' (manzana de Apple en el tema MacTahoe)
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -s "distributor-logo" 2>/dev/null || true
+        
+        # 2. Ocultar el texto "Aplicaciones" para que solo se vea la manzana
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -s false 2>/dev/null || true
+        
+        # 3. Asegurar que el menú esté en la primera posición del panel
+        run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-1 -s "whiskermenu" 2>/dev/null || true
+        
+        echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu (solo icono, sin texto)${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  No se encontró Whisker Menu. Asegúrate de tenerlo instalado.${NC}"
+    fi
 fi
 
 set -e
