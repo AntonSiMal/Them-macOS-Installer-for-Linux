@@ -667,7 +667,11 @@ if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
         elif command -v paru &> /dev/null; then paru -S --noconfirm zuno
         else
             APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/zuno "$APPIMAGE_URL" && chmod +x ~/.local/bin/zuno
+            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+                mkdir -p "$REAL_HOME/.local/bin"
+                wget -q -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL"
+                chmod +x "$REAL_HOME/.local/bin/zuno"
+            fi
         fi
     fi
     echo -e "${GREEN}      ✅ Zuno instalado.${NC}"
@@ -675,28 +679,31 @@ fi
 
 # Transformar Zuno a Apple Music
 ZUNO_DESKTOP=""
-for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "/usr/share/applications/com.zuno.desktop-app.desktop" "$HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
+for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "/usr/share/applications/com.zuno.desktop-app.desktop" "$REAL_HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
     [ -f "$path" ] && ZUNO_DESKTOP="$path" && break
 done
 
-wget -q -O ~/.local/share/icons/hicolor/256x256/apps/applemusic.svg "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
 
 if [ -n "$ZUNO_DESKTOP" ]; then
-    cp "$ZUNO_DESKTOP" ~/.local/share/applications/applemusic.desktop
-    sed -i 's/^Name=.*/Name=Apple Music/g' ~/.local/share/applications/applemusic.desktop
-    sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' ~/.local/share/applications/applemusic.desktop
-    sed -i 's/^GenericName=.*/GenericName=Apple Music/g' ~/.local/share/applications/applemusic.desktop
-    sed -i 's/^Icon=.*/Icon=applemusic/g' ~/.local/share/applications/applemusic.desktop
-    sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' ~/.local/share/applications/applemusic.desktop
-    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/$(basename "$ZUNO_DESKTOP")
+    mkdir -p "$REAL_HOME/.local/share/applications"
+    cp "$ZUNO_DESKTOP" "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^GenericName=.*/GenericName=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Icon=.*/Icon=applemusic/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ZUNO_DESKTOP")"
 else
-    # Fallback para AppImage en Arch sin AUR helper
-    if [ -f "$HOME/.local/bin/zuno" ]; then
-        cat <<EOF > ~/.local/share/applications/applemusic.desktop
+    # Fallback para AppImage en Arch sin AUR helper (USANDO $REAL_HOME)
+    if [ -f "$REAL_HOME/.local/bin/zuno" ]; then
+        mkdir -p "$REAL_HOME/.local/share/applications"
+        cat <<EOF > "$REAL_HOME/.local/share/applications/applemusic.desktop"
 [Desktop Entry]
 Name=Apple Music
 GenericName=Apple Music
-Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $HOME/.local/bin/zuno %U
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $REAL_HOME/.local/bin/zuno %U
 Icon=applemusic
 Type=Application
 Categories=Audio;Music;Player;AudioVideo;
@@ -745,17 +752,22 @@ if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
         elif command -v paru &> /dev/null; then paru -S --noconfirm localsend-bin
         else
             APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/localsend "$APPIMAGE_URL" && chmod +x ~/.local/bin/localsend
-            cat <<EOF > ~/.local/share/applications/localsend.desktop
+            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+                mkdir -p "$REAL_HOME/.local/bin"
+                wget -q -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL"
+                chmod +x "$REAL_HOME/.local/bin/localsend"
+                mkdir -p "$REAL_HOME/.local/share/applications"
+                cat <<EOF > "$REAL_HOME/.local/share/applications/localsend.desktop"
 [Desktop Entry]
 Name=LocalSend
 GenericName=File Sharing
-Exec=$HOME/.local/bin/localsend %U
+Exec=$REAL_HOME/.local/bin/localsend %U
 Icon=localsend
 Type=Application
 Categories=Network;FileTransfer;Utility;
 Terminal=false
 EOF
+            fi
         fi
     fi
     echo -e "${GREEN}      ✅ LocalSend instalado.${NC}"
@@ -790,7 +802,11 @@ if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
         elif command -v paru &> /dev/null; then paru -S --noconfirm iptvnator-bin
         else
             APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ] && wget -q -O ~/.local/bin/iptvnator "$APPIMAGE_URL" && chmod +x ~/.local/bin/iptvnator
+            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+                mkdir -p "$REAL_HOME/.local/bin"
+                wget -q -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL"
+                chmod +x "$REAL_HOME/.local/bin/iptvnator"
+            fi
         fi
     fi
     echo -e "${GREEN}      ✅ IPTVnator instalado.${NC}"
@@ -798,29 +814,32 @@ fi
 
 # Transformar IPTVnator a Apple TV
 IPTV_DESKTOP=""
-for path in "/usr/share/applications/iptvnator.desktop" "$HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
+for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
     [ -f "$path" ] && IPTV_DESKTOP="$path" && break
 done
 
-wget -q -O ~/.local/share/icons/hicolor/256x256/apps/appletv.svg "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
 
 if [ -n "$IPTV_DESKTOP" ]; then
-    cp "$IPTV_DESKTOP" ~/.local/share/applications/appletv.desktop
-    sed -i 's/^Name=.*/Name=Apple TV/g' ~/.local/share/applications/appletv.desktop
-    sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' ~/.local/share/applications/appletv.desktop
-    sed -i 's/^GenericName=.*/GenericName=Apple TV/g' ~/.local/share/applications/appletv.desktop
-    sed -i 's/^Icon=.*/Icon=appletv/g' ~/.local/share/applications/appletv.desktop
+    mkdir -p "$REAL_HOME/.local/share/applications"
+    cp "$IPTV_DESKTOP" "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^GenericName=.*/GenericName=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Icon=.*/Icon=appletv/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
     # Parche anti-pantalla blanca y sandbox en Linux
-    sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' ~/.local/share/applications/appletv.desktop
-    echo -e "[Desktop Entry]\nHidden=true" > ~/.local/share/applications/$(basename "$IPTV_DESKTOP")
+    sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$IPTV_DESKTOP")"
 else
-    # Fallback para AppImage
-    if [ -f "$HOME/.local/bin/iptvnator" ]; then
-        cat <<EOF > ~/.local/share/applications/appletv.desktop
+    # Fallback para AppImage (USANDO $REAL_HOME)
+    if [ -f "$REAL_HOME/.local/bin/iptvnator" ]; then
+        mkdir -p "$REAL_HOME/.local/share/applications"
+        cat <<EOF > "$REAL_HOME/.local/share/applications/appletv.desktop"
 [Desktop Entry]
 Name=Apple TV
 GenericName=Apple TV
-Exec=$HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
+Exec=$REAL_HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
 Icon=appletv
 Type=Application
 Categories=AudioVideo;Video;Player;
@@ -830,7 +849,7 @@ EOF
 fi
 
 # Pre-configurar lista de reproducción en Español (iptv-org)
-CONFIG_DIR="$HOME/.config/iptvnator"
+CONFIG_DIR="$REAL_HOME/.config/iptvnator"
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_DIR/store.json" ]; then
     cat << 'EOF' > "$CONFIG_DIR/store.json"
@@ -1878,6 +1897,32 @@ fi
 
 set -e
 echo -e "${GREEN}✅ Perfeccionamiento de experiencia macOS completado.${NC}"
+echo ""
+
+# =============================================================================
+# PASO 15.10: DETALLES FINALES 100% MACOS (Night Shift, Batería, Dock)
+# =============================================================================
+echo -e "${YELLOW}✨ [15.10/24] Aplicando los últimos detalles 100% macOS...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Ajustando detalles finales de GNOME...${NC}"
+    
+    # 1. Night Light (Equivalente exacto a "Night Shift" de macOS)
+    # Se activa automáticamente al atardecer con un tono cálido (2700K)
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.color night-light-schedule-automatic true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature 2700 2>/dev/null || true
+    
+    # 2. Mostrar porcentaje de batería en la barra superior (Estándar en macOS)
+    run_as_user gsettings set org.gnome.desktop.interface show-battery-percentage true 2>/dev/null || true
+    
+    # 3. Ocultar el icono de la Papelera en el Dock cuando está vacía (Comportamiento nativo de macOS)
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-trash false 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Night Light, Porcentaje de batería y Dock optimizados${NC}"
+fi
+
+echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
