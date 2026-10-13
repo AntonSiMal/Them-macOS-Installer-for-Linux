@@ -118,73 +118,41 @@ HAS_DASH_TO_DOCK=false
 [ -d "$HOME/.local/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] || \
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
+
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (CON DIAGNÓSTICO DE PAQUETES FALLIDOS)
+# PASO 1: DEPENDENCIAS DEL SISTEMA (MODO FORZADO)
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 
 export DEBIAN_FRONTEND=noninteractive
 
 if command -v apt-get &> /dev/null; then
-    echo -e "${BLUE}   → Pre-configurando gestor de sesiones (gdm3)...${NC}"
+    echo -e "${BLUE}   → Pre-configurando gdm3...${NC}"
     echo "gdm3 shared/default-x-display-manager select gdm3" | sudo debconf-set-selections 2>/dev/null || true
-    echo "gdm3 shared/default-x-display-manager seen true" | sudo debconf-set-selections 2>/dev/null || true
     
     echo -e "${BLUE}   → Actualizando repositorios...${NC}"
-    sudo apt-get update -qq
+    sudo apt-get update -qq || {
+        echo -e "${RED}   ✗ Error al actualizar repositorios${NC}"
+        echo -e "${YELLOW}   Verifica tu conexión a internet${NC}"
+        exit 1
+    }
     
-    # Lista de paquetes a instalar
-    PACKAGES=(
-        git sassc libglib2.0-dev-bin libxml2-utils fontconfig
-        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox
-        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds
-        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux
-        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste
-    )
-    
-    echo -e "${BLUE}   → Instalando paquetes base...${NC}"
-    INSTALL_OUTPUT=$(sudo apt-get install -y -qq \
+    echo -e "${BLUE}   → Instalando paquetes (esto puede tardar)...${NC}"
+    # Usar 'yes' para auto-aceptar TODO, incluso configuraciones
+    yes | sudo apt-get install -y \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
-        "${PACKAGES[@]}" 2>&1)
+        git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
+        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
+        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
+        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste \
+        2>&1 | tee /tmp/install.log | grep -v "^Selecting" | grep -v "^Unpacking" || {
+        
+        echo -e "${YELLOW}   ⚠️  Algunos paquetes fallaron. Revisa /tmp/install.log${NC}"
+    }
     
-    INSTALL_EXIT_CODE=$?
-    
-    if [ $INSTALL_EXIT_CODE -ne 0 ]; then
-        echo -e "${YELLOW}   ⚠️  Hubo errores al instalar algunos paquetes:${NC}"
-        echo -e "${RED}   ────────────────────────────────────────────────${NC}"
-        # Mostrar solo las líneas de error (las que empiezan con E:)
-        echo "$INSTALL_OUTPUT" | grep -E "^E:|No se ha podido localizar|no tiene candidato" | while read -r line; do
-            echo -e "   ${RED}✗ $line${NC}"
-        done
-        echo -e "${RED}   ─────────────────────────────────────────────────${NC}"
-        echo ""
-        echo -e "${YELLOW}   💡 Verificando qué paquetes críticos faltan...${NC}"
-        
-        # Verificar paquetes críticos uno por uno
-        CRITICAL_PACKAGES=(git curl wget jq ffmpeg rofi xdotool wmctrl qt5ct qt6ct ruby)
-        MISSING_CRITICAL=()
-        
-        for pkg in "${CRITICAL_PACKAGES[@]}"; do
-            if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
-                MISSING_CRITICAL+=("$pkg")
-                echo -e "   ${RED}✗ Falta: $pkg${NC}"
-            fi
-        done
-        
-        if [ ${#MISSING_CRITICAL[@]} -gt 0 ]; then
-            echo ""
-            echo -e "${RED}   ⚠️  Faltan paquetes CRÍTICOS. Intentando instalarlos individualmente...${NC}"
-            for pkg in "${MISSING_CRITICAL[@]}"; do
-                echo -e "   → Instalando $pkg..."
-                sudo apt-get install -y -qq "$pkg" 2>/dev/null && \
-                    echo -e "   ${GREEN}✓ $pkg instalado${NC}" || \
-                    echo -e "   ${RED}✗ $pkg no disponible${NC}"
-            done
-        fi
-    else
-        echo -e "${GREEN}   ✅ Todos los paquetes instalados correctamente.${NC}"
-    fi
+    echo -e "${GREEN}   ✅ Paquetes instalados.${NC}"
 
 elif command -v dnf &> /dev/null; then
     echo -e "${BLUE}   → Instalando paquetes (Fedora)...${NC}"
@@ -192,7 +160,7 @@ elif command -v dnf &> /dev/null; then
         plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
         unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
         wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        clipit xfce4-clipman-plugin 2>/dev/null || true
+        clipit xfce4-clipman-plugin || true
         
 elif command -v pacman &> /dev/null; then
     echo -e "${BLUE}   → Instalando paquetes (Arch)...${NC}"
@@ -200,7 +168,7 @@ elif command -v pacman &> /dev/null; then
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
         gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
         xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        clipit xfce4-clipman-plugin 2>/dev/null || true
+        clipit xfce4-clipman-plugin || true
 else
     echo -e "${RED}    No se detectó un gestor de paquetes compatible${NC}"
     exit 1
@@ -209,6 +177,7 @@ fi
 unset DEBIAN_FRONTEND
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
 echo ""
+
 # =============================================================================
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
 # =============================================================================
