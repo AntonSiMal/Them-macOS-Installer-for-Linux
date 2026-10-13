@@ -377,6 +377,21 @@ else
 fi
 echo ""
 
+
+# =============================================================================
+# PASO 7: WALLPAPERS SONOMA (RESPALDO)
+# =============================================================================
+echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
+[ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q
+
+if [ "$IS_GNOME" = true ]; then
+    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
+else
+    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
+fi
+echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
+echo ""
+
 # =============================================================================
 # PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (DESCARGA DIRECTA DE ZIP)
 # =============================================================================
@@ -413,8 +428,8 @@ if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FI
     
     # Extraer el ZIP
     if unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR" 2>/dev/null; then
-        # La carpeta extraída se llamará "macos-bigsur-sound-theme-linux-main"
-        SOURCE_DIR="$EXTRACT_DIR/macos-bigsur-sound-theme-linux-main/bigsur"
+        # La carpeta extraída: macos-bigsur-sound-theme-linux-main/theme/bigsur
+        SOURCE_DIR="$EXTRACT_DIR/macos-bigsur-sound-theme-linux-main/theme/bigsur"
         
         if [ -d "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/index.theme" ]; then
             echo -e "${BLUE}   → Copiando sonidos a $SOUNDS_DIR...${NC}"
@@ -432,7 +447,9 @@ if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FI
                 echo -e "${YELLOW}   ⚠️  Error al copiar la carpeta de sonidos.${NC}"
             fi
         else
-            echo -e "${YELLOW}   ⚠️  No se encontró la carpeta 'bigsur' en el ZIP extraído.${NC}"
+            echo -e "${YELLOW}   ️  No se encontró la carpeta 'theme/bigsur' en el ZIP.${NC}"
+            echo -e "${BLUE}   → Estructura encontrada:${NC}"
+            ls -la "$EXTRACT_DIR/macos-bigsur-sound-theme-linux-main/" 2>/dev/null || true
         fi
     else
         echo -e "${YELLOW}   ⚠️  Error al extraer el archivo ZIP.${NC}"
@@ -449,28 +466,11 @@ rm -rf "$EXTRACT_DIR" 2>/dev/null
 if [ "$SOUND_INSTALLED" = true ]; then
     echo -e "${GREEN}   ✅ Directorio de sonidos verificado en: $SOUNDS_DIR/bigsur${NC}"
 else
-    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos automáticamente.${NC}"
+    echo -e "${YELLOW}   ️  No se pudieron instalar los sonidos automáticamente.${NC}"
     echo -e "${YELLOW}      (Es un componente opcional, el script continuará)${NC}"
 fi
 
 echo ""
-
-
-# =============================================================================
-# PASO 7: WALLPAPERS SONOMA (RESPALDO)
-# =============================================================================
-echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
-[ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q
-
-if [ "$IS_GNOME" = true ]; then
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
-else
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
-fi
-echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
-echo ""
-
-
 
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
