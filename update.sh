@@ -2,7 +2,7 @@
 
 # =============================================================================
 # macOS Tahoe Updater - Actualización Inteligente (Versión Ultimate)
-# Solo actualiza los componentes que han cambiado en GitHub
+# Solo actualiza los componentes que han cambiado en GitHub y repara personalizaciones
 # =============================================================================
 
 set -e
@@ -184,107 +184,247 @@ echo ""
 # REINSTALAR SOLO LO QUE CAMBIÓ
 # =============================================================================
 if [ ${#NEEDS_REINSTALL[@]} -eq 0 ]; then
-    echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║   ✅ ¡TODO ESTÁ ACTUALIZADO! No se requieren cambios    ║${NC}"
-    echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo -e "${BLUE}• Ningún componente principal requiere actualización desde GitHub.${NC}"
+else
+    echo -e "${YELLOW}🔧 Reinstalando componentes actualizados...${NC}"
     echo ""
-    exit 0
+
+    for component in "${NEEDS_REINSTALL[@]}"; do
+        case "$component" in
+            "fonts")
+                echo -e "   ${BLUE}→ Actualizando fuentes Apple...${NC}"
+                FONTS_DIR="$REAL_HOME/.local/share/fonts"
+                mkdir -p "$FONTS_DIR"
+                [ -d "$WORKDIR/SFWindows/SF Mono" ] && find "$WORKDIR/SFWindows/SF Mono" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
+                [ -d "$WORKDIR/SFWindows/SF Multilingual Extensions" ] && find "$WORKDIR/SFWindows/SF Multilingual Extensions" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
+                fc-cache -f "$FONTS_DIR" > /dev/null 2>&1
+                echo -e "   ${GREEN}✓ Fuentes actualizadas${NC}"
+                ;;
+                
+            "gtk")
+                echo -e "   ${BLUE}→ Actualizando tema GTK MacTahoe...${NC}"
+                INSTALL_FLAGS="-c dark --silent-mode --round --darker"
+                [ "$IS_GNOME" = true ] && INSTALL_FLAGS="$INSTALL_FLAGS -l"
+                ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 )
+                echo -e "   ${GREEN}✓ Tema GTK actualizado${NC}"
+                ;;
+                
+            "icons")
+                echo -e "   ${BLUE}→ Actualizando iconos y cursores MacTahoe...${NC}"
+                if [ -n "$ICON_BOLD_FLAG" ]; then
+                    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 )
+                else
+                    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
+                fi
+                echo -e "   ${GREEN}✓ Iconos y cursores actualizados${NC}"
+                ;;
+                
+            "wallpapers")
+                echo -e "   ${BLUE}→ Actualizando wallpapers...${NC}"
+                if [ "$IS_GNOME" = true ]; then
+                    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma > /dev/null 2>&1 )
+                else
+                    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark > /dev/null 2>&1 )
+                fi
+                echo -e "   ${GREEN}✓ Wallpapers actualizados${NC}"
+                ;;
+                
+            "rofi")
+                echo -e "   ${BLUE}→ Actualizando Rofi Spotlight...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/rofi-spotlight" "$REAL_HOME/.local/share/rofi/themes"
+                cp -r "$WORKDIR/rofi-spotlight"/* "$REAL_HOME/.local/share/rofi-spotlight/" 2>/dev/null
+                chmod +x "$REAL_HOME/.local/share/rofi-spotlight/rofi-spotlight.sh" "$REAL_HOME/.local/share/rofi-spotlight/web-search.py" 2>/dev/null
+                echo -e "   ${GREEN}✓ Rofi Spotlight actualizado${NC}"
+                ;;
+                
+            "plank")
+                echo -e "   ${BLUE}→ Actualizando temas de Plank...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/plank/themes"
+                find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do
+                    [ -d "$theme_dir" ] && cp -r "$theme_dir" "$REAL_HOME/.local/share/plank/themes/"
+                done
+                echo -e "   ${GREEN}✓ Temas de Plank actualizados${NC}"
+                ;;
+                
+            "cinnamon-dynamic")
+                echo -e "   ${BLUE}→ Actualizando Cinnamon Dynamic Wallpaper...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions"
+                cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null
+                echo -e "   ${GREEN}✓ Cinnamon Dynamic Wallpaper actualizado${NC}"
+                ;;
+                
+            "magic-lamp-gnome")
+                echo -e "   ${BLUE}→ Actualizando Magic Lamp para GNOME...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions"
+                EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" | head -1)
+                if [ -n "$EXT_MAGIC_LAMP" ]; then
+                    cp -r "$EXT_MAGIC_LAMP" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null
+                    run_as_user gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null || true
+                fi
+                echo -e "   ${GREEN}✓ Magic Lamp (GNOME) actualizado${NC}"
+                ;;
+                
+            "magic-lamp-cinnamon")
+                echo -e "   ${BLUE}→ Actualizando Magic Lamp para Cinnamon...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions"
+                ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null
+                echo -e "   ${GREEN}✓ Magic Lamp (Cinnamon) actualizado${NC}"
+                ;;
+                
+            "liquid-glass")
+                echo -e "   ${BLUE}→ Actualizando Liquid Glass...${NC}"
+                mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions"
+                cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null
+                run_as_user gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
+                echo -e "   ${GREEN}✓ Liquid Glass actualizado${NC}"
+                ;;
+        esac
+    done
+    echo ""
 fi
 
-echo -e "${YELLOW}🔧 Reinstalando componentes actualizados...${NC}"
-echo ""
+# =============================================================================
+# REPARAR/ACTUALIZAR PERSONALIZACIONES DE APLICACIONES (PASO 12)
+# =============================================================================
+echo -e "${YELLOW}🔄 Verificando y reparando personalizaciones de aplicaciones...${NC}"
 
-for component in "${NEEDS_REINSTALL[@]}"; do
-    case "$component" in
-        "fonts")
-            echo -e "   ${BLUE}→ Actualizando fuentes Apple...${NC}"
-            FONTS_DIR="$REAL_HOME/.local/share/fonts"
-            mkdir -p "$FONTS_DIR"
-            [ -d "$WORKDIR/SFWindows/SF Mono" ] && find "$WORKDIR/SFWindows/SF Mono" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
-            [ -d "$WORKDIR/SFWindows/SF Multilingual Extensions" ] && find "$WORKDIR/SFWindows/SF Multilingual Extensions" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null
-            fc-cache -f "$FONTS_DIR" > /dev/null 2>&1
-            echo -e "   ${GREEN}✓ Fuentes actualizadas${NC}"
-            ;;
-            
-        "gtk")
-            echo -e "   ${BLUE}→ Actualizando tema GTK MacTahoe...${NC}"
-            INSTALL_FLAGS="-c dark --silent-mode --round --darker"
-            [ "$IS_GNOME" = true ] && INSTALL_FLAGS="$INSTALL_FLAGS -l"
-            ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 )
-            echo -e "   ${GREEN}✓ Tema GTK actualizado${NC}"
-            ;;
-            
-        "icons")
-            echo -e "   ${BLUE}→ Actualizando iconos y cursores MacTahoe...${NC}"
-            if [ -n "$ICON_BOLD_FLAG" ]; then
-                ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 )
-            else
-                ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
-            fi
-            echo -e "   ${GREEN}✓ Iconos y cursores actualizados${NC}"
-            ;;
-            
-        "wallpapers")
-            echo -e "   ${BLUE}→ Actualizando wallpapers...${NC}"
-            if [ "$IS_GNOME" = true ]; then
-                ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma > /dev/null 2>&1 )
-            else
-                ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark > /dev/null 2>&1 )
-            fi
-            echo -e "   ${GREEN}✓ Wallpapers actualizados${NC}"
-            ;;
-            
-        "rofi")
-            echo -e "   ${BLUE}→ Actualizando Rofi Spotlight...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/rofi-spotlight" "$REAL_HOME/.local/share/rofi/themes"
-            cp -r "$WORKDIR/rofi-spotlight"/* "$REAL_HOME/.local/share/rofi-spotlight/" 2>/dev/null
-            chmod +x "$REAL_HOME/.local/share/rofi-spotlight/rofi-spotlight.sh" "$REAL_HOME/.local/share/rofi-spotlight/web-search.py" 2>/dev/null
-            echo -e "   ${GREEN}✓ Rofi Spotlight actualizado${NC}"
-            ;;
-            
-        "plank")
-            echo -e "   ${BLUE}→ Actualizando temas de Plank...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/plank/themes"
-            find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do
-                [ -d "$theme_dir" ] && cp -r "$theme_dir" "$REAL_HOME/.local/share/plank/themes/"
-            done
-            echo -e "   ${GREEN}✓ Temas de Plank actualizados${NC}"
-            ;;
-            
-        "cinnamon-dynamic")
-            echo -e "   ${BLUE}→ Actualizando Cinnamon Dynamic Wallpaper...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions"
-            cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null
-            echo -e "   ${GREEN}✓ Cinnamon Dynamic Wallpaper actualizado${NC}"
-            ;;
-            
-        "magic-lamp-gnome")
-            echo -e "   ${BLUE}→ Actualizando Magic Lamp para GNOME...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions"
-            EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" | head -1)
-            if [ -n "$EXT_MAGIC_LAMP" ]; then
-                cp -r "$EXT_MAGIC_LAMP" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null
-                run_as_user gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null || true
-            fi
-            echo -e "   ${GREEN}✓ Magic Lamp (GNOME) actualizado${NC}"
-            ;;
-            
-        "magic-lamp-cinnamon")
-            echo -e "   ${BLUE}→ Actualizando Magic Lamp para Cinnamon...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions"
-            ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null
-            echo -e "   ${GREEN}✓ Magic Lamp (Cinnamon) actualizado${NC}"
-            ;;
-            
-        "liquid-glass")
-            echo -e "   ${BLUE}→ Actualizando Liquid Glass...${NC}"
-            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions"
-            cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null
-            run_as_user gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
-            echo -e "   ${GREEN}✓ Liquid Glass actualizado${NC}"
-            ;;
-    esac
-done
+mkdir -p "$REAL_HOME/.local/share/applications"
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$REAL_HOME/.local/bin"
+
+# 1. Safari (Firefox)
+if [ ! -f "$REAL_HOME/.local/share/applications/safari.desktop" ] || [ ! -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" ]; then
+    echo -e "   ${BLUE}→ Restaurando personalización de Safari...${NC}"
+    ORIG_FF=""
+    for path in "/usr/share/applications/firefox.desktop" "/usr/share/applications/firefox-esr.desktop" "/usr/share/applications/org.mozilla.firefox.desktop" "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop"; do
+        [ -f "$path" ] && ORIG_FF="$path" && break
+    done
+    if [ -n "$ORIG_FF" ]; then
+        wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+        cp "$ORIG_FF" "$REAL_HOME/.local/share/applications/safari.desktop"
+        sed -i 's/^Name=.*/Name=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Navegador Web Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
+        sed -i 's/^Icon=.*/Icon=safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ORIG_FF")"
+        echo -e "   ${GREEN}✓ Safari restaurado${NC}"
+    fi
+else
+    echo -e "   ${GREEN}✓ Safari ya está configurado${NC}"
+fi
+
+# 2. Apple Music (Zuno)
+if [ ! -f "$REAL_HOME/.local/share/applications/applemusic.desktop" ] || [ ! -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" ]; then
+    echo -e "   ${BLUE}→ Restaurando personalización de Apple Music (Zuno)...${NC}"
+    if command -v apt-get &> /dev/null; then sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good 2>/dev/null || true
+    elif command -v dnf &> /dev/null; then sudo dnf install -y -q gstreamer1-libav gstreamer1-plugins-base gstreamer1-plugins-good 2>/dev/null || true
+    elif command -v pacman &> /dev/null; then sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good 2>/dev/null || true; fi
+    
+    ORIG_ZUNO=""
+    for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "$REAL_HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
+        [ -f "$path" ] && ORIG_ZUNO="$path" && break
+    done
+    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+    
+    if [ -n "$ORIG_ZUNO" ]; then
+        cp "$ORIG_ZUNO" "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        sed -i 's/^Icon=.*/Icon=applemusic/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ORIG_ZUNO")"
+    elif [ -f "$REAL_HOME/.local/bin/zuno" ]; then
+        cat <<EOF > "$REAL_HOME/.local/share/applications/applemusic.desktop"
+[Desktop Entry]
+Name=Apple Music
+GenericName=Apple Music
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $REAL_HOME/.local/bin/zuno %U
+Icon=applemusic
+Type=Application
+Categories=Audio;Music;Player;AudioVideo;
+Terminal=false
+EOF
+    fi
+    echo -e "   ${GREEN}✓ Apple Music restaurado${NC}"
+else
+    echo -e "   ${GREEN}✓ Apple Music ya está configurado${NC}"
+fi
+
+# 3. LocalSend (Verificar firewall)
+if [ -f "$REAL_HOME/.local/share/applications/localsend.desktop" ] || [ -f "/usr/share/applications/localsend.desktop" ] || [ -f "$REAL_HOME/.local/bin/localsend" ]; then
+    FW_OK=false
+    if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "53317"; then FW_OK=true; fi
+    if command -v firewall-cmd &> /dev/null && sudo firewall-cmd --list-ports 2>/dev/null | grep -q "53317"; then FW_OK=true; fi
+    
+    if [ "$FW_OK" = false ]; then
+        echo -e "   ${BLUE}→ Reparando reglas de firewall para LocalSend...${NC}"
+        if command -v ufw &> /dev/null; then sudo ufw allow 53317/tcp >/dev/null 2>&1; sudo ufw allow 53317/udp >/dev/null 2>&1; fi
+        if command -v firewall-cmd &> /dev/null; then sudo firewall-cmd --permanent --add-port=53317/tcp >/dev/null 2>&1; sudo firewall-cmd --permanent --add-port=53317/udp >/dev/null 2>&1; sudo firewall-cmd --reload >/dev/null 2>&1; fi
+    fi
+    echo -e "   ${GREEN}✓ LocalSend verificado y firewall configurado${NC}"
+fi
+
+# 4. Apple TV (IPTVnator)
+if [ ! -f "$REAL_HOME/.local/share/applications/appletv.desktop" ] || [ ! -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" ]; then
+    echo -e "   ${BLUE}→ Restaurando personalización de Apple TV (IPTVnator)...${NC}"
+    if command -v apt-get &> /dev/null; then sudo apt-get install -y -qq mpv 2>/dev/null || true
+    elif command -v dnf &> /dev/null; then sudo dnf install -y -q mpv 2>/dev/null || true
+    elif command -v pacman &> /dev/null; then sudo pacman -S --noconfirm --needed mpv 2>/dev/null || true; fi
+
+    ORIG_IPTV=""
+    for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
+        [ -f "$path" ] && ORIG_IPTV="$path" && break
+    done
+    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
+
+    if [ -n "$ORIG_IPTV" ]; then
+        cp "$ORIG_IPTV" "$REAL_HOME/.local/share/applications/appletv.desktop"
+        sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+        sed -i 's/^Icon=.*/Icon=appletv/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+        sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ORIG_IPTV")"
+    elif [ -f "$REAL_HOME/.local/bin/iptvnator" ]; then
+        cat <<EOF > "$REAL_HOME/.local/share/applications/appletv.desktop"
+[Desktop Entry]
+Name=Apple TV
+GenericName=Apple TV
+Exec=$REAL_HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
+Icon=appletv
+Type=Application
+Categories=AudioVideo;Video;Player;
+Terminal=false
+EOF
+    fi
+    
+    CONFIG_DIR="$REAL_HOME/.config/iptvnator"
+    mkdir -p "$CONFIG_DIR"
+    if [ ! -f "$CONFIG_DIR/store.json" ]; then
+        cat << 'EOF' > "$CONFIG_DIR/store.json"
+{
+  "playlists": [
+    {
+      "id": "spa-iptv-org",
+      "name": "📺 Canales en Español (iptv-org)",
+      "url": "https://iptv-org.github.io/iptv/languages/spa.m3u",
+      "autoRefresh": true,
+      "userAgent": ""
+    }
+  ],
+  "settings": {
+    "player": "html5",
+    "theme": "dark",
+    "epgUrl": "https://iptv-org.github.io/epg/guides/es/movistarplus.es.xml"
+  }
+}
+EOF
+    fi
+    echo -e "   ${GREEN}✓ Apple TV restaurado${NC}"
+else
+    echo -e "   ${GREEN}✓ Apple TV ya está configurado${NC}"
+fi
 
 echo ""
 
@@ -293,7 +433,7 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🔄 Sincronizando configuraciones del sistema...${NC}"
 
-# 1. Actualizar scripts auxiliares (Acerca de este Mac y Auto Dark Mode)
+# 1. Actualizar scripts auxiliares (Acerca de este Mac)
 ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
 mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
 cat > "$ABOUT_SCRIPT" << 'ABOUTEOF'
@@ -316,33 +456,34 @@ zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
 ABOUTEOF
 chmod +x "$ABOUT_SCRIPT"
 
-# 2. Re-aplicar tamaño de cursor (32px)
+# 2. Re-aplicar tamaño de cursor (32px) y fuentes
 if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.interface cursor-size 32 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
 elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-size 32 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     run_as_user xfconf-query -c xsettings -p /Gtk/CursorThemeSize -s 32 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Gtk/FontName -s 'SF Pro Text 11' 2>/dev/null || true
 fi
-
-# 3. Re-aplicar configuración de fuentes y tema por si acaso
-run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
-run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
-run_as_user xfconf-query -c xsettings -p /Gtk/FontName -s 'SF Pro Text 11' 2>/dev/null || true
 
 echo -e "${GREEN}   ✓ Configuraciones sincronizadas${NC}"
 echo ""
 
 # =============================================================================
-# ACTUALIZAR REGISTRO DE VERSIÓN
+# ACTUALIZAR REGISTRO DE VERSIÓN Y PERMISOS
 # =============================================================================
 NEW_VERSION=$(date '+%Y-%m-%d')
 echo "$NEW_VERSION" > "$VERSION_FILE"
 
-# Ajustar permisos de toda la carpeta de trabajo
 if [ -n "$SUDO_USER" ]; then
     chown -R "$SUDO_USER:$SUDO_USER" "$WORKDIR" 2>/dev/null || true
 fi
+
+# Actualizar cachés finales
+run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
+run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
 # =============================================================================
 # MENSAJE FINAL
@@ -351,13 +492,18 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║   ✅ ACTUALIZACIÓN COMPLETADA                           ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${GREEN}✨ Se actualizaron ${UPDATED_COMPONENTS} de ${TOTAL_COMPONENTS} componentes.${NC}"
+echo -e "${GREEN}✨ Se actualizaron ${UPDATED_COMPONENTS} de ${TOTAL_COMPONENTS} componentes principales.${NC}"
+echo -e "${GREEN}✨ Las personalizaciones de aplicaciones (Paso 12) han sido verificadas y reparadas.${NC}"
 echo ""
-echo -e "${BLUE}Componentes actualizados:${NC}"
-for component in "${NEEDS_REINSTALL[@]}"; do
-    echo -e "   • $component"
-done
-echo ""
+
+if [ ${#NEEDS_REINSTALL[@]} -gt 0 ]; then
+    echo -e "${BLUE}Componentes actualizados:${NC}"
+    for component in "${NEEDS_REINSTALL[@]}"; do
+        echo -e "   • $component"
+    done
+    echo ""
+fi
+
 echo -e "${YELLOW}⚠️  Para aplicar todos los cambios, reinicia tu sesión o el equipo.${NC}"
 echo ""
 
