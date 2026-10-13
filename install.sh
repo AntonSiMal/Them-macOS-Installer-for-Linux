@@ -374,73 +374,94 @@ fi
 echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
 echo ""
 
+
 # =============================================================================
 # PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR
 # =============================================================================
 echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
-SOUNDS_DIR="$HOME/.local/share/sounds"
-SOUNDS_TEMP="$WORKDIR/bigsur-sounds-temp"
-mkdir -p "$SOUNDS_DIR" "$SOUNDS_TEMP"
 
+SOUNDS_DIR="$HOME/.local/share/sounds"
+ALT_REPO="$WORKDIR/bigsur-sound-theme"
 SOUND_INSTALLED=false
 
-# Intentar obtener la URL del release desde GitHub API
-echo -e "${BLUE}   → Buscando última versión en GitHub...${NC}"
-RELEASE_URL=$(curl -s --max-time 10 https://api.github.com/repos/gxanshu/macos-bigsur-sound-theme-linux/releases/latest 2>/dev/null | grep "browser_download_url" | grep -E "\.tar\.gz|\.zip" | head -1 | cut -d '"' -f 4)
+echo -e "${BLUE}   → Clonando repositorio de sonidos...${NC}"
 
-if [ -z "$RELEASE_URL" ]; then
-    echo -e "${YELLOW}   ⚠️  No se pudo obtener la URL del release de GitHub.${NC}"
-    echo -e "${YELLOW}      Posibles causas: API rate-limited, sin internet, o repositorio sin releases.${NC}"
-    echo -e "${BLUE}   → Intentando método alternativo (clonar repositorio)...${NC}"
-    
-    ALT_REPO="$WORKDIR/bigsur-sound-theme"
-    if [ ! -d "$ALT_REPO" ]; then
-        git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null
-    fi
-    
-    if [ -d "$ALT_REPO" ]; then
-        echo -e "${BLUE}   → Construyendo desde fuente...${NC}"
-        ( cd "$ALT_REPO" && make install > /dev/null 2>&1 ) 2>/dev/null
-        if [ -d "$SOUNDS_DIR/bigsur" ]; then
-            SOUND_INSTALLED=true
-            echo -e "${GREEN}   ✅ Tema de sonidos construido e instalado.${NC}"
-        else
-            echo -e "${YELLOW}   ⚠️  No se pudo construir el tema de sonidos.${NC}"
-        fi
-    else
-        echo -e "${YELLOW}   ️  No se pudo clonar el repositorio de sonidos.${NC}"
-    fi
-else
-    echo -e "${BLUE}   → Descargando desde: $RELEASE_URL${NC}"
-    ARCHIVE_FILE="$SOUNDS_TEMP/bigsur-sounds.tar.gz"
-    
-    if curl -L "$RELEASE_URL" -o "$ARCHIVE_FILE" --silent --fail --max-time 120 2>/dev/null; then
-        echo -e "${BLUE}   → Extrayendo archivos...${NC}"
-        if file "$ARCHIVE_FILE" | grep -q "gzip"; then
-            tar -xzf "$ARCHIVE_FILE" -C "$SOUNDS_TEMP" 2>/dev/null
-        elif file "$ARCHIVE_FILE" | grep -q "Zip"; then
-            unzip -q "$ARCHIVE_FILE" -d "$SOUNDS_TEMP" 2>/dev/null
-        fi
-        
-        EXTRACTED_DIR=$(find "$SOUNDS_TEMP" -maxdepth 1 -type d -name "bigsur*" -o -name "*sound*" | head -1)
-        [ -z "$EXTRACTED_DIR" ] && EXTRACTED_DIR="$SOUNDS_TEMP"
-        
-        if [ -f "$EXTRACTED_DIR/index.theme" ] || [ -d "$EXTRACTED_DIR/stereo" ]; then
-            rm -rf "$SOUNDS_DIR/bigsur"
-            cp -r "$EXTRACTED_DIR" "$SOUNDS_DIR/bigsur"
-            if [ -d "$SOUNDS_DIR/bigsur/stereo" ] || [ -f "$SOUNDS_DIR/bigsur/index.theme" ]; then
-                SOUND_INSTALLED=true
-                echo -e "${GREEN}   ✅ Tema de sonidos macOS Big Sur instalado.${NC}"
-            fi
-        else
-            echo -e "${YELLOW}   ⚠️  Estructura de archivos no válida.${NC}"
-        fi
-    else
-        echo -e "${YELLOW}   ️  Falló la descarga del archivo.${NC}"
-    fi
+# Si ya existe, lo borramos para tener la versión más reciente
+if [ -d "$ALT_REPO" ]; then
+    rm -rf "$ALT_REPO"
 fi
 
-rm -rf "$SOUNDS_TEMP"
+# Clonar con timeout de 30 segundos
+if ! timeout 30 git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" 2>/dev/null; then
+    echo -e "${YELLOW}   ⚠️  No se pudo clonar el repositorio (timeout o sin internet).${NC}"
+    echo -e "${BLUE}   → Saltando instalación de sonidos...${NC}"
+    echo ""
+    continue
+fi
+
+if [ -d "$ALT_REPO" ] && [ -f "$ALT_REPO/Makefile" ]; then
+    echo -e "${BLUE}   → Verificando ffmpeg...${NC}"
+    
+    # Instalar ffmpeg si no existe
+    if ! command -v ffmpeg &> /dev/null; then
+        echo -e "${BLUE}   → Instalando ffmpeg...${NC}"
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y -qq ffmpeg 2>/dev/null || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q ffmpeg 2>/dev/null || true
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm ffmpeg 2>/dev/null || true
+        fi
+    fi
+    
+    if command -v ffmpeg &> /dev/null; then
+        echo -e "${BLUE}   → Construyendo tema de sonidos (esto puede tardar 1-2 minutos)...${NC}"
+        cd "$ALT_REPO"
+        
+        # Clonar dependencias si no existen
+        if [ ! -d "ocean-sound-theme" ]; then
+            echo -e "${BLUE}   → Clonando ocean-sound-theme...${NC}"
+            git clone --depth=1 https://github.com/KDE/ocean-sound-theme.git -q 2>/dev/null || true
+        fi
+        
+        if [ ! -d "BigSurSounds" ]; then
+            echo -e "${BLUE}   → Clonando BigSurSounds...${NC}"
+            git clone --depth=1 https://github.com/ThisIsNoahEvans/BigSurSounds.git -q 2>/dev/null || true
+        fi
+        
+        # Ejecutar make con timeout de 5 minutos
+        echo -e "${BLUE}   → Compilando sonidos...${NC}"
+        if timeout 300 make all > /dev/null 2>&1; then
+            echo -e "${BLUE}   → Instalando sonidos...${NC}"
+            if timeout 60 make install > /dev/null 2>&1; then
+                SOUND_INSTALLED=true
+                echo -e "${GREEN}   ✅ Tema de sonidos Big Sur instalado correctamente.${NC}"
+            else
+                echo -e "${YELLOW}   ⚠️  make install falló. Intentando copia manual...${NC}"
+                # Copia manual como fallback
+                if [ -d "$ALT_REPO/theme/bigsur" ]; then
+                    cp -r "$ALT_REPO/theme/bigsur" "$SOUNDS_DIR/"
+                    SOUND_INSTALLED=true
+                    echo -e "${GREEN}   ✅ Sonidos copiados manualmente.${NC}"
+                fi
+            fi
+        else
+            echo -e "${YELLOW}   ⚠️  La construcción tardó demasiado o falló.${NC}"
+        fi
+        cd - > /dev/null
+    else
+        echo -e "${YELLOW}   ️  ffmpeg no está disponible. No se pueden convertir los sonidos.${NC}"
+    fi
+else
+    echo -e "${YELLOW}   ⚠️  El repositorio no tiene Makefile o está incompleto.${NC}"
+fi
+
+# Limpieza
+if [ "$SOUND_INSTALLED" = false ]; then
+    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos.${NC}"
+    echo -e "${YELLOW}      Puedes instalarlos manualmente después si lo deseas.${NC}"
+fi
+
 echo ""
 
 # =============================================================================
