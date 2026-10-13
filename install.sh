@@ -1654,6 +1654,233 @@ echo -e "${GREEN}✅ Identidad y automatización de tema configuradas.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 15.9: PERFECCIONAMIENTO DE EXPERIENCIA MACOS (DOCK, FINDER, SONIDOS)
+# =============================================================================
+echo -e "${YELLOW}✨ [15.9/25] Perfeccionando experiencia macOS (Dock, Finder, Sonidos)...${NC}"
+
+set +e
+
+# =============================================================================
+# 1. FORMATO DE RELOJ Y FECHA IDÉNTICO A macOS (UNIVERSAL)
+# =============================================================================
+echo -e "${BLUE}   → Ajustando formato de reloj y fecha estilo macOS...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    # GNOME: Formato completo con día, fecha y hora
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-date true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-weekday true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-seconds false 2>/dev/null || true
+    # Formato personalizado: "lun 14 oct 10:30"
+    run_as_user gsettings set org.gnome.desktop.interface clock-format '24h' 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Reloj GNOME configurado con formato macOS${NC}"
+    
+elif [ "$IS_CINNAMON" = true ]; then
+    # Cinnamon: Formato de fecha en el panel
+    run_as_user gsettings set org.cinnamon.desktop.interface clock-show-date true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface clock-show-weekday true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface clock-show-seconds false 2>/dev/null || true
+    # Buscar el applet de calendario y configurar su formato
+    CALENDAR_APPLET=$(run_as_user gsettings get org.cinnamon enabled-applets 2>/dev/null | grep -o "calendar@cinnamon.org" | head -1)
+    if [ -n "$CALENDAR_APPLET" ]; then
+        run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org use-custom-format true 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org custom-format "%a %d %b, %H:%M" 2>/dev/null || true
+    fi
+    echo -e "${GREEN}   ✓ Reloj Cinnamon configurado con formato macOS${NC}"
+    
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    # XFCE: Formato en el plugin de reloj
+    CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
+    if [ -n "$CLOCK_PLUGIN" ]; then
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -s 3 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-time-format -s "%H:%M" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-date-format -s "%a %d %b" 2>/dev/null || true
+    fi
+    echo -e "${GREEN}   ✓ Reloj XFCE configurado con formato macOS${NC}"
+fi
+
+# =============================================================================
+# 2. SONIDO DE TECLADO AL ESCRIBIR (UNIVERSAL)
+# =============================================================================
+echo -e "${BLUE}   → Configurando sonido de teclado al escribir...${NC}"
+
+# Crear archivo de sonido de teclado si no existe
+KEYBOARD_SOUND_DIR="$REAL_HOME/.local/share/sounds/bigsur/stereo"
+mkdir -p "$KEYBOARD_SOUND_DIR" 2>/dev/null || true
+
+# Usar un sonido de sistema existente como base para teclado
+if [ ! -f "$KEYBOARD_SOUND_DIR/keyboard-click.oga" ]; then
+    if [ -f "$KEYBOARD_SOUND_DIR/button-pressed.oga" ]; then
+        cp "$KEYBOARD_SOUND_DIR/button-pressed.oga" "$KEYBOARD_SOUND_DIR/keyboard-click.oga" 2>/dev/null || true
+    fi
+fi
+
+# Habilitar sonidos de feedback de entrada (teclado)
+if [ "$IS_GNOME" = true ]; then
+    run_as_user gsettings set org.gnome.desktop.sound input-feedback-sounds true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.sound event-sounds true 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Sonidos de teclado activados en GNOME${NC}"
+    
+elif [ "$IS_CINNAMON" = true ]; then
+    run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Sonidos de teclado activados en Cinnamon${NC}"
+    
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    run_as_user xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/EnableEventSounds -s true 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Sonidos de teclado activados en XFCE${NC}"
+fi
+
+# =============================================================================
+# 3. NAUTILUS ESTILO FINDER (SOLO GNOME)
+# =============================================================================
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Aplicando estilo Finder a Nautilus...${NC}"
+    
+    # Configuración básica de Nautilus
+    run_as_user gsettings set org.gnome.nautilus.preferences default-folder-viewer 'list-view' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.nautilus.preferences show-hidden-files false 2>/dev/null || true
+    run_as_user gsettings set org.gnome.nautilus.preferences always-use-location-entry false 2>/dev/null || true
+    run_as_user gsettings set org.gnome.nautilus.preferences show-image-thumbnails 'always' 2>/dev/null || true
+    
+    # CSS personalizado para Nautilus (sidebar estilo Finder)
+    NAUTILUS_CSS_DIR="$REAL_HOME/.config/gtk-3.0"
+    mkdir -p "$NAUTILUS_CSS_DIR" 2>/dev/null || true
+    
+    cat > "$NAUTILUS_CSS_DIR/gtk.css" << 'NAUTILUSCSS'
+/* Estilo Finder para Nautilus */
+.nautilus-window .sidebar {
+    background-color: alpha(@theme_bg_color, 0.95);
+    border-right: 1px solid alpha(@borders, 0.3);
+}
+
+.nautilus-window .sidebar row {
+    border-radius: 6px;
+    margin: 2px 8px;
+    padding: 6px 10px;
+    transition: all 200ms ease;
+}
+
+.nautilus-window .sidebar row:selected {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}
+
+.nautilus-window .sidebar row:hover:not(:selected) {
+    background-color: alpha(@theme_fg_color, 0.08);
+}
+
+.nautilus-window .sidebar-row image {
+    margin-right: 8px;
+}
+
+/* Barra de herramientas superior más compacta */
+.nautilus-window headerbar {
+    min-height: 40px;
+    padding: 0px 12px;
+}
+
+.nautilus-window .path-bar-box {
+    background-color: alpha(@theme_bg_color, 0.6);
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+
+/* Botones de vista más pequeños */
+.nautilus-window .view-toggle-button {
+    min-width: 32px;
+    min-height: 32px;
+}
+NAUTILUSCSS
+
+    if [ -n "$SUDO_USER" ]; then
+        chown -R "$SUDO_USER:$SUDO_USER" "$NAUTILUS_CSS_DIR" 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}   ✓ Nautilus configurado con estilo Finder${NC}"
+fi
+
+# =============================================================================
+# 4. DASH TO DOCK ESTILO macOS DOCK (SOLO GNOME)
+# =============================================================================
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Configurando Dash to Dock con estilo macOS Dock...${NC}"
+    
+    # Asegurar que la extensión esté instalada
+    if ! run_as_user gnome-extensions list 2>/dev/null | grep -q "dash-to-dock@micxgx.gmail.com"; then
+        echo -e "${YELLOW}   ⚠️  Dash to Dock no instalado, intentando instalar...${NC}"
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y -qq gnome-shell-extension-dash-to-dock 2>/dev/null || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q gnome-shell-extension-dash-to-dock 2>/dev/null || true
+        fi
+    fi
+    
+    # Configuración avanzada del Dock estilo macOS
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-fixed false 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide-mode 'FOCUS_APPLICATION_WINDOWS' 2>/dev/null || true
+    
+    # Transparencia y apariencia
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock transparency-mode 'DYNAMIC' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock background-opacity 0.4 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-background-color false 2>/dev/null || true
+    
+    # Iconos y tamaño
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 48 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock icon-size-fixed false 2>/dev/null || true
+    
+    # Indicadores de aplicaciones abiertas (punto blanco debajo)
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-running true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-style 'DOTS' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-dominant-color true 2>/dev/null || true
+    
+    # Comportamiento
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize-or-previews' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock scroll-action 'cycle-windows' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock isolate-workspaces true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock isolate-monitors false 2>/dev/null || true
+    
+    # Botón de aplicaciones
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
+    
+    # Tema personalizado
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock apply-custom-theme true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-color '#ffffff' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-border-color '#ffffff' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-border-width 2 2>/dev/null || true
+    
+    # Activar la extensión
+    run_as_user gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Dash to Dock configurado con estilo macOS${NC}"
+fi
+
+# =============================================================================
+# 5. REFORZAR BOTONES DE VENTANA A LA IZQUIERDA (UNIVERSAL)
+# =============================================================================
+echo -e "${BLUE}   → Reforzando botones de ventana a la izquierda...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Botones GNOME reforzados${NC}"
+elif [ "$IS_CINNAMON" = true ]; then
+    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Botones Cinnamon reforzados${NC}"
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Botones XFCE reforzados${NC}"
+fi
+
+set -e
+echo -e "${GREEN}✅ Perfeccionamiento de experiencia macOS completado.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
 echo -e "${YELLOW}🔤 [16/25] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
