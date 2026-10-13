@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# macOS Tahoe Uninstaller - Restauración del Sistema
+# macOS Tahoe Uninstaller - Restauración del Sistema (Versión Ultimate)
 # Elimina todos los componentes instalados y restablece la configuración por defecto
 # =============================================================================
 
@@ -15,7 +15,29 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # =============================================================================
-# DETECCIÓN DE MODO AUTOMÁTICO (Para Rollback de emergencia desde install.sh)
+# DETECCIÓN DEL USUARIO REAL (CRÍTICO para evitar borrar /root)
+# =============================================================================
+if [ -n "$SUDO_USER" ]; then
+    REAL_USER="$SUDO_USER"
+    REAL_HOME=$(eval echo "~$SUDO_USER")
+    REAL_UID=$(id -u "$SUDO_USER")
+else
+    REAL_USER="$USER"
+    REAL_HOME="$HOME"
+    REAL_UID=$(id -u)
+fi
+
+# Función para ejecutar comandos como el usuario real
+run_as_user() {
+    if [ -n "$SUDO_USER" ]; then
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" "$@" 2>/dev/null || true
+    else
+        "$@" 2>/dev/null || true
+    fi
+}
+
+# =============================================================================
+# DETECCIÓN DE MODO AUTOMÁTICO (Para Rollback de emergencia)
 # =============================================================================
 AUTO_CLEANUP=false
 if [[ "$1" == "--auto" || "$1" == "--force" ]]; then
@@ -28,11 +50,10 @@ echo -e "${RED}╚════════════════════�
 echo ""
 echo -e "${YELLOW}ADVERTENCIA:${NC}"
 echo -e "Este script eliminará todos los temas, iconos, fuentes, sonidos,"
-echo -e "extensiones y configuraciones instalados por el instalador de macOS Tahoe."
-echo -e "Tu escritorio volverá a su estado original (temas por defecto)."
+echo -e "extensiones, scripts y configuraciones instalados por el instalador."
+echo -e "Tu escritorio volverá a su estado original."
 echo ""
 
-# Solo pedir confirmación si NO se está ejecutando en modo automático
 if [ "$AUTO_CLEANUP" = false ]; then
     read -p "¿Estás seguro de que deseas continuar? (s/N): " -n 1 -r
     echo
@@ -41,7 +62,7 @@ if [ "$AUTO_CLEANUP" = false ]; then
         exit 1
     fi
 else
-    echo -e "${YELLOW}⚠️  MODO AUTOMÁTICO: Ejecutando limpieza de emergencia sin confirmación...${NC}"
+    echo -e "${YELLOW}⚠️  MODO AUTOMÁTICO: Ejecutando limpieza de emergencia...${NC}"
     sleep 2
 fi
 
@@ -58,208 +79,216 @@ if [ -f /etc/os-release ]; then
     DISTRO=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
 fi
 
-IS_GNOME=false
-IS_CINNAMON=false
+IS_GNOME=false; IS_CINNAMON=false
 [[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]] && IS_GNOME=true
 [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && IS_CINNAMON=true
 
 # =============================================================================
-# 2. ELIMINAR ARCHIVOS, CONFIGURACIONES Y PAQUETES ESPECÍFICOS
+# 2. ELIMINAR ARCHIVOS, SCRIPTS Y CONFIGURACIONES
 # =============================================================================
-echo -e "${YELLOW}🗑️  [1/8] Eliminando archivos y configuraciones de macOS...${NC}"
+echo -e "${YELLOW}🗑️  [1/8] Eliminando archivos, scripts y configuraciones...${NC}"
 
-# Fuentes
-rm -rf ~/.local/share/fonts/SF* ~/.local/share/fonts/NewYork*
+# 2.1. Scripts auxiliares y servicios (Nuevos)
+rm -f "$REAL_HOME/.local/bin/about-this-mac.sh"
+rm -f "$REAL_HOME/.local/bin/auto-dark-mode.sh"
+rm -f "$REAL_HOME/.config/systemd/user/auto-dark-mode.service"
+rm -f "$REAL_HOME/.config/systemd/user/auto-dark-mode.timer"
+run_as_user systemctl --user disable --now auto-dark-mode.timer 2>/dev/null || true
+run_as_user systemctl --user daemon-reload 2>/dev/null || true
+
+rm -f "$REAL_HOME/.config/autostart/mac-startup-chime.desktop"
+rm -f "$REAL_HOME/.config/gtk-3.0/bookmarks"
+
+# 2.2. Iconos de escritorio creados
+rm -f "$REAL_HOME/Desktop/Trash.desktop"
+rm -f "$REAL_HOME/Desktop/Macintosh HD.desktop"
+rm -f "$REAL_HOME/Desktop/$REAL_USER.desktop"
+
+# 2.3. Fuentes, Temas, Iconos y Sonidos
+rm -rf "$REAL_HOME/.local/share/fonts/SF"* "$REAL_HOME/.local/share/fonts/NewYork"*
 fc-cache -f > /dev/null 2>&1
 
-# Temas, Iconos y Cursores
-rm -rf ~/.themes/MacTahoe* ~/.local/share/themes/MacTahoe*
-rm -rf ~/.icons/MacTahoe* ~/.local/share/icons/MacTahoe*
+rm -rf "$REAL_HOME/.themes/MacTahoe"* "$REAL_HOME/.local/share/themes/MacTahoe"*
+rm -rf "$REAL_HOME/.icons/MacTahoe"* "$REAL_HOME/.local/share/icons/MacTahoe"*
+rm -rf "$REAL_HOME/.local/share/sounds/bigsur"
 
-# Sonidos
-rm -rf ~/.local/share/sounds/bigsur
-
-# Wallpapers
+# 2.4. Wallpapers
 sudo rm -rf /usr/share/dynamicwallpapers/mojave-solar /usr/share/dynamicwallpapers/mojave-timed /usr/share/backgrounds/macOS 2>/dev/null || true
-rm -rf ~/.local/share/backgrounds/Sonoma*
+rm -rf "$REAL_HOME/.local/share/backgrounds/Sonoma"*
 
-# Rofi Spotlight y Scripts
-rm -rf ~/.local/share/rofi-spotlight
-rm -f ~/.local/share/rofi/themes/spotlight.rasi
-rm -f ~/.local/bin/rofi-spotlight-launcher
-rm -f ~/.local/share/applications/rofi-spotlight.desktop
-rm -f ~/.local/bin/macos-wm-actions
+# 2.5. Rofi, Plank y Utilidades
+rm -rf "$REAL_HOME/.local/share/rofi-spotlight"
+rm -f "$REAL_HOME/.local/share/rofi/themes/spotlight.rasi"
+rm -f "$REAL_HOME/.local/bin/rofi-spotlight-launcher"
+rm -f "$REAL_HOME/.local/share/applications/rofi-spotlight.desktop"
+rm -f "$REAL_HOME/.local/bin/macos-wm-actions"
 
-# Plank
-rm -rf ~/.local/share/plank/themes/MacOS-* ~/.local/share/plank/themes/elementary-*
-rm -f ~/.config/autostart/plank.desktop
+rm -rf "$REAL_HOME/.local/share/plank/themes/MacOS-"* "$REAL_HOME/.local/share/plank/themes/elementary-"*
+rm -f "$REAL_HOME/.config/autostart/plank.desktop"
 pkill plank 2>/dev/null || true
 
-# Fusuma (Gestos y Arrastre 3 dedos)
-systemctl --user disable --now fusuma.service 2>/dev/null || true
-rm -rf ~/.config/fusuma
+# 2.6. Fusuma y Gestos
+run_as_user systemctl --user disable --now fusuma.service 2>/dev/null || true
+rm -rf "$REAL_HOME/.config/fusuma"
 sudo gem uninstall fusuma -a -x 2>/dev/null || true
-sudo gpasswd -d $USER input 2>/dev/null || true
+sudo gpasswd -d "$REAL_USER" input 2>/dev/null || true
 
-# Qt5ct y Quick Look
+# 2.7. Qt, Quick Look y Portapapeles
 sudo sed -i '/QT_QPA_PLATFORMTHEME=qt5ct/d' /etc/environment 2>/dev/null || true
-rm -rf ~/.config/qt5ct
+rm -rf "$REAL_HOME/.config/qt5ct"
 sudo apt-get remove -y -qq sushi gloobus-preview 2>/dev/null || true
 sudo dnf remove -y -q sushi gloobus-preview 2>/dev/null || true
 sudo pacman -Rns --noconfirm sushi gloobus-preview 2>/dev/null || true
 
-# Gestor de Portapapeles
 sudo apt-get remove -y -qq gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
 sudo dnf remove -y -q gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
 sudo pacman -Rns --noconfirm gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null || true
 
-# Fontconfig y Terminal
-rm -f ~/.config/fontconfig/fonts.conf
-rm -f ~/.config/xfce4/terminal/terminalrc
-
-# Directorio de trabajo y documentación
-rm -rf ~/.macos-theme-setup
-rm -f ~/.macos-keybindings.md
+# 2.8. Fontconfig, Terminal y Directorio de Trabajo
+rm -f "$REAL_HOME/.config/fontconfig/fonts.conf"
+rm -f "$REAL_HOME/.config/xfce4/terminal/terminalrc"
+rm -rf "$REAL_HOME/.macos-theme-setup"
+rm -f "$REAL_HOME/.macos-keybindings.md"
 
 echo -e "${GREEN}✅ Archivos y configuraciones eliminados.${NC}"
 echo ""
 
 # =============================================================================
-# 3. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (GNOME)
+# 3. RESTAURAR NOMBRE DEL EQUIPO (HOSTNAME)
+# =============================================================================
+echo -e "${YELLOW}💻 [2/8] Restableciendo nombre del equipo...${NC}"
+# Restauramos al nombre de usuario como valor seguro por defecto
+sudo hostnamectl set-hostname "$REAL_USER" 2>/dev/null || true
+echo "$REAL_USER" | sudo tee /etc/hostname > /dev/null 2>/dev/null || true
+sudo sed -i "s/127.0.1.1.*/127.0.1.1\t$REAL_USER/g" /etc/hosts 2>/dev/null || true
+echo -e "${GREEN}✅ Nombre del equipo restablecido a: $REAL_USER${NC}"
+echo ""
+
+# =============================================================================
+# 4. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (GNOME)
 # =============================================================================
 if [ "$IS_GNOME" = true ]; then
-    echo -e "${YELLOW}⚙️  [2/8] Restaurando configuración de GNOME...${NC}"
+    echo -e "${YELLOW}⚙️  [3/8] Restaurando configuración de GNOME...${NC}"
     
-    # Restablecer temas, iconos, cursores y fuentes a los valores por defecto
-    gsettings reset org.gnome.desktop.interface gtk-theme
-    gsettings reset org.gnome.desktop.interface icon-theme
-    gsettings reset org.gnome.desktop.interface cursor-theme
-    gsettings reset org.gnome.desktop.interface font-name
-    gsettings reset org.gnome.desktop.interface monospace-font-name
-    gsettings reset org.gnome.desktop.interface document-font-name
-    gsettings reset org.gnome.desktop.wm.preferences titlebar-font
+    run_as_user gsettings reset org.gnome.desktop.interface gtk-theme
+    run_as_user gsettings reset org.gnome.desktop.interface icon-theme
+    run_as_user gsettings reset org.gnome.desktop.interface cursor-theme
+    run_as_user gsettings reset org.gnome.desktop.interface cursor-size
+    run_as_user gsettings reset org.gnome.desktop.interface font-name
+    run_as_user gsettings reset org.gnome.desktop.interface monospace-font-name
+    run_as_user gsettings reset org.gnome.desktop.interface document-font-name
+    run_as_user gsettings reset org.gnome.desktop.wm.preferences titlebar-font
     
-    # Restablecer fondo de pantalla
-    gsettings reset org.gnome.desktop.background picture-uri
-    gsettings reset org.gnome.desktop.background picture-uri-dark
+    run_as_user gsettings reset org.gnome.desktop.background picture-uri
+    run_as_user gsettings reset org.gnome.desktop.background picture-uri-dark
     
-    # Restablecer sonidos y scroll natural
-    gsettings reset org.gnome.desktop.sound theme-name
-    gsettings reset org.gnome.desktop.peripherals.touchpad natural-scroll
-    gsettings reset org.gnome.desktop.peripherals.mouse natural-scroll
+    run_as_user gsettings reset org.gnome.desktop.sound theme-name
+    run_as_user gsettings reset org.gnome.desktop.peripherals.touchpad natural-scroll
+    run_as_user gsettings reset org.gnome.desktop.peripherals.mouse natural-scroll
     
-    # Restablecer atajos de teclado y combinaciones
-    gsettings reset-recursively org.gnome.desktop.wm.keybindings
-    gsettings reset-recursively org.gnome.settings-daemon.plugins.media-keys
+    run_as_user gsettings reset-recursively org.gnome.desktop.wm.keybindings
+    run_as_user gsettings reset-recursively org.gnome.settings-daemon.plugins.media-keys
     
-    # Restablecer animaciones
-    gsettings reset org.gnome.desktop.interface enable-animations
-    gsettings reset org.gnome.mutter center-new-windows
+    run_as_user gsettings reset org.gnome.desktop.interface enable-animations
+    run_as_user gsettings reset org.gnome.mutter center-new-windows
+    run_as_user gsettings reset org.gnome.mutter dynamic-workspaces
     
     # Desactivar y eliminar extensiones
-    gnome-extensions disable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
-    gnome-extensions disable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true
-    gnome-extensions disable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
-    gnome-extensions disable clipboard-indicator@tudmotu.com 2>/dev/null || true
+    run_as_user gnome-extensions disable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
+    run_as_user gnome-extensions disable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true
+    run_as_user gnome-extensions disable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
+    run_as_user gnome-extensions disable clipboard-indicator@tudmotu.com 2>/dev/null || true
+    run_as_user gnome-extensions disable ding@rastersoft.com 2>/dev/null || true
     
-    rm -rf ~/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com
-    rm -rf ~/.local/share/gnome-shell/extensions/*magic-lamp*
+    rm -rf "$REAL_HOME/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com"
+    rm -rf "$REAL_HOME/.local/share/gnome-shell/extensions/"*magic-lamp*
     
-    # Restablecer perfil de terminal por defecto
-    gsettings reset org.gnome.terminal.legacy/default-profile
+    run_as_user gsettings reset org.gnome.terminal.legacy/default-profile
     
     echo -e "${GREEN}✅ Configuración de GNOME restaurada.${NC}"
     echo ""
 fi
 
 # =============================================================================
-# 4. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (CINNAMON)
+# 5. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (CINNAMON)
 # =============================================================================
 if [ "$IS_CINNAMON" = true ]; then
-    echo -e "${YELLOW}⚙️  [3/8] Restaurando configuración de Cinnamon...${NC}"
+    echo -e "${YELLOW}⚙️  [4/8] Restaurando configuración de Cinnamon...${NC}"
     
-    # Restablecer temas, iconos y cursores
-    gsettings reset org.cinnamon.desktop.interface gtk-theme
-    gsettings reset org.cinnamon.desktop.interface icon-theme
-    gsettings reset org.cinnamon.desktop.interface cursor-theme
-    gsettings reset org.cinnamon.desktop.interface font-name
-    gsettings reset org.cinnamon.desktop.interface monospace-font-name
-    gsettings reset org.cinnamon.theme name
-    gsettings reset org.cinnamon.desktop.wm.preferences theme
-    gsettings reset org.cinnamon.desktop.wm.preferences titlebar-font
+    run_as_user gsettings reset org.cinnamon.desktop.interface gtk-theme
+    run_as_user gsettings reset org.cinnamon.desktop.interface icon-theme
+    run_as_user gsettings reset org.cinnamon.desktop.interface cursor-theme
+    run_as_user gsettings reset org.cinnamon.desktop.interface cursor-size
+    run_as_user gsettings reset org.cinnamon.desktop.interface font-name
+    run_as_user gsettings reset org.cinnamon.desktop.interface monospace-font-name
+    run_as_user gsettings reset org.cinnamon.theme name
+    run_as_user gsettings reset org.cinnamon.desktop.wm.preferences theme
+    run_as_user gsettings reset org.cinnamon.desktop.wm.preferences titlebar-font
+    run_as_user gsettings reset org.cinnamon.desktop.wm.preferences enable-hot-corners
     
-    # Restablecer fondo y sonidos
-    gsettings reset org.cinnamon.desktop.background picture-uri
-    gsettings reset org.cinnamon.desktop.sound theme-name
-    gsettings reset org.gnome.desktop.peripherals.touchpad natural-scroll 2>/dev/null || true
+    run_as_user gsettings reset org.cinnamon.desktop.background picture-uri
+    run_as_user gsettings reset org.cinnamon.desktop.background picture-uri-dark
+    run_as_user gsettings reset org.cinnamon.desktop.sound theme-name
+    run_as_user gsettings reset org.cinnamon.desktop.peripherals.touchpad natural-scroll 2>/dev/null || true
     
-    # Restablecer atajos de teclado
-    gsettings reset-recursively org.cinnamon.desktop.keybindings
+    run_as_user gsettings reset-recursively org.cinnamon.desktop.keybindings
     
-    # Restablecer efectos de ventana
-    gsettings reset org.cinnamon.desktop.effects minimize-effect
-    gsettings reset org.cinnamon.desktop.effects unminimize-effect
+    run_as_user gsettings reset org.cinnamon.desktop.effects minimize-effect
+    run_as_user gsettings reset org.cinnamon.desktop.effects unminimize-effect
     
-    # Eliminar extensiones
-    rm -rf ~/.local/share/cinnamon/extensions/cinnamon-dynamic-wallpaper@TobiZog
-    rm -rf ~/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman
+    # Restaurar panel a su estado por defecto (elimina la configuración forzada de macOS)
+    run_as_user gsettings reset org.cinnamon panels-enabled
+    run_as_user gsettings reset org.cinnamon panel-height
+    
+    rm -rf "$REAL_HOME/.local/share/cinnamon/extensions/cinnamon-dynamic-wallpaper@TobiZog"
+    rm -rf "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman"
     
     echo -e "${GREEN}✅ Configuración de Cinnamon restaurada.${NC}"
     echo ""
 fi
 
 # =============================================================================
-# 5. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (XFCE)
+# 6. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (XFCE)
 # =============================================================================
 if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${YELLOW}⚙️  [4/8] Restaurando configuración de XFCE...${NC}"
+    echo -e "${YELLOW}⚙️  [5/8] Restaurando configuración de XFCE...${NC}"
     
-    # Restablecer temas, iconos, cursores, fuentes y scroll (la flag -r resetea al valor por defecto)
-    xfconf-query -c xsettings -p /Net/ThemeName -r 2>/dev/null || true
-    xfconf-query -c xsettings -p /Net/IconThemeName -r 2>/dev/null || true
-    xfconf-query -c xsettings -p /Net/CursorThemeName -r 2>/dev/null || true
-    xfconf-query -c xsettings -p /Gtk/FontName -r 2>/dev/null || true
-    xfconf-query -c xsettings -p /Gtk/MonospaceFontName -r 2>/dev/null || true
-    xfconf-query -c xsettings -p /Net/SoundThemeName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/ThemeName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/IconThemeName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/CursorThemeName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Gtk/CursorThemeSize -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Gtk/FontName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Gtk/MonospaceFontName -r 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/SoundThemeName -r 2>/dev/null || true
     
-    # Restablecer gestor de ventanas
-    xfconf-query -c xfwm4 -p /general/theme -r 2>/dev/null || true
-    xfconf-query -c xfwm4 -p /general/title_font -r 2>/dev/null || true
-    xfconf-query -c xfwm4 -p /general/use_compositing -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/theme -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/title_font -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/workspace_count -r 2>/dev/null || true
     
-    # Eliminar atajos de teclado personalizados específicos de macOS
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>e -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>a -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl><Alt>t -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl><Shift>Escape -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>l -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl><Alt>Delete -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl>space -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl><Alt>Escape -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Ctrl>q -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>c -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>f -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>v -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>r -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super>o -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Super><Ctrl>o -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/Print -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Alt>Print -r 2>/dev/null || true
-    xfconf-query -c xfce4-keyboard-shortcuts -p /commands/custom/<Shift>Print -r 2>/dev/null || true
+    # Eliminar atajos de teclado personalizados de macOS
+    for shortcut in "<Super>e" "<Super>a" "<Ctrl><Alt>t" "<Ctrl><Shift>Escape" "<Super>l" "<Ctrl><Alt>Delete" "<Ctrl>space" "<Ctrl><Alt>Escape" "<Ctrl>q" "<Super>c" "<Super>f" "<Super>v" "<Super>r" "<Super>o" "<Super><Ctrl>o" "<Super>i" "<Super><Shift>3" "<Super><Shift>4" "Print" "<Alt>Print" "<Shift>Print"; do
+        run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$shortcut" -r 2>/dev/null || true
+    done
+    
+    # Restaurar notificaciones
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -r 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -r 2>/dev/null || true
     
     echo -e "${GREEN}✅ Configuración de XFCE restaurada.${NC}"
     echo ""
 fi
 
 # =============================================================================
-# 6. RESTAURAR PLYMOUTH (PANTALLA DE ARRANQUE)
+# 7. RESTAURAR PLYMOUTH (PANTALLA DE ARRANQUE)
 # =============================================================================
-echo -e "${YELLOW}🖥️  [5/8] Restaurando pantalla de arranque (Plymouth)...${NC}"
+echo -e "${YELLOW}🖥️  [6/8] Restaurando pantalla de arranque (Plymouth)...${NC}"
 if [ -d /usr/share/plymouth/themes/apple-mac-plymouth ]; then
     sudo rm -rf /usr/share/plymouth/themes/apple-mac-plymouth
-    # Restablecer al tema por defecto del sistema
     sudo update-alternatives --auto default.plymouth 2>/dev/null || true
-    sudo update-initramfs -u > /dev/null 2>&1 || sudo dracut --force > /dev/null 2>&1 || true
+    command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1 || true
+    command -v dracut &> /dev/null && sudo dracut --force > /dev/null 2>&1 || true
     echo -e "${GREEN}✅ Plymouth restaurado.${NC}"
 else
     echo -e "${YELLOW}⏭️  Plymouth no fue modificado o no está presente.${NC}"
@@ -267,34 +296,28 @@ fi
 echo ""
 
 # =============================================================================
-# 7. RESTAURAR FIREFOX Y GDM (Si aplica)
+# 8. RESTAURAR FIREFOX Y GDM
 # =============================================================================
-echo -e "${YELLOW}🦊 [6/8] Limpiando configuraciones de Firefox y GDM...${NC}"
-# Eliminar perfiles de tema de Firefox si existen
-rm -rf ~/.mozilla/firefox/*.default*/chrome 2>/dev/null || true
-rm -rf ~/.var/app/org.mozilla.firefox/.mozilla/firefox/*.default*/chrome 2>/dev/null || true
+echo -e "${YELLOW}🦊 [7/8] Limpiando configuraciones de Firefox y GDM...${NC}"
+rm -rf "$REAL_HOME/.mozilla/firefox/"*.default*/chrome 2>/dev/null || true
+rm -rf "$REAL_HOME/.var/app/org.mozilla.firefox/.mozilla/firefox/"*.default*/chrome 2>/dev/null || true
 
-# Revertir GDM si el script de tweaks está disponible
-if [ "$IS_GNOME" = true ] && [ -d "$HOME/.macos-theme-setup/MacTahoe-gtk-theme" ]; then
-    ( cd "$HOME/.macos-theme-setup/MacTahoe-gtk-theme" && sudo ./tweaks.sh -g -r > /dev/null 2>&1 ) || true
+if [ "$IS_GNOME" = true ] && [ -d "$REAL_HOME/.macos-theme-setup/MacTahoe-gtk-theme" ]; then
+    ( cd "$REAL_HOME/.macos-theme-setup/MacTahoe-gtk-theme" && sudo ./tweaks.sh -g -r > /dev/null 2>&1 ) || true
 fi
 echo -e "${GREEN}✅ Limpieza de Firefox/GDM completada.${NC}"
 echo ""
 
 # =============================================================================
-# 8. LIMPIEZA FINAL DE PAQUETES
+# 9. LIMPIEZA FINAL DE PAQUETES
 # =============================================================================
-echo -e "${YELLOW}🧹 [7/8] Limpieza del sistema...${NC}"
-echo -e "${BLUE}Nota: Los paquetes de dependencias generales (rofi, plank, etc.) se mantienen${NC}"
-echo -e "${BLUE}instalados por si los usabas antes. Puedes eliminarlos manualmente si${NC}"
-echo -e "${BLUE}deseas una limpieza total.${NC}"
-
+echo -e "${YELLOW}🧹 [8/8] Limpieza del sistema...${NC}"
 if command -v apt-get &> /dev/null; then
     sudo apt-get autoremove -y -qq 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
     sudo dnf autoremove -y -q 2>/dev/null || true
 elif command -v pacman &> /dev/null; then
-    sudo pacman -Rns --noconfirm $(pacman -Qdtq) 2>/dev/null || true
+    sudo pacman -Rns --noconfirm $(pacman -Qdtq 2>/dev/null) 2>/dev/null || true
 fi
 echo -e "${GREEN}✅ Limpieza de paquetes huérfanos completada.${NC}"
 echo ""
@@ -308,12 +331,11 @@ echo -e "${CYAN}╚════════════════════�
 echo ""
 echo -e "${GREEN}Tu sistema ha sido restaurado a su estado original.${NC}"
 echo -e "${YELLOW}⚠️  IMPORTANTE: Debes ${RED}reiniciar el equipo${YELLOW} para que todos los cambios${NC}"
-echo -e "${YELLOW}   (especialmente Plymouth, grupo 'input' y Qt) surtan efecto correctamente.${NC}"
+echo -e "${YELLOW}   (especialmente Plymouth, nombre del equipo y configuraciones de sesión) surtan efecto.${NC}"
 echo ""
 
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}Si usas X11 y prefieres no reiniciar, puedes reiniciar GNOME Shell con:${NC}"
     echo -e "   ${CYAN}dbus-send --session --type=method_call --dest=org.gnome.Shell /org/gnome/Shell org.gnome.Shell.Eval string:'Meta.restart(\"Reiniciando...\")'${NC}"
 fi
-
 echo ""
