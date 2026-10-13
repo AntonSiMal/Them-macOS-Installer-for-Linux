@@ -1233,6 +1233,78 @@ echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 15.4: INSTALAR ONLYOFFICE Y TRANSFORMAR EN "OFFICE"
+# =============================================================================
+echo -e "${YELLOW}📝 [15.4/25] Instalando ONLYOFFICE y transformando en 'Office'...${NC}"
+
+# 1. Asegurar que Flatpak esté instalado
+if ! command -v flatpak &> /dev/null; then
+    echo -e "${BLUE}   → Flatpak no detectado. Instalando...${NC}"
+    if command -v apt-get &> /dev/null; then
+        sudo apt-get install -y -qq flatpak
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y -q flatpak
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -S --noconfirm --needed flatpak
+    fi
+    echo -e "${GREEN}   ✅ Flatpak instalado.${NC}"
+fi
+
+# 2. Agregar repositorio Flathub (como usuario real)
+echo -e "${BLUE}   → Verificando y añadiendo repositorio Flathub...${NC}"
+run_as_user flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+
+# 3. Instalar ONLYOFFICE Desktop Editors
+echo -e "${BLUE}   → Instalando ONLYOFFICE Desktop Editors (esto puede tardar un poco)...${NC}"
+run_as_user flatpak install -y flathub org.onlyoffice.desktopeditors 2>/dev/null || {
+    echo -e "${YELLOW}   ⚠️  No se pudo instalar ONLYOFFICE automáticamente. Verifica tu conexión o espacio en disco.${NC}"
+}
+
+# 4. Transformar a "Office" (Renombrar y cambiar icono)
+echo -e "${BLUE}   → Personalizando lanzador e icono a 'Office'...${NC}"
+
+mkdir -p "$REAL_HOME/.local/share/applications"
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+
+# Buscar el lanzador original de Flatpak (puede estar en sistema o en usuario)
+ONLYOFFICE_DESKTOP=""
+for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop" \
+            "$REAL_HOME/.local/share/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop"; do
+    if [ -f "$path" ]; then
+        ONLYOFFICE_DESKTOP="$path"
+        break
+    fi
+done
+
+# Descargar icono moderno de Office (SVG de alta calidad desde Wikimedia)
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" \
+    "https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg" 2>/dev/null || true
+
+if [ -n "$ONLYOFFICE_DESKTOP" ]; then
+    # Copiar y modificar el lanzador
+    cp "$ONLYOFFICE_DESKTOP" "$REAL_HOME/.local/share/applications/office.desktop"
+    
+    # Cambiar nombres y asignar nuevo icono
+    sed -i 's/^Name=.*/Name=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
+    sed -i 's/^Name\[es\]=.*/Name[es]=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
+    sed -i 's/^GenericName=.*/GenericName=Suite de Oficina/g' "$REAL_HOME/.local/share/applications/office.desktop"
+    sed -i 's/^Icon=.*/Icon=office/g' "$REAL_HOME/.local/share/applications/office.desktop"
+    
+    # Ocultar el lanzador original de ONLYOFFICE para evitar duplicados en el menú
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ONLYOFFICE_DESKTOP")"
+    
+    echo -e "${GREEN}   ✅ ONLYOFFICE renombrado e icono actualizado a 'Office'.${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se encontró el lanzador de ONLYOFFICE. Es posible que necesites reiniciar la sesión.${NC}"
+fi
+
+# Actualizar cachés de escritorio e iconos
+run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
+run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
+
+echo ""
+
+# =============================================================================
 # PASO 15.5: BOTÓN DE MENÚ CON ICONO DE APPLE (macOS)
 # =============================================================================
 echo -e "${YELLOW}🍎 [15.5/25] Configurando icono de Apple en el botón de inicio...${NC}"
