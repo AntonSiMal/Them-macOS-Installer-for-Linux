@@ -745,172 +745,9 @@ echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
+# PASO 16: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
 # =============================================================================
-echo -e "${YELLOW}🔤 [16/24] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
-mkdir -p ~/.config/fontconfig/
-cat > ~/.config/fontconfig/fonts.conf << 'EOF'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match target="font">
-    <edit name="antialias" mode="assign"><bool>true</bool></edit>
-    <edit name="hinting" mode="assign"><bool>true</bool></edit>
-    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
-    <edit name="rgba" mode="assign"><const>rgb</const></edit>
-    <edit name="lcdfilter" mode="assign"><const>lcddefault</const></edit>
-  </match>
-  <match target="font">
-    <test name="family"><string>SF Pro</string></test>
-    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
-    <edit name="autohint" mode="assign"><bool>false</bool></edit>
-  </match>
-</fontconfig>
-EOF
-fc-cache -f > /dev/null 2>&1
-echo -e "${GREEN}✅ Renderizado de fuentes optimizado para SF Pro.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 17: CONFIGURACIÓN DE TERMINAL ESTILO macOS
-# =============================================================================
-echo -e "${YELLOW}💻 [17/24] Configurando terminal estilo macOS...${NC}"
-
-if [ "$IS_GNOME" = true ] && command -v gnome-terminal &> /dev/null; then
-    PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-system-font false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/background-color "'rgb(30,30,30)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/foreground-color "'rgb(230,230,230)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/bold-color "'rgb(255,255,255)'"
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-colors false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-transparency false
-    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/audible-bell false
-    dconf write /org/gnome/terminal/legacy/default-profile "'$PROFILE_ID'"
-    echo -e "${GREEN}✅ Terminal GNOME configurada con tema macOS.${NC}"
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]] && command -v xfce4-terminal &> /dev/null; then
-    mkdir -p "$HOME/.config/xfce4/terminal"
-    cat > "$HOME/.config/xfce4/terminal/terminalrc" << 'TERMINALEOF'
-[Configuration]
-FontName=SF Mono 12
-ColorForeground=#e6e6e6
-ColorBackground=#1e1e1e
-ColorBold=#ffffff
-MiscCursorShape=TERMINAL_CURSOR_SHAPE_IBEAM
-MiscCursorBlinks=FALSE
-MiscShowUnsafeUrls=FALSE
-TERMINALEOF
-    echo -e "${GREEN}✅ Terminal XFCE configurada con tema macOS.${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 18: CONFIGURACIÓN DE ANIMACIONES SUAVES
-# =============================================================================
-echo -e "${YELLOW}🎬 [18/24] Configurando animaciones suaves...${NC}"
-
-if [ "$IS_GNOME" = true ]; then
-    gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null
-    gsettings set org.gnome.mutter center-new-windows true 2>/dev/null
-fi
-
-if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null
-fi
-
-echo -e "${GREEN}✅ Animaciones configuradas.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 19: EFECTO MAGIC LAMP (GNOME y Cinnamon)
-# =============================================================================
-echo -e "${YELLOW}🪔 [19/24] Instalando efecto Magic Lamp (minimizar ventanas)...${NC}"
-
-if [ "$IS_GNOME" = true ]; then
-    echo -e "   ${BLUE}→ Instalando para GNOME...${NC}"
-    mkdir -p ~/.local/share/gnome-shell/extensions/
-    if [ ! -d "$WORKDIR/compiz-alike-magic-lamp-effect" ]; then
-        git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git "$WORKDIR/compiz-alike-magic-lamp-effect" -q 2>/dev/null
-    fi
-    EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" | head -1)
-    if [ -n "$EXT_MAGIC_LAMP" ]; then
-        cp -r "$EXT_MAGIC_LAMP" ~/.local/share/gnome-shell/extensions/ 2>/dev/null
-        gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null
-        echo -e "${GREEN}✅ Magic Lamp para GNOME instalada y activada.${NC}"
-    fi
-elif [ "$IS_CINNAMON" = true ]; then
-    echo -e "   ${BLUE}→ Instalando para Cinnamon...${NC}"
-    mkdir -p ~/.local/share/cinnamon/extensions/
-    if [ ! -d "$WORKDIR/CinnamonMagicLamp" ]; then
-        git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null
-    fi
-    if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
-        ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ~/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman 2>/dev/null
-        
-        CINNAMON_EXTENSIONS=$(gsettings get org.cinnamon enabled-extensions 2>/dev/null)
-        if ! echo "$CINNAMON_EXTENSIONS" | grep -q "CinnamonMagicLamp@klangman"; then
-            if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
-                gsettings set org.cinnamon enabled-extensions "['CinnamonMagicLamp@klangman']" 2>/dev/null
-            else
-                NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$, 'CinnamonMagicLamp@klangman']/")
-                gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
-            fi
-        fi
-        
-        gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null
-        gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null
-        
-        echo -e "${GREEN}✅ Magic Lamp para Cinnamon instalada y activada.${NC}"
-    fi
-else
-    echo -e "${YELLOW}⏭️  [19/24] Magic Lamp omitido (solo GNOME y Cinnamon).${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 20: VERIFICACIÓN POST-INSTALACIÓN
-# =============================================================================
-echo -e "${YELLOW}🔍 [20/24] Verificando instalación...${NC}"
-
-VERIFICATION_PASSED=true
-
-if ! fc-list | grep -q "SF Pro"; then
-    echo -e "   ${RED}✗ Fuentes Apple no instaladas correctamente${NC}"
-    VERIFICATION_PASSED=false
-fi
-
-if [ ! -d "$HOME/.themes/MacTahoe-Dark" ] && [ ! -d "$HOME/.local/share/themes/MacTahoe-Dark" ]; then
-    echo -e "   ${RED}✗ Tema GTK no instalado${NC}"
-    VERIFICATION_PASSED=false
-fi
-
-if [ ! -d "$HOME/.icons/MacTahoe-dark" ] && [ ! -d "$HOME/.local/share/icons/MacTahoe-dark" ]; then
-    echo -e "   ${RED}✗ Iconos no instalados${NC}"
-    VERIFICATION_PASSED=false
-fi
-
-if [ ! -d "$HOME/.local/share/sounds/bigsur" ]; then
-    echo -e "   ${RED}✗ Sonidos no instalados${NC}"
-    VERIFICATION_PASSED=false
-fi
-
-if [ ! -f "$HOME/.local/bin/rofi-spotlight-launcher" ]; then
-    echo -e "   ${RED}✗ Rofi Spotlight no instalado${NC}"
-    VERIFICATION_PASSED=false
-fi
-
-if [ "$VERIFICATION_PASSED" = true ]; then
-    echo -e "${GREEN}✅ Todos los componentes verificados correctamente.${NC}"
-else
-    echo -e "${YELLOW}⚠️  Algunos componentes no se instalaron. Revisa el log: $LOG_FILE${NC}"
-fi
-echo ""
-
-# =============================================================================
-# PASO 21: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
-# =============================================================================
-echo -e "${YELLOW}🎨 [21/24] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
+echo -e "${YELLOW}🎨 [16/24] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
 if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment; then
     echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null
 fi
@@ -928,11 +765,12 @@ else
     sudo apt-get install -y -qq gloobus-preview 2>/dev/null || sudo dnf install -y -q gloobus-preview 2>/dev/null || sudo pacman -S --noconfirm gloobus-preview 2>/dev/null
 fi
 echo -e "${GREEN}✅ Qt tematizado y Quick Look instalado.${NC}"
+echo ""
 
 # =============================================================================
-# PASO 22: SCROLL NATURAL UNIVERSAL
+# PASO 17: SCROLL NATURAL UNIVERSAL
 # =============================================================================
-echo -e "${YELLOW}📜 [22/24] Activando Scroll Natural (Estilo macOS)...${NC}"
+echo -e "${YELLOW}📜 [17/24] Activando Scroll Natural (Estilo macOS)...${NC}"
 if [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; then
     gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null
     gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null
@@ -945,11 +783,12 @@ if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     xfconf-query -c pointers -p /-1/Properties/libinput_Natural_Scrolling_Enabled -n -t bool -s true 2>/dev/null || true
 fi
 echo -e "${GREEN}✅ Scroll natural activado.${NC}"
+echo ""
 
 # =============================================================================
-# PASO 23: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA) + ARRASTRE 3 DEDOS
+# PASO 18: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA) + ARRASTRE 3 DEDOS
 # =============================================================================
-echo -e "${YELLOW}👆 [23/24] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
+echo -e "${YELLOW}👆 [18/24] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
 sudo gpasswd -a $USER input 2>/dev/null || true
 sudo gem install fusuma --no-document 2>/dev/null || true
 
@@ -1005,11 +844,12 @@ EOF
 systemctl --user daemon-reload 2>/dev/null || true
 systemctl --user enable --now fusuma.service 2>/dev/null || true
 echo -e "${GREEN}✅ Fusuma y Arrastre con 3 dedos configurados.${NC}"
+echo ""
 
 # =============================================================================
-# PASO 24: GESTOR DE PORTAPAPELES MINIMALISTA
+# PASO 19: GESTOR DE PORTAPAPELES MINIMALISTA
 # =============================================================================
-echo -e "${YELLOW}📋 [24/24] Configurando Gestor de Portapapeles estilo macOS...${NC}"
+echo -e "${YELLOW}📋 [19/24] Configurando Gestor de Portapapeles estilo macOS...${NC}"
 if [ "$IS_GNOME" = true ]; then
     gnome-extensions enable clipboard-indicator@tudmotu.com 2>/dev/null || true
     echo -e "${GREEN}✅ Clipboard Indicator activado para GNOME.${NC}"
@@ -1018,23 +858,246 @@ elif [ "$IS_CINNAMON" = true ]; then
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${GREEN}✅ Clipman instalado para XFCE (añádelo al panel manualmente).${NC}"
 fi
+echo ""
 
 # =============================================================================
-# DESACTIVAR TRAMPA DE ERROR (Instalación exitosa)
+# PASO 20: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
-INSTALLATION_SUCCESS=true
-trap - ERR
+echo -e "${YELLOW}🔤 [20/24] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
+mkdir -p ~/.config/fontconfig/
+cat > ~/.config/fontconfig/fonts.conf << 'EOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="font">
+    <edit name="antialias" mode="assign"><bool>true</bool></edit>
+    <edit name="hinting" mode="assign"><bool>true</bool></edit>
+    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
+    <edit name="rgba" mode="assign"><const>rgb</const></edit>
+    <edit name="lcdfilter" mode="assign"><const>lcddefault</const></edit>
+  </match>
+  <match target="font">
+    <test name="family"><string>SF Pro</string></test>
+    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
+    <edit name="autohint" mode="assign"><bool>false</bool></edit>
+  </match>
+</fontconfig>
+EOF
+fc-cache -f > /dev/null 2>&1
+echo -e "${GREEN}✅ Renderizado de fuentes optimizado para SF Pro.${NC}"
+echo ""
 
 # =============================================================================
-# MENSAJE FINAL
+# PASO 21: CONFIGURACIÓN DE TERMINAL ESTILO macOS
 # =============================================================================
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║        🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+echo -e "${YELLOW}💻 [21/24] Configurando terminal estilo macOS...${NC}"
+
+if [ "$IS_GNOME" = true ] && command -v gnome-terminal &> /dev/null; then
+    PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'"
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'"
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-system-font false
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/background-color "'rgb(30,30,30)'"
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/foreground-color "'rgb(230,230,230)'"
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/bold-color "'rgb(255,255,255)'"
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-colors false
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-transparency false
+    dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/audible-bell false
+    dconf write /org/gnome/terminal/legacy/default-profile "'$PROFILE_ID'"
+    echo -e "${GREEN}✅ Terminal GNOME configurada con tema macOS.${NC}"
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]] && command -v xfce4-terminal &> /dev/null; then
+    mkdir -p "$HOME/.config/xfce4/terminal"
+    cat > "$HOME/.config/xfce4/terminal/terminalrc" << 'TERMINALEOF'
+[Configuration]
+FontName=SF Mono 12
+ColorForeground=#e6e6e6
+ColorBackground=#1e1e1e
+ColorBold=#ffffff
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_IBEAM
+MiscCursorBlinks=FALSE
+MiscShowUnsafeUrls=FALSE
+TERMINALEOF
+    echo -e "${GREEN}✅ Terminal XFCE configurada con tema macOS.${NC}"
+fi
 echo ""
-echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia ULTIMA de macOS Tahoe.${NC}"
-echo -e "${YELLOW}⚠️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
-echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
-echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
-echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
+
+# =============================================================================
+# PASO 22: CONFIGURACIÓN DE ANIMACIONES SUAVES
+# =============================================================================
+echo -e "${YELLOW}🎬 [22/24] Configurando animaciones suaves...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null
+    gsettings set org.gnome.mutter center-new-windows true 2>/dev/null
+fi
+
+if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null
+fi
+
+echo -e "${GREEN}✅ Animaciones configuradas.${NC}"
 echo ""
+
+# =============================================================================
+# PASO 23: EFECTO MAGIC LAMP (GNOME y Cinnamon)
+# =============================================================================
+echo -e "${YELLOW}🪔 [23/24] Instalando efecto Magic Lamp (minimizar ventanas)...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    echo -e "   ${BLUE}→ Instalando para GNOME...${NC}"
+    mkdir -p ~/.local/share/gnome-shell/extensions/
+    if [ ! -d "$WORKDIR/compiz-alike-magic-lamp-effect" ]; then
+        git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git "$WORKDIR/compiz-alike-magic-lamp-effect" -q 2>/dev/null
+    fi
+    EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" | head -1)
+    if [ -n "$EXT_MAGIC_LAMP" ]; then
+        cp -r "$EXT_MAGIC_LAMP" ~/.local/share/gnome-shell/extensions/ 2>/dev/null
+        gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null
+        echo -e "${GREEN}✅ Magic Lamp para GNOME instalada y activada.${NC}"
+    fi
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "   ${BLUE}→ Instalando para Cinnamon...${NC}"
+    mkdir -p ~/.local/share/cinnamon/extensions/
+    if [ ! -d "$WORKDIR/CinnamonMagicLamp" ]; then
+        git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null
+    fi
+    if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
+        ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ~/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman 2>/dev/null
+        
+        CINNAMON_EXTENSIONS=$(gsettings get org.cinnamon enabled-extensions 2>/dev/null)
+        if ! echo "$CINNAMON_EXTENSIONS" | grep -q "CinnamonMagicLamp@klangman"; then
+            if [ "$CINNAMON_EXTENSIONS" = "[]" ]; then
+                gsettings set org.cinnamon enabled-extensions "['CinnamonMagicLamp@klangman']" 2>/dev/null
+            else
+                NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'CinnamonMagicLamp@klangman']/")
+                gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
+            fi
+        fi
+        
+        gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null
+        gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null
+        
+        echo -e "${GREEN}✅ Magic Lamp para Cinnamon instalada y activada.${NC}"
+    fi
+else
+    echo -e "${YELLOW}⏭️  [23/24] Magic Lamp omitido (solo GNOME y Cinnamon).${NC}"
+fi
+echo ""
+
+# =============================================================================
+# PASO 24: VERIFICACIÓN POST-INSTALACIÓN INTELIGENTE
+# =============================================================================
+echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
+
+CRITICAL_ERRORS=0
+OPTIONAL_ERRORS=0
+
+# Componentes CRÍTICOS (sin estos, el sistema está incompleto)
+if ! fc-list | grep -q "SF Pro"; then
+    echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no instaladas${NC}"
+    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+fi
+
+if [ ! -d "$HOME/.themes/MacTahoe-Dark" ] && [ ! -d "$HOME/.local/share/themes/MacTahoe-Dark" ]; then
+    echo -e "   ${RED}✗ CRÍTICO: Tema GTK no instalado${NC}"
+    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+fi
+
+if [ ! -d "$HOME/.icons/MacTahoe-dark" ] && [ ! -d "$HOME/.local/share/icons/MacTahoe-dark" ]; then
+    echo -e "   ${RED}✗ CRÍTICO: Iconos y cursores no instalados${NC}"
+    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+fi
+
+if [ ! -d "$HOME/.local/share/sounds/bigsur" ]; then
+    echo -e "   ${RED}✗ CRÍTICO: Sonidos del sistema no instalados${NC}"
+    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+fi
+
+# Componentes OPCIONALES (mejoras de experiencia, no críticos)
+if [ ! -f "$HOME/.local/bin/rofi-spotlight-launcher" ]; then
+    echo -e "   ${YELLOW}⚠ OPCIONAL: Rofi Spotlight no instalado${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+if ! systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
+    echo -e "   ${YELLOW}⚠ OPCIONAL: Gestos Fusuma no activos${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+if ! command -v sushi &> /dev/null && ! command -v gloobus-preview &> /dev/null; then
+    echo -e "   ${YELLOW}⚠ OPCIONAL: Quick Look no disponible${NC}"
+    OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+fi
+
+echo ""
+
+# =============================================================================
+# TOMA DE DECISIÓN AUTOMÁTICA
+# =============================================================================
+if [ "$CRITICAL_ERRORS" -gt 0 ]; then
+    # FALLO CRÍTICO: Ejecutar rollback automático
+    echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${RED}║   ❌ INSTALACIÓN FALLIDA - EJECUTANDO RESTAURACIÓN     ║${NC}"
+    echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${YELLOW}Se detectaron $CRITICAL_ERRORS componente(s) crítico(s) faltante(s).${NC}"
+    echo -e "${YELLOW}Para evitar dejar el sistema en un estado inconsistente, se ejecutará${NC}"
+    echo -e "${YELLOW}el script de restauración automáticamente...${NC}"
+    echo ""
+    sleep 3
+    
+    # Ejecutar rollback
+    if [ -f "$ROLLBACK_SCRIPT" ]; then
+        bash "$ROLLBACK_SCRIPT" --auto
+    else
+        echo -e "${RED}❌ El script de restauración no está disponible.${NC}"
+        echo -e "${YELLOW}Por favor, ejecuta manualmente:${NC}"
+        echo -e "   curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh | bash -s -- --auto"
+    fi
+    exit 1
+    
+elif [ "$OPTIONAL_ERRORS" -gt 0 ]; then
+    # ÉXITO PARCIAL: Mostrar advertencia pero continuar
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║   ⚠️  INSTALACIÓN COMPLETADA CON ADVERTENCIAS           ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${GREEN}✅ Los componentes críticos se instalaron correctamente.${NC}"
+    echo -e "${YELLOW}⚠️  $OPTIONAL_ERRORS componente(s) opcional(es) no se pudieron instalar.${NC}"
+    echo -e "${YELLOW}   El sistema es funcional, pero algunas características avanzadas${NC}"
+    echo -e "${YELLOW}   pueden no estar disponibles.${NC}"
+    echo ""
+    
+else
+    # ÉXITO TOTAL
+    echo -e "${GREEN}✅ Todos los componentes verificados correctamente.${NC}"
+    echo ""
+fi
+
+# =============================================================================
+# DESACTIVAR TRAMPA DE ERROR (Solo si no hubo fallos críticos)
+# =============================================================================
+if [ "$CRITICAL_ERRORS" -eq 0 ]; then
+    INSTALLATION_SUCCESS=true
+    trap - ERR
+fi
+
+# =============================================================================
+# MENSAJE FINAL (Solo si no hubo rollback)
+# =============================================================================
+if [ "$CRITICAL_ERRORS" -eq 0 ]; then
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+    if [ "$OPTIONAL_ERRORS" -eq 0 ]; then
+        echo -e "${CYAN}║        🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
+    else
+        echo -e "${YELLOW}║   ⚠️  INSTALACIÓN PARCIAL - REINICIAR PARA APLICAR     ║${NC}"
+    fi
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia de macOS Tahoe.${NC}"
+    echo -e "${YELLOW}⚠️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
+    echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
+    echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
+    echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
+    echo ""
+fi
