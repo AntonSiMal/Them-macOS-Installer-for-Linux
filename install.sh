@@ -1060,6 +1060,157 @@ echo -e "${GREEN}✅ Ajustes finos de comportamiento completados.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 15.7: DETALLES FINALES DE EXPERIENCIA macOS (SONIDO, ACERCA DE, SIDEBAR, CURSOR)
+# =============================================================================
+echo -e "${YELLOW}✨ [15.7/25] Aplicando detalles finales de experiencia macOS...${NC}"
+
+set +e
+
+# =============================================================================
+# 1. SONIDO DE ARRANQUE (STARTUP CHIME)
+# =============================================================================
+echo -e "${BLUE}   → Configurando sonido de arranque estilo macOS...${NC}"
+
+AUTOSTART_DIR="$REAL_HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR" 2>/dev/null || true
+
+# Verificar que el archivo de sonido exista (instalado en Paso 8)
+SOUND_FILE="$REAL_HOME/.local/share/sounds/bigsur/stereo/desktop-login.oga"
+
+if [ -f "$SOUND_FILE" ]; then
+    cat > "$AUTOSTART_DIR/mac-startup-chime.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Mac Startup Chime
+Exec=paplay $SOUND_FILE --volume=65536
+Hidden=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
+Comment=Reproduce el sonido de arranque de macOS Big Sur
+EOF
+    echo -e "${GREEN}   ✓ Sonido de arranque configurado${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  Archivo de sonido no encontrado, omitiendo${NC}"
+fi
+
+# =============================================================================
+# 2. VENTANA "ACERCA DE ESTE MAC" (EL FACTOR WOW)
+# =============================================================================
+echo -e "${BLUE}   → Creando ventana 'Acerca de este Mac'...${NC}"
+
+ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
+mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
+
+cat > "$ABOUT_SCRIPT" << 'ABOUTEOF'
+#!/bin/bash
+# Simulación de "Acerca de este Mac" estilo macOS
+CPU=$(lscpu | grep "Model name" | cut -d':' -f2 | xargs | sed 's/(R)//g; s/(TM)//g; s/(C)//g' 2>/dev/null || echo "Procesador desconocido")
+RAM=$(free -h | awk '/^Mem:/ {print $2}' 2>/dev/null || echo "Desconocida")
+DISK=$(df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "Desconocido")
+GRAPHICS=$(lspci 2>/dev/null | grep -i "vga\|3d\|display" | head -1 | cut -d':' -f3 | xargs | sed 's/Corporation//g; s/Inc.//g' 2>/dev/null || echo "Gráficos integrados")
+KERNEL=$(uname -r 2>/dev/null || echo "Desconocido")
+
+zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
+--text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
+<span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
+<span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
+<span font='SF Pro Text 11'><b>Disco de arranque:</b> Macintosh HD ($DISK)</span>\n\
+<span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
+<span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
+<span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
+--ok-label="Actualización de software..." 2>/dev/null || \
+yad --info --title="Acerca de este Mac" --width=340 --height=400 \
+--text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
+<span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
+<span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
+<span font='SF Pro Text 11'><b>Disco de arranque:</b> Macintosh HD ($DISK)</span>\n\
+<span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
+<span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
+<span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
+--button="Actualización de software...:0" 2>/dev/null || \
+kdialog --msgbox "<html><h2>macOS Tahoe</h2><p><b>Chip:</b> $CPU<br><b>Memoria:</b> $RAM<br><b>Disco:</b> Macintosh HD ($DISK)<br><b>Gráficos:</b> $GRAPHICS<br><b>Sistema:</b> Linux (Kernel $KERNEL)</p><p style='color:gray;font-size:9px'>TM y © 1983-2026 Apple Inc.</p></html>" --title "Acerca de este Mac" 2>/dev/null || true
+ABOUTEOF
+
+chmod +x "$ABOUT_SCRIPT"
+echo -e "${GREEN}   ✓ Script 'Acerca de este Mac' creado${NC}"
+
+# Asignar atajo Super+I para abrir la ventana (universal)
+if [ "$IS_GNOME" = true ]; then
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 binding "'<Super>i'" 2>/dev/null || true
+    
+    # Agregar a la lista de custom-keybindings existentes
+    EXISTING=$(run_as_user gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null || echo "[]")
+    if echo "$EXISTING" | grep -q "custom0"; then
+        echo -e "${GREEN}   ✓ Atajo Super+I ya configurado${NC}"
+    else
+        NEW_LIST=$(echo "$EXISTING" | sed "s/]$/, '\/org\/gnome\/settings-daemon\/plugins\/media-keys\/custom-keybindings\/custom0\/']/")
+        run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_LIST" 2>/dev/null || true
+        echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
+    fi
+elif [ "$IS_CINNAMON" = true ]; then
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 binding "['<Super>i']" 2>/dev/null || true
+    
+    EXISTING=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
+    if echo "$EXISTING" | grep -q "custom0"; then
+        echo -e "${GREEN}   ✓ Atajo Super+I ya configurado${NC}"
+    else
+        NEW_LIST=$(echo "$EXISTING" | sed "s/]$/, 'custom0']/")
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$NEW_LIST" 2>/dev/null || true
+        echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
+    fi
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -s "$ABOUT_SCRIPT" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
+fi
+
+# =============================================================================
+# 3. SIDEBAR DEL ADMINISTRADOR DE ARCHIVOS (ESTILO FINDER)
+# =============================================================================
+echo -e "${BLUE}   → Configurando barra lateral estilo Finder...${NC}"
+
+GTK_CONFIG_DIR="$REAL_HOME/.config/gtk-3.0"
+mkdir -p "$GTK_CONFIG_DIR" 2>/dev/null || true
+
+cat > "$GTK_CONFIG_DIR/bookmarks" << EOF
+file://$REAL_HOME/Desktop Desktop
+file://$REAL_HOME/Downloads Downloads
+file://$REAL_HOME/Documents Documents
+file://$REAL_HOME/Music Music
+file://$REAL_HOME/Pictures Pictures
+file://$REAL_HOME/Videos Videos
+file://$REAL_HOME/.local/share/Trash Trash
+EOF
+
+if [ -n "$SUDO_USER" ]; then
+    chown -R "$SUDO_USER:$SUDO_USER" "$GTK_CONFIG_DIR" 2>/dev/null || true
+fi
+echo -e "${GREEN}   ✓ Barra lateral de archivos configurada${NC}"
+
+# =============================================================================
+# 4. CURSOR MÁS GRANDE (DETALLE VISUAL)
+# =============================================================================
+echo -e "${BLUE}   → Ajustando tamaño del cursor (32px estilo macOS)...${NC}"
+
+if [ "$IS_GNOME" = true ]; then
+    run_as_user gsettings set org.gnome.desktop.interface cursor-size 32 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Cursor GNOME ajustado a 32px${NC}"
+elif [ "$IS_CINNAMON" = true ]; then
+    run_as_user gsettings set org.cinnamon.desktop.interface cursor-size 32 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Cursor Cinnamon ajustado a 32px${NC}"
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    run_as_user xfconf-query -c xsettings -p /Gtk/CursorThemeSize -s 32 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Cursor XFCE ajustado a 32px${NC}"
+fi
+
+set -e
+echo -e "${GREEN}✅ Detalles finales de experiencia macOS aplicados.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 16: RENDERIZADO DE FUENTES ESTILO MACOS (Fontconfig)
 # =============================================================================
 echo -e "${YELLOW}🔤 [16/25] Optimizando renderizado de fuentes (Estilo macOS)...${NC}"
