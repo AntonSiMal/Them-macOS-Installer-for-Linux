@@ -33,7 +33,7 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 
 | # | Componente | Descripción |
 |---|------------|-------------|
-| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas necesarias |
+| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas y codecs necesarios |
 | 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0) |
 | 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME) |
 | 🌅 | **Dynamic Wallpaper** | Fondos dinámicos Mojave/Sonoma que cambian con la hora real |
@@ -43,7 +43,10 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda global de archivos y web |
 | 🚀 | **Temas de Plank** | Dock estilo macOS inferior con ocultamiento inteligente |
 | 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple |
-| 🦊 | **Tema Firefox Safari** | Firefox con apariencia nativa de Safari |
+| 🦊 | **Navegador Safari** | Firefox personalizado con el nombre e icono oficial de Safari |
+| 🎵 | **Apple Music (Zuno)** | Cliente nativo de YouTube Music con codecs GStreamer y parches de estabilidad preconfigurados |
+| 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall para descubrimiento de dispositivos |
+| 📺 | **Apple TV (IPTVnator)** | Reproductor IPTV con lista de canales en español y guía EPG preconfigurada, optimizado para Wayland/X11 |
 | 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS |
 | 🪟 | **Gestión avanzada de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra |
 | ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente |
@@ -82,9 +85,9 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 ## 📋 Requisitos
 
 - **Sistema operativo:** Linux con GNOME 46+, Cinnamon 5.4+ o XFCE 4.18+
-- **Conexión a internet:** Para descargar los repositorios y dependencias
-- **Espacio en disco:** ~2 GB (incluyendo wallpapers, fuentes y sonidos)
-- **Permisos de `sudo`:** Para instalar dependencias del sistema y Plymouth/GDM
+- **Conexión a internet:** Para descargar los repositorios, dependencias y aplicaciones
+- **Espacio en disco:** ~3 GB (incluyendo wallpapers, fuentes, sonidos y apps adicionales)
+- **Permisos de `sudo`:** Para instalar dependencias del sistema, configurar el firewall y Plymouth/GDM
 
 ---
 
@@ -125,12 +128,11 @@ sudo ./install.sh
 
 ## 🔄 Actualización
 
-¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos, manteniendo tus configuraciones personales intactas.
+¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos. Además, **verifica y repara automáticamente** las personalizaciones de Safari, Apple Music, LocalSend y Apple TV por si una actualización del sistema las hubiera sobrescrito.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/mac-updater.sh && chmod +x /tmp/mac-updater.sh && sudo /tmp/mac-updater.sh
 ```
-*El actualizador también ejecutará una actualización completa de tu sistema (`apt upgrade` / `dnf upgrade` / `pacman -Syu`) antes de aplicar los cambios del tema.*
 
 ---
 
@@ -155,7 +157,7 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Súper + X` | Maximizar / Restaurar |
 | `Súper + C` | Centrar ventana en la pantalla |
 | `Súper + F` | Fijar ventana siempre al frente |
-| `Súper + O` | Disminuir opacidad de la ventana |
+| `Súper + O` | Disminuir opacidad de la窗口 |
 | `Súper + Ctrl + O` | Aumentar opacidad de la ventana |
 | `Ctrl + Q` | Cerrar app completamente (incluyendo procesos en segundo plano) |
 | `Súper + ←/→/↑/↓` | Acoplar (snap) ventana a los bordes |
@@ -173,13 +175,13 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 
 ## 🗑️ Desinstalación
 
-Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original (incluyendo el nombre del equipo y el tamaño del cursor), utiliza el script de desinstalación:
+Para revertir **todos** los cambios de forma segura y restaurar tu sistema a su estado original (incluyendo el nombre del equipo, el tamaño del cursor, las reglas del firewall y las personalizaciones de aplicaciones), utiliza el script de desinstalación:
 
 ```bash
 # Método seguro recomendado:
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh -o /tmp/mac-uninstaller.sh && chmod +x /tmp/mac-uninstaller.sh && sudo /tmp/mac-uninstaller.sh
 ```
-*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones, revierte el hostname y restaura el tema de arranque Plymouth automáticamente.*
+*Este script elimina archivos, restaura configuraciones de `gsettings`/`xfconf`, desactiva extensiones, revierte el hostname, limpia el firewall y restaura los lanzadores originales de Firefox y otras aplicaciones.*
 
 ---
 
@@ -212,6 +214,16 @@ fc-list | grep -i "SF Pro"
 </details>
 
 <details>
+<summary><strong>LocalSend no descubre dispositivos en la red</strong></summary>
+El script configura el firewall automáticamente, pero si usas un firewall de terceros o una red pública, asegúrate de que el puerto <strong>53317 (TCP/UDP)</strong> esté abierto y que la "Aislación AP" (AP Isolation) esté desactivada en tu router.
+</details>
+
+<details>
+<summary><strong>Apple TV (IPTVnator) muestra pantalla gris o no reproduce</strong></summary>
+El script aplica parches automáticos (`--no-sandbox` y `--ozone-platform=x11`) e instala <code>mpv</code>. Si el problema persiste en Wayland con Nvidia, asegúrate de que Xwayland esté instalado en tu sistema.
+</details>
+
+<details>
 <summary><strong>El botón "Actualización de software" no hace nada</strong></summary>
 Asegúrate de tener instalado <code>zenity</code> o <code>yad</code>. El script abrirá una terminal para ejecutar <code>apt/dnf/pacman upgrade</code> y luego el script de actualización del tema. Necesitarás ingresar tu contraseña de sudo en esa terminal.
 </details>
@@ -234,12 +246,14 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 | [Mojave Dynamic Wallpaper](https://github.com/japamax/gnome-kde-dynamic-wallpaper-mojave) | japamax | - |
 | [macOS Big Sur Sound Theme](https://github.com/gxanshu/macos-bigsur-sound-theme-linux) | gxanshu | MIT |
 | [Rofi Spotlight](https://github.com/eromatiya/rofi-spotlight) | eromatiya | MIT |
-| [Rofi Themes Collection](https://github.com/newmanls/rofi-themes-collection) | newmanls | MIT |
 | [Plank Themes](https://github.com/Macintosh98/MacOS-Mojave-Plank-themes) | Macintosh98 | - |
 | [Apple Mac Plymouth](https://github.com/navisjayaseelan/apple-mac-plymouth) | navisjayaseelan | - |
 | [Cinnamon Dynamic Wallpaper](https://github.com/TobiZog/cinnamon-dynamic-wallpaper) | TobiZog | GPL-3.0 |
 | [Fusuma (Gestos Multitáctiles)](https://github.com/iberianpig/fusuma) | iberianpig | MIT |
 | [Sushi / Gloobus Preview (Quick Look)](https://github.com/GNOME/sushi) | GNOME Project | GPL-2.0+ |
+| [Zuno (YouTube Music Client)](https://github.com/noFAYZ/zuno) | noFAYZ | MIT |
+| [LocalSend](https://github.com/localsend/localsend) | localsend | MIT |
+| [IPTVnator](https://github.com/4gray/iptvnator) | 4gray | MIT |
 
 ---
 
@@ -248,6 +262,8 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 Este script está licenciado bajo la [Licencia MIT](LICENSE).
 
 > **⚠️ Importante:** Las fuentes **San Francisco** y **New York**, así como los sonidos del sistema, son propiedad intelectual de **Apple Inc.** Este proyecto las incluye únicamente por conveniencia para usuarios de plataformas no-Apple, basándose en repositorios comunitarios de terceros. El uso de estos activos está sujeto a los [términos de licencia de Apple](https://developer.apple.com/fonts/). Asegúrate de cumplir con dichos términos.
+> 
+> **Nota sobre aplicaciones de terceros:** Zuno e IPTVnator son reproductores de código abierto. No proporcionan, alojan ni venden contenido multimedia, listas de reproducción o suscripciones. El usuario es responsable del contenido que decida reproducir a través de estas herramientas.
 
 ---
 
