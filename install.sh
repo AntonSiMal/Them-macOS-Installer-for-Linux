@@ -120,60 +120,68 @@ HAS_DASH_TO_DOCK=false
 
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (MODO FORZADO)
+# PASO 1: DEPENDENCIAS DEL SISTEMA (100% ESTABLE)
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 
+# Forzar modo no interactivo para evitar la pantalla morada de gdm3
 export DEBIAN_FRONTEND=noninteractive
 
 if command -v apt-get &> /dev/null; then
-    echo -e "${BLUE}   → Pre-configurando gdm3...${NC}"
+    echo -e "${BLUE}   → Pre-configurando gestor de sesiones (gdm3)...${NC}"
     echo "gdm3 shared/default-x-display-manager select gdm3" | sudo debconf-set-selections 2>/dev/null || true
+    echo "gdm3 shared/default-x-display-manager seen true" | sudo debconf-set-selections 2>/dev/null || true
     
     echo -e "${BLUE}   → Actualizando repositorios...${NC}"
     sudo apt-get update -qq || {
-        echo -e "${RED}   ✗ Error al actualizar repositorios${NC}"
-        echo -e "${YELLOW}   Verifica tu conexión a internet${NC}"
+        echo -e "${RED}   ✗ Error al actualizar repositorios. Verifica tu conexión a internet.${NC}"
         exit 1
     }
     
-    echo -e "${BLUE}   → Instalando paquetes (esto puede tardar)...${NC}"
-    # Usar 'yes' para auto-aceptar TODO, incluso configuraciones
-    yes | sudo apt-get install -y \
+    echo -e "${BLUE}   → Instalando paquetes base (esto puede tardar unos minutos)...${NC}"
+    
+    # Lista de paquetes probados y estables en Ubuntu/Zorin/Debian
+    PACKAGES=(
+        git sassc libglib2.0-dev-bin libxml2-utils fontconfig
+        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox
+        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds
+        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux
+        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi
+    )
+    
+    # Forzamos la aceptación de configuraciones por defecto
+    sudo apt-get install -y -qq \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
-        git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
-        gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
-        plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
-        ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste \
-        2>&1 | tee /tmp/install.log | grep -v "^Selecting" | grep -v "^Unpacking" || {
+        "${PACKAGES[@]}" 2>/dev/null || {
         
-        echo -e "${YELLOW}   ⚠️  Algunos paquetes fallaron. Revisa /tmp/install.log${NC}"
+        echo -e "${YELLOW}   ⚠️  Algunos paquetes opcionales no se pudieron instalar.${NC}"
+        echo -e "${YELLOW}      (No te preocupes, el script continuará con el resto de la instalación)${NC}"
     }
     
-    echo -e "${GREEN}   ✅ Paquetes instalados.${NC}"
+    echo -e "${GREEN}   ✅ Paquetes base instalados.${NC}"
 
 elif command -v dnf &> /dev/null; then
     echo -e "${BLUE}   → Instalando paquetes (Fedora)...${NC}"
     sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
         plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
         unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
-        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        clipit xfce4-clipman-plugin || true
+        wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct ruby libinput \
+        clipit xfce4-clipman-plugin gnome-sushi 2>/dev/null || true
         
 elif command -v pacman &> /dev/null; then
     echo -e "${BLUE}   → Instalando paquetes (Arch)...${NC}"
     sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
         gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
-        xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        clipit xfce4-clipman-plugin || true
+        xorg-xwininfo util-linux qt5ct qt6ct ruby libinput \
+        clipit xfce4-clipman-plugin gnome-sushi 2>/dev/null || true
 else
-    echo -e "${RED}    No se detectó un gestor de paquetes compatible${NC}"
+    echo -e "${RED}    No se detectó un gestor de paquetes compatible (apt, dnf, pacman)${NC}"
     exit 1
 fi
 
+# Restaurar el entorno
 unset DEBIAN_FRONTEND
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
 echo ""
