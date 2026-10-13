@@ -19,13 +19,18 @@ NC='\033[0m'
 if [ -n "$SUDO_USER" ]; then
     REAL_USER="$SUDO_USER"
     REAL_HOME=$(eval echo "~$SUDO_USER")
+    REAL_UID=$(id -u "$SUDO_USER")
+    REAL_GID=$(id -g "$SUDO_USER")
 else
     REAL_USER="$USER"
     REAL_HOME="$HOME"
+    REAL_UID=$(id -u)
+    REAL_GID=$(id -g)
 fi
 
 # Sobrescribir WORKDIR para usar la home del usuario real
 WORKDIR="$REAL_HOME/.macos-theme-setup"
+LOG_FILE="$WORKDIR/install.log"
 
 MACOS_VERSION="Tahoe"
 GTK_THEME="MacTahoe-Dark"
@@ -1205,43 +1210,77 @@ echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
 CRITICAL_ERRORS=0
 OPTIONAL_ERRORS=0
 
-if ! fc-list | grep -q "SF Pro"; then
+# Verificar fuentes (instaladas en REAL_HOME)
+if ! sudo -u "$REAL_USER" fc-list 2>/dev/null | grep -q "SF Pro"; then
     echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no instaladas${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+else
+    echo -e "   ${GREEN}✓ Fuentes Apple instaladas${NC}"
 fi
 
-if [ ! -d "$HOME/.themes/MacTahoe-Dark" ] && [ ! -d "$HOME/.local/share/themes/MacTahoe-Dark" ]; then
+# Verificar tema GTK (puede estar en REAL_HOME o en /usr/share)
+THEME_FOUND=false
+[ -d "$REAL_HOME/.themes/MacTahoe-Dark" ] && THEME_FOUND=true
+[ -d "$REAL_HOME/.local/share/themes/MacTahoe-Dark" ] && THEME_FOUND=true
+[ -d "/usr/share/themes/MacTahoe-Dark" ] && THEME_FOUND=true
+
+if [ "$THEME_FOUND" = false ]; then
     echo -e "   ${RED}✗ CRÍTICO: Tema GTK no instalado${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+else
+    echo -e "   ${GREEN}✓ Tema GTK instalado${NC}"
 fi
 
-if [ ! -d "$HOME/.icons/MacTahoe-dark" ] && [ ! -d "$HOME/.local/share/icons/MacTahoe-dark" ]; then
+# Verificar iconos y cursores
+ICONS_FOUND=false
+[ -d "$REAL_HOME/.icons/MacTahoe-dark" ] && ICONS_FOUND=true
+[ -d "$REAL_HOME/.local/share/icons/MacTahoe-dark" ] && ICONS_FOUND=true
+[ -d "/usr/share/icons/MacTahoe-dark" ] && ICONS_FOUND=true
+
+if [ "$ICONS_FOUND" = false ]; then
     echo -e "   ${RED}✗ CRÍTICO: Iconos y cursores no instalados${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+else
+    echo -e "   ${GREEN}✓ Iconos y cursores instalados${NC}"
 fi
 
-if [ ! -d "$HOME/.local/share/sounds/bigsur" ]; then
+# Verificar sonidos
+if [ -d "$REAL_HOME/.local/share/sounds/bigsur" ] || [ -d "/usr/share/sounds/bigsur" ]; then
+    echo -e "   ${GREEN}✓ Sonidos instalados${NC}"
+else
     echo -e "   ${RED}✗ CRÍTICO: Sonidos del sistema no instalados${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-if [ ! -f "$HOME/.local/bin/rofi-spotlight-launcher" ]; then
+# Verificaciones opcionales
+if [ ! -f "$REAL_HOME/.local/bin/rofi-spotlight-launcher" ]; then
     echo -e "   ${YELLOW}⚠ OPCIONAL: Rofi Spotlight no instalado${NC}"
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+else
+    echo -e "   ${GREEN}✓ Rofi Spotlight instalado${NC}"
 fi
 
-if ! systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
+# Verificar Fusuma (servicio del usuario real)
+if sudo -u "$REAL_USER" systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
+    echo -e "   ${GREEN}✓ Gestos Fusuma activos${NC}"
+else
     echo -e "   ${YELLOW}⚠ OPCIONAL: Gestos Fusuma no activos${NC}"
+    echo -e "   ${BLUE}   (Puede activarse después con: systemctl --user enable --now fusuma)${NC}"
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
 fi
 
 if ! command -v sushi &> /dev/null && ! command -v gloobus-preview &> /dev/null; then
     echo -e "   ${YELLOW}⚠ OPCIONAL: Quick Look no disponible${NC}"
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
+else
+    echo -e "   ${GREEN}✓ Quick Look disponible${NC}"
 fi
 
 echo ""
 
+# =============================================================================
+# TOMA DE DECISIÓN AUTOMÁTICA
+# =============================================================================
 if [ "$CRITICAL_ERRORS" -gt 0 ]; then
     echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║   ❌ INSTALACIÓN FALLIDA - EJECUTANDO RESTAURACIÓN     ║${NC}"
@@ -1253,8 +1292,8 @@ if [ "$CRITICAL_ERRORS" -gt 0 ]; then
     echo ""
     sleep 3
     
-    if [ -f "$ROLLBACK_SCRIPT" ]; then
-        bash "$ROLLBACK_SCRIPT" --auto
+    if [ -f "$WORKDIR/uninstall_rollback.sh" ]; then
+        bash "$WORKDIR/uninstall_rollback.sh" --auto
     else
         echo -e "${RED}❌ El script de restauración no está disponible.${NC}"
         echo -e "${YELLOW}Por favor, ejecuta manualmente:${NC}"
@@ -1293,7 +1332,7 @@ if [ "$CRITICAL_ERRORS" -eq 0 ]; then
     if [ "$OPTIONAL_ERRORS" -eq 0 ]; then
         echo -e "${CYAN}║        🎉 ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
     else
-        echo -e "${YELLOW}║   ⚠️  INSTALACIÓN PARCIAL - REINICIAR PARA APLICAR     ║${NC}"
+        echo -e "${YELLOW}║   ️  INSTALACIÓN PARCIAL - REINICIAR PARA APLICAR     ║${NC}"
     fi
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
