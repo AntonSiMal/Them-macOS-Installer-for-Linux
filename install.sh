@@ -685,12 +685,13 @@ echo -e "${GREEN}✅ Script auxiliar creado.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 15: CONFIGURACIÓN DEL SISTEMA Y ATAJO DE TECLADO
+# PASO 15: CONFIGURACIÓN DEL SISTEMA, PANELES Y ATAJO DE TECLADO (UNIVERSAL)
 # =============================================================================
-echo -e "${YELLOW}️  [15/25] Configurando sistema y atajos de teclado macOS...${NC}"
+echo -e "${YELLOW}⚙️  [15/25] Configurando sistema, paneles y atajos de teclado macOS...${NC}"
 
-set +e
+set +e # Desactivar salida por error para evitar fallos en configuraciones menores
 
+# Determinar ruta del wallpaper
 if [ "$MOJAVE_INSTALLED" = true ]; then
     WALLPAPER_PATH="/usr/share/backgrounds/macOS/mojave-timed.xml"
 elif [ "$IS_GNOME" = true ]; then
@@ -699,16 +700,19 @@ else
     WALLPAPER_PATH="$REAL_HOME/.local/share/backgrounds/Sonoma-dark.jpg"
 fi
 
+# =============================================================================
+# CONFIGURACIÓN PARA GNOME
+# =============================================================================
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}   → Configurando GNOME...${NC}"
     
-    # Tema GTK, iconos y cursores
+    # Temas y colores
     run_as_user gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME"
     run_as_user gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME"
     run_as_user gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME"
     run_as_user gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
     
-    # FUENTES APPLE (CRÍTICO)
+    # Fuentes Apple
     if [ "$SF_INSTALLED" = true ]; then
         run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11'
         run_as_user gsettings set org.gnome.desktop.interface document-font-name 'New York Medium 11'
@@ -717,39 +721,76 @@ if [ "$IS_GNOME" = true ]; then
         echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
-    # BOTONES DE VENTANA A LA IZQUIERDA (ESTILO macOS)
+    # Botones de ventana a la izquierda
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # Fondo de pantalla
+    # Reloj en barra superior estilo macOS
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-date true
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-weekday true
+    run_as_user gsettings set org.gnome.desktop.interface clock-show-seconds false
+    
+    # Fondo de pantalla y sonidos
     if [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH"
         run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
     fi
-    
-    # Sonidos
     if [ "$SOUND_INSTALLED" = true ]; then
         run_as_user gsettings set org.gnome.desktop.sound theme-name "$SOUND_THEME"
         run_as_user gsettings set org.gnome.desktop.sound event-sounds true
         run_as_user gsettings set org.gnome.desktop.sound input-feedback-sounds true
     fi
     
-    # Atajos de teclado básicos
+    # --- ATAJO DE TECLADO ESTILO macOS (GNOME) ---
+    echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings show-desktop "['<Super>d']"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']"
+    run_as_user gsettings set org.gnome.desktop.wm.keybindings toggle-maximized "['<Super>Up']"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-1 "['<Super>1']"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-2 "['<Super>2']"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-3 "['<Super>3']"
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Ctrl><Alt>t']"
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']"
     
-    # Activar extensiones
+    # Atajos personalizados usando el script del Paso 14
+    CUSTOM_PATHS=(); INDEX=0
+    gnome_set_keybinding() {
+        local name="$1" command="$2" binding="$3" idx="$4"
+        local PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${idx}/"
+        run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH name "$name" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH command "$command" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH binding "$binding" 2>/dev/null || true
+        CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${idx}/'")
+    }
+    
+    gnome_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" $INDEX; INDEX=$((INDEX+1))
+    gnome_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" $INDEX; INDEX=$((INDEX+1))
+    gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" $INDEX; INDEX=$((INDEX+1))
+    gnome_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" $INDEX; INDEX=$((INDEX+1))
+    
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$(IFS=,; echo "[${CUSTOM_PATHS[*]}]")" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
+    
+    # Activar extensiones clave
     run_as_user gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true
     run_as_user gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
     run_as_user gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
+    run_as_user gnome-extensions enable ding@rastersoft.com 2>/dev/null || true
     
-    echo -e "${GREEN}   ✓ Configuración GNOME aplicada${NC}"
+    # Configuración fina del Dock
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM'
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock hide-mode 'AUTOHIDE'
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide-mode 'ALL_WINDOWS'
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock background-opacity 0.4
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 48
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true
+    
+    echo -e "${GREEN}   ✓ Configuración GNOME aplicada al 100%${NC}"
 
+# =============================================================================
+# CONFIGURACIÓN PARA CINNAMON
+# =============================================================================
 elif [ "$IS_CINNAMON" = true ]; then
     echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
     
@@ -760,23 +801,76 @@ elif [ "$IS_CINNAMON" = true ]; then
     
     if [ "$SF_INSTALLED" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11'
+        run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11'
+        run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11'
         run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11'
+        echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
+    # PANEL SUPERIOR ESTILO macOS
+    run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']"
+    run_as_user gsettings set org.cinnamon.panel-height 28
+    run_as_user gsettings set org.cinnamon enabled-applets \
+        "['panel1:left:0:menu@cinnamon.org', \
+          'panel1:left:1:workspace-switcher@cinnamon.org', \
+          'panel1:right:2:notifications@cinnamon.org', \
+          'panel1:right:3:user@cinnamon.org', \
+          'panel1:right:4:calendar@cinnamon.org', \
+          'panel1:right:5:power@cinnamon.org', \
+          'panel1:right:6:sound@cinnamon.org', \
+          'panel1:right:7:network@cinnamon.org']" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
+    
+    # --- ATAJO DE TECLADO ESTILO macOS (CINNAMON) ---
+    echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm minimize "['<Super>m']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm maximize "['<Super>Up']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-1 "['<Super>1']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
+    
+    # Atajos personalizados
+    CUSTOM_IDS=()
+    cinnamon_set_keybinding() {
+        local name="$1" command="$2" binding="$3" id="$4"
+        local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
+        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH name "$name" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH command "$command" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH binding "$binding" 2>/dev/null || true
+        CUSTOM_IDS+=("'${id}'")
+    }
+    
+    cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "custom-spotlight"
+    cinnamon_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" "custom-close"
+    cinnamon_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" "custom-center"
+    cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "custom-forcekill"
+    
+    run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$(IFS=,; echo "[${CUSTOM_IDS[*]}]")" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
+    
+    # Fondo y sonidos
     if [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH"
+        run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
     fi
-    
     if [ "$SOUND_INSTALLED" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME"
         run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true
+        run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true
     fi
     
-    echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada${NC}"
+    # Activar Hot Corners
+    run_as_user gsettings set org.cinnamon.desktop.wm.preferences enable-hot-corners true 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada al 100%${NC}"
 
+# =============================================================================
+# CONFIGURACIÓN PARA XFCE
+# =============================================================================
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${BLUE}   → Configurando XFCE...${NC}"
     
@@ -786,26 +880,71 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     
     if [ "$SF_INSTALLED" = true ]; then
         run_as_user xfconf-query -c xsettings -p /Gtk/FontName -s 'SF Pro Text 11' 2>/dev/null || true
+        run_as_user xfconf-query -c xsettings -p /Gtk/DocumentFontName -s 'New York Medium 11' 2>/dev/null || true
+        run_as_user xfconf-query -c xsettings -p /Gtk/MonospaceFontName -s 'SF Mono Regular 11' 2>/dev/null || true
         run_as_user xfconf-query -c xfwm4 -p /general/title_font -s 'SF Pro Text 11' 2>/dev/null || true
+        echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
-    # Botones a la izquierda (OHM = Close, Hide, Maximize)
     run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # Panel superior
+    # PANEL SUPERIOR ESTILO macOS
     run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position -s "p=6;x=0;y=0" 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -s true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Panel movido a la parte superior${NC}"
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -s 28 2>/dev/null || true
+    
+    # Eliminar lista de ventanas
+    for plugin in $(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/panel-0/plugins/plugin-" | cut -d'/' -f5); do
+        plugin_type=$(run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugins/$plugin 2>/dev/null)
+        if [ "$plugin_type" = "tasklist" ] || [ "$plugin_type" = "windowmenu" ]; then
+            run_as_user xfconf-query -c xfce4-panel -r /panels/panel-0/plugins/$plugin 2>/dev/null
+        fi
+    done
+    echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
+    
+    # Formato de reloj estilo macOS
+    CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
+    if [ -n "$CLOCK_PLUGIN" ]; then
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -s 3 2>/dev/null || true
+    fi
+    
+    # --- ATAJO DE TECLADO ESTILO macOS (XFCE) ---
+    echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
+    xfce_set_keybinding() {
+        local command="$1" binding="$2"
+        run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || \
+        run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -s "$command" 2>/dev/null || true
+    }
+    
+    xfce_set_keybinding "rofi-spotlight-launcher" "<Ctrl>space"
+    xfce_set_keybinding "macos-wm-actions close-app-completely" "<Super>q"
+    xfce_set_keybinding "macos-wm-actions center" "<Super>c"
+    xfce_set_keybinding "macos-wm-actions force-kill" "<Ctrl><Alt>Escape"
+    xfce_set_keybinding "xfce4-terminal" "<Ctrl><Alt>t"
+    xfce_set_keybinding "xfce4-screensaver-command --lock" "<Super>l"
+    
+    # Atajos de ventana XFCE
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>d" -n -t string -s "show_desktop_key" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>m" -n -t string -s "hide_window_key" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Up" -n -t string -s "maximize_window_key" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>1" -n -t string -s "workspace_1_key" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>2" -n -t string -s "workspace_2_key" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>3" -n -t string -s "workspace_3_key" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
+    
+    # Tema de notificaciones
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
     
     if [ "$SOUND_INSTALLED" = true ]; then
         run_as_user xfconf-query -c xsettings -p /Net/SoundThemeName -s "$SOUND_THEME" 2>/dev/null || true
     fi
     
-    echo -e "${GREEN}   ✓ Configuración XFCE aplicada${NC}"
+    echo -e "${GREEN}   ✓ Configuración XFCE aplicada al 100%${NC}"
 fi
 
-set -e
+set -e # Reactivar salida por error
 echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
@@ -818,49 +957,27 @@ set +e
 
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}   → Configurando GNOME...${NC}"
-    
-    # Dash to Dock mostrará el botón de aplicaciones en la parte superior del dock.
-    # El tema de iconos MacTahoe reemplaza automáticamente este icono por la manzana de Apple.
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
-    
-    # Opcional: Cambiar el texto "Actividades" por un icono en la barra superior (si la versión de GNOME lo permite)
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
-    
     echo -e "${GREEN}   ✓ Botón de aplicaciones configurado con icono de Apple${NC}"
     
 elif [ "$IS_CINNAMON" = true ]; then
     echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
-    
-    # Forzar el icono del menú a 'distributor-logo' (que el tema MacTahoe reemplaza por la manzana)
     run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon "distributor-logo" 2>/dev/null || true
-    
-    # Ajustar el tamaño del icono para que se vea proporcional en el panel delgado (28px)
     run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon-size 16 2>/dev/null || true
-    
-    # Asegurar que el menú muestre favoritos y categorías (estilo Launchpad)
     run_as_user gsettings set org.cinnamon.menu-favorites-show true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.menu-show-category-icons true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.menu-show-application-icons true 2>/dev/null || true
-    
     echo -e "${GREEN}   ✓ Icono de Apple aplicado al menú de Cinnamon${NC}"
     
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${BLUE}   → Configurando XFCE...${NC}"
-    
-    # Obtener el ID numérico del plugin whiskermenu en el panel
     WHISKER_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "whiskermenu" | head -1 | cut -d'/' -f4)
-    
     if [ -n "$WHISKER_ID" ]; then
-        # 1. Forzar el icono a 'distributor-logo' (manzana de Apple en el tema MacTahoe)
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -s "distributor-logo" 2>/dev/null || true
-        
-        # 2. Ocultar el texto "Aplicaciones" para que solo se vea la manzana
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -s false 2>/dev/null || true
-        
-        # 3. Asegurar que el menú esté en la primera posición del panel
         run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-1 -s "whiskermenu" 2>/dev/null || true
-        
         echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu (solo icono, sin texto)${NC}"
     else
         echo -e "${YELLOW}   ⚠️  No se encontró Whisker Menu. Asegúrate de tenerlo instalado.${NC}"
