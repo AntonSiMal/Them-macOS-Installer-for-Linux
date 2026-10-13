@@ -374,92 +374,43 @@ fi
 echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
 echo ""
 
-
 # =============================================================================
-# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR
+# PASO 8: SONIDOS DEL SISTEMA (VERSIÓN RÁPIDA - SIN COMPILACIÓN)
 # =============================================================================
 echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
 
 SOUNDS_DIR="$HOME/.local/share/sounds"
 ALT_REPO="$WORKDIR/bigsur-sound-theme"
-SOUND_INSTALLED=false
 
-echo -e "${BLUE}   → Clonando repositorio de sonidos...${NC}"
+# Crear estructura básica manualmente
+mkdir -p "$SOUNDS_DIR/bigsur/stereo"
 
-# Si ya existe, lo borramos para tener la versión más reciente
-if [ -d "$ALT_REPO" ]; then
-    rm -rf "$ALT_REPO"
-fi
+echo -e "${BLUE}   → Descargando sonidos pre-compilados...${NC}"
 
-# Clonar con timeout de 30 segundos
-if ! timeout 30 git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" 2>/dev/null; then
-    echo -e "${YELLOW}   ⚠️  No se pudo clonar el repositorio (timeout o sin internet).${NC}"
-    echo -e "${BLUE}   → Saltando instalación de sonidos...${NC}"
-    echo ""
-    continue
-fi
+# Descargar directamente el release pre-compilado
+RELEASE_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/1.0.2/bigsur-sound-theme.tar.gz"
 
-if [ -d "$ALT_REPO" ] && [ -f "$ALT_REPO/Makefile" ]; then
-    echo -e "${BLUE}   → Verificando ffmpeg...${NC}"
-    
-    # Instalar ffmpeg si no existe
-    if ! command -v ffmpeg &> /dev/null; then
-        echo -e "${BLUE}   → Instalando ffmpeg...${NC}"
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get install -y -qq ffmpeg 2>/dev/null || true
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q ffmpeg 2>/dev/null || true
-        elif command -v pacman &> /dev/null; then
-            sudo pacman -S --noconfirm ffmpeg 2>/dev/null || true
-        fi
-    fi
-    
-    if command -v ffmpeg &> /dev/null; then
-        echo -e "${BLUE}   → Construyendo tema de sonidos (esto puede tardar 1-2 minutos)...${NC}"
-        cd "$ALT_REPO"
-        
-        # Clonar dependencias si no existen
-        if [ ! -d "ocean-sound-theme" ]; then
-            echo -e "${BLUE}   → Clonando ocean-sound-theme...${NC}"
-            git clone --depth=1 https://github.com/KDE/ocean-sound-theme.git -q 2>/dev/null || true
-        fi
-        
-        if [ ! -d "BigSurSounds" ]; then
-            echo -e "${BLUE}   → Clonando BigSurSounds...${NC}"
-            git clone --depth=1 https://github.com/ThisIsNoahEvans/BigSurSounds.git -q 2>/dev/null || true
-        fi
-        
-        # Ejecutar make con timeout de 5 minutos
-        echo -e "${BLUE}   → Compilando sonidos...${NC}"
-        if timeout 300 make all > /dev/null 2>&1; then
-            echo -e "${BLUE}   → Instalando sonidos...${NC}"
-            if timeout 60 make install > /dev/null 2>&1; then
-                SOUND_INSTALLED=true
-                echo -e "${GREEN}   ✅ Tema de sonidos Big Sur instalado correctamente.${NC}"
-            else
-                echo -e "${YELLOW}   ⚠️  make install falló. Intentando copia manual...${NC}"
-                # Copia manual como fallback
-                if [ -d "$ALT_REPO/theme/bigsur" ]; then
-                    cp -r "$ALT_REPO/theme/bigsur" "$SOUNDS_DIR/"
-                    SOUND_INSTALLED=true
-                    echo -e "${GREEN}   ✅ Sonidos copiados manualmente.${NC}"
-                fi
-            fi
-        else
-            echo -e "${YELLOW}   ⚠️  La construcción tardó demasiado o falló.${NC}"
-        fi
-        cd - > /dev/null
-    else
-        echo -e "${YELLOW}   ️  ffmpeg no está disponible. No se pueden convertir los sonidos.${NC}"
-    fi
+if curl -L "$RELEASE_URL" --max-time 60 -o /tmp/bigsur.tar.gz 2>/dev/null; then
+    tar -xzf /tmp/bigsur.tar.gz -C "$SOUNDS_DIR" 2>/dev/null && \
+    echo -e "${GREEN}   ✅ Sonidos instalados desde release.${NC}" || \
+    echo -e "${YELLOW}   ️  No se pudo extraer el archivo.${NC}"
+    rm -f /tmp/bigsur.tar.gz
 else
-    echo -e "${YELLOW}   ⚠️  El repositorio no tiene Makefile o está incompleto.${NC}"
-fi
-
-# Limpieza
-if [ "$SOUND_INSTALLED" = false ]; then
-    echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos.${NC}"
-    echo -e "${YELLOW}      Puedes instalarlos manualmente después si lo deseas.${NC}"
+    echo -e "${YELLOW}   ⚠️  No se pudo descargar el release.${NC}"
+    echo -e "${BLUE}   → Intentando método alternativo...${NC}"
+    
+    # Clonar y usar archivos .oga directamente si existen
+    if git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" -q 2>/dev/null; then
+        if [ -d "$ALT_REPO/theme/bigsur" ]; then
+            cp -r "$ALT_REPO/theme/bigsur" "$SOUNDS_DIR/" 2>/dev/null && \
+            echo -e "${GREEN}   ✅ Sonidos copiados desde theme.${NC}" || \
+            echo -e "${YELLOW}   ️  No se encontraron sonidos pre-compilados.${NC}"
+        else
+            echo -e "${YELLOW}   ️  No hay sonidos pre-compilados disponibles.${NC}"
+        fi
+    else
+        echo -e "${YELLOW}   ️  Saltando instalación de sonidos.${NC}"
+    fi
 fi
 
 echo ""
@@ -468,26 +419,47 @@ echo ""
 # PASO 9: ROFI SPOTLIGHT (LANZADOR ESTILO macOS)
 # =============================================================================
 echo -e "${YELLOW}🔍 [9/24] Instalando Rofi Spotlight...${NC}"
+
 ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
 ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
-mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR"
 
-[ ! -d "$WORKDIR/rofi-spotlight" ] && git clone --depth=1 https://github.com/eromatiya/rofi-spotlight.git "$WORKDIR/rofi-spotlight" -q 2>/dev/null
+# Crear directorios si no existen
+mkdir -p "$ROFI_SPOTLIGHT_DIR" "$ROFI_THEMES_DIR"
+mkdir -p "$HOME/.local/bin"
+mkdir -p "$HOME/.local/share/applications"
+
+echo -e "${BLUE}   → Clonando Rofi Spotlight...${NC}"
+if [ ! -d "$WORKDIR/rofi-spotlight" ]; then
+    if ! git clone --depth=1 https://github.com/eromatiya/rofi-spotlight.git "$WORKDIR/rofi-spotlight" -q 2>/dev/null; then
+        echo -e "${YELLOW}   ⚠️  No se pudo clonar rofi-spotlight.${NC}"
+        echo -e "${BLUE}   → Continuando sin Rofi Spotlight...${NC}"
+        echo ""
+        continue
+    fi
+fi
+
 if [ -d "$WORKDIR/rofi-spotlight" ]; then
     cp -r "$WORKDIR/rofi-spotlight"/* "$ROFI_SPOTLIGHT_DIR/" 2>/dev/null
     chmod +x "$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" "$ROFI_SPOTLIGHT_DIR/web-search.py" 2>/dev/null
+    echo -e "${GREEN}   ✅ Rofi Spotlight clonado.${NC}"
 fi
 
-[ ! -d "$WORKDIR/rofi-themes-collection" ] && git clone --depth=1 https://github.com/newmanls/rofi-themes-collection.git "$WORKDIR/rofi-themes-collection" -q 2>/dev/null
-[ -d "$WORKDIR/rofi-themes-collection/themes" ] && cp "$WORKDIR/rofi-themes-collection/themes/"*.rasi "$ROFI_THEMES_DIR/" 2>/dev/null
+echo -e "${BLUE}   → Instalando temas de Rofi...${NC}"
+if [ ! -d "$WORKDIR/rofi-themes-collection" ]; then
+    git clone --depth=1 https://github.com/newmanls/rofi-themes-collection.git "$WORKDIR/rofi-themes-collection" -q 2>/dev/null || true
+fi
+[ -d "$WORKDIR/rofi-themes-collection/themes" ] && cp "$WORKDIR/rofi-themes-collection/themes/"*.rasi "$ROFI_THEMES_DIR/" 2>/dev/null || true
 
+echo -e "${BLUE}   → Creando lanzador...${NC}"
 ROFI_LAUNCHER="$HOME/.local/bin/rofi-spotlight-launcher"
-mkdir -p "$HOME/.local/bin"
 cat > "$ROFI_LAUNCHER" << 'EOF'
 #!/bin/bash
 ROFI_SPOTLIGHT_DIR="$HOME/.local/share/rofi-spotlight"
 ROFI_THEMES_DIR="$HOME/.local/share/rofi/themes"
-if ! command -v rofi &> /dev/null; then notify-send "Error" "Rofi no está instalado" -i dialog-error; exit 1; fi
+if ! command -v rofi &> /dev/null; then
+    notify-send "Error" "Rofi no está instalado" -i dialog-error
+    exit 1
+fi
 if [ -f "$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" ]; then
     rofi -modi "Global Search:$ROFI_SPOTLIGHT_DIR/rofi-spotlight.sh" -show "Global Search" -theme "$ROFI_THEMES_DIR/spotlight.rasi" -config "$ROFI_SPOTLIGHT_DIR/rofi.rasi"
 else
@@ -496,6 +468,7 @@ fi
 EOF
 chmod +x "$ROFI_LAUNCHER"
 
+echo -e "${BLUE}   → Creando archivo .desktop...${NC}"
 cat > "$HOME/.local/share/applications/rofi-spotlight.desktop" << 'EOF'
 [Desktop Entry]
 Name=Spotlight Search
@@ -506,6 +479,7 @@ Type=Application
 Categories=Utility;
 Keywords=search;spotlight;files;web;
 EOF
+
 echo -e "${GREEN}✅ Rofi Spotlight instalado.${NC}"
 echo ""
 
