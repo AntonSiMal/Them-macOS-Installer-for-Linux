@@ -392,51 +392,50 @@ echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (VERSIÓN ROBUSTA)
+# PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR (USANDO REAL_HOME)
 # =============================================================================
-echo -e "${YELLOW} [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
+echo -e "${YELLOW}🔊 [8/24] Instalando sonidos del sistema macOS Big Sur...${NC}"
 
-SOUNDS_DIR="$HOME/.local/share/sounds"
+# Detectar usuario real si no está definido
+if [ -z "$REAL_HOME" ]; then
+    if [ -n "$SUDO_USER" ]; then
+        REAL_HOME=$(eval echo "~$SUDO_USER")
+    else
+        REAL_HOME="$HOME"
+    fi
+fi
+
+SOUNDS_DIR="$REAL_HOME/.local/share/sounds"
 ALT_REPO="$WORKDIR/bigsur-sound-theme"
 SOUND_INSTALLED=false
 
-# Crear directorio base
+# Crear directorio en la home del usuario real
 mkdir -p "$SOUNDS_DIR" 2>/dev/null || true
 
 echo -e "${BLUE}   → Método 1: Descargando release pre-compilado...${NC}"
 
-# Probar múltiples URLs posibles
+# Probar múltiples URLs
 URLS=(
     "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/1.0.2/bigsur-sound-theme.tar.gz"
     "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/latest/download/bigsur-sound-theme.tar.gz"
-    "https://github.com/gxanshu/macos-bigsur-sound-theme-linux/releases/download/v1.0.2/bigsur-sound-theme.tar.gz"
 )
 
 DOWNLOADED=false
 for URL in "${URLS[@]}"; do
     echo -e "${BLUE}   → Probando: $URL${NC}"
-    if curl -L "$URL" --max-time 30 -o /tmp/bigsur.tar.gz 2>/dev/null && [ -f /tmp/bigsur.tar.gz ]; then
-        # Verificar que el archivo no esté vacío
-        if [ -s /tmp/bigsur.tar.gz ]; then
-            echo -e "${BLUE}   → Archivo descargado, intentando extraer...${NC}"
-            
-            # Intentar extraer con diferentes métodos
+    if curl -L "$URL" --max-time 30 -o /tmp/bigsur.tar.gz 2>/dev/null && [ -s /tmp/bigsur.tar.gz ]; then
+        # Verificar que sea un archivo válido (no HTML de error 404)
+        FILE_TYPE=$(file /tmp/bigsur.tar.gz 2>/dev/null)
+        if echo "$FILE_TYPE" | grep -qi "gzip\|tar\|archive"; then
+            echo -e "${BLUE}   → Archivo válido, extrayendo...${NC}"
             if tar -xzf /tmp/bigsur.tar.gz -C "$SOUNDS_DIR" 2>/dev/null; then
-                echo -e "${GREEN}   ✅ Sonidos extraídos con tar${NC}"
                 DOWNLOADED=true
+                SOUND_INSTALLED=true
+                echo -e "${GREEN}   ✅ Sonidos extraídos correctamente${NC}"
                 break
-            elif unzip -q /tmp/bigsur.tar.gz -d "$SOUNDS_DIR" 2>/dev/null; then
-                echo -e "${GREEN}   ✅ Sonidos extraídos con unzip${NC}"
-                DOWNLOADED=true
-                break
-            else
-                echo -e "${YELLOW}   ⚠️  No se pudo extraer el archivo${NC}"
-                echo -e "${BLUE}   → Contenido del archivo:${NC}"
-                file /tmp/bigsur.tar.gz 2>/dev/null
-                ls -lh /tmp/bigsur.tar.gz 2>/dev/null
             fi
         else
-            echo -e "${YELLOW}   ⚠️  Archivo vacío o inválido${NC}"
+            echo -e "${YELLOW}   ⚠️  Archivo no válido (posible error 404): $FILE_TYPE${NC}"
         fi
         rm -f /tmp/bigsur.tar.gz
     fi
@@ -446,27 +445,25 @@ if [ "$DOWNLOADED" = false ]; then
     echo -e "${YELLOW}   ⚠️  No se pudo descargar el release.${NC}"
     echo -e "${BLUE}   → Método 2: Clonando repositorio...${NC}"
     
-    # Limpiar repositorio anterior si existe
-    if [ -d "$ALT_REPO" ]; then
-        rm -rf "$ALT_REPO"
-    fi
+    # Limpiar repositorio anterior
+    [ -d "$ALT_REPO" ] && rm -rf "$ALT_REPO"
     
     if timeout 60 git clone --depth=1 https://github.com/gxanshu/macos-bigsur-sound-theme-linux.git "$ALT_REPO" 2>/dev/null; then
-        echo -e "${BLUE}   → Repositorio clonado, buscando archivos de sonido...${NC}"
+        echo -e "${BLUE}   → Buscando archivos de sonido...${NC}"
         
-        # Buscar archivos .oga o .ogg en el repositorio
-        SOUND_FILES=$(find "$ALT_REPO" -name "*.oga" -o -name "*.ogg" 2>/dev/null | head -5)
+        # Buscar archivos .oga en el repositorio
+        SOUND_FILES=$(find "$ALT_REPO" -name "*.oga" 2>/dev/null | head -5)
         
         if [ -n "$SOUND_FILES" ]; then
-            echo -e "${BLUE}   → Archivos de sonido encontrados, copiando...${NC}"
+            echo -e "${BLUE}   → Archivos encontrados, copiando a $SOUNDS_DIR/bigsur/stereo...${NC}"
             mkdir -p "$SOUNDS_DIR/bigsur/stereo" 2>/dev/null || true
             
-            # Copiar todos los archivos de sonido
-            find "$ALT_REPO" -name "*.oga" -o -name "*.ogg" 2>/dev/null | while read -r sound_file; do
+            # Copiar todos los archivos .oga
+            find "$ALT_REPO" -name "*.oga" 2>/dev/null | while read -r sound_file; do
                 cp "$sound_file" "$SOUNDS_DIR/bigsur/stereo/" 2>/dev/null || true
             done
             
-            # Crear index.theme básico
+            # Crear index.theme
             cat > "$SOUNDS_DIR/bigsur/index.theme" << 'EOF' 2>/dev/null || true
 [Sound Theme]
 Name=Big Sur
@@ -478,8 +475,6 @@ EOF
             echo -e "${GREEN}   ✅ Sonidos copiados manualmente desde repositorio${NC}"
         else
             echo -e "${YELLOW}   ⚠️  No se encontraron archivos de sonido en el repositorio${NC}"
-            echo -e "${BLUE}   → Estructura del repositorio:${NC}"
-            ls -la "$ALT_REPO" 2>/dev/null | head -10
         fi
     else
         echo -e "${YELLOW}   ⚠️  No se pudo clonar el repositorio${NC}"
@@ -487,12 +482,16 @@ EOF
 fi
 
 # Verificación final
-if [ -d "$SOUNDS_DIR/bigsur" ] || [ -d "$SOUNDS_DIR/bigsur-sound-theme" ]; then
+if [ -d "$SOUNDS_DIR/bigsur" ]; then
     SOUND_INSTALLED=true
-    echo -e "${GREEN}   ✅ Directorio de sonidos encontrado${NC}"
+    echo -e "${GREEN}   ✅ Directorio de sonidos verificado en: $SOUNDS_DIR/bigsur${NC}"
+    
+    # Ajustar permisos para el usuario real
+    if [ -n "$SUDO_USER" ]; then
+        chown -R "$SUDO_USER:$SUDO_USER" "$SOUNDS_DIR/bigsur" 2>/dev/null || true
+    fi
 else
     echo -e "${YELLOW}   ⚠️  No se pudieron instalar los sonidos${NC}"
-    echo -e "${YELLOW}      Puedes instalarlos manualmente después si lo deseas${NC}"
 fi
 
 echo ""
