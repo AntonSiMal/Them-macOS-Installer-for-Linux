@@ -50,8 +50,8 @@ echo -e "${RED}╚════════════════════�
 echo ""
 echo -e "${YELLOW}ADVERTENCIA:${NC}"
 echo -e "Este script eliminará todos los temas, iconos, fuentes, sonidos,"
-echo -e "extensiones, scripts y configuraciones instalados por el instalador."
-echo -e "Tu escritorio volverá a su estado original."
+echo -e "extensiones, scripts, aplicaciones personalizadas y configuraciones"
+echo -e "instalados por el instalador. Tu escritorio volverá a su estado original."
 echo ""
 
 if [ "$AUTO_CLEANUP" = false ]; then
@@ -86,9 +86,9 @@ IS_GNOME=false; IS_CINNAMON=false
 # =============================================================================
 # 2. ELIMINAR ARCHIVOS, SCRIPTS Y CONFIGURACIONES
 # =============================================================================
-echo -e "${YELLOW}🗑️  [1/8] Eliminando archivos, scripts y configuraciones...${NC}"
+echo -e "${YELLOW}🗑️  [1/9] Eliminando archivos, scripts y configuraciones...${NC}"
 
-# 2.1. Scripts auxiliares y servicios (Nuevos)
+# 2.1. Scripts auxiliares y servicios
 rm -f "$REAL_HOME/.local/bin/about-this-mac.sh"
 rm -f "$REAL_HOME/.local/bin/auto-dark-mode.sh"
 rm -f "$REAL_HOME/.config/systemd/user/auto-dark-mode.service"
@@ -150,14 +150,60 @@ rm -f "$REAL_HOME/.config/xfce4/terminal/terminalrc"
 rm -rf "$REAL_HOME/.macos-theme-setup"
 rm -f "$REAL_HOME/.macos-keybindings.md"
 
-echo -e "${GREEN}✅ Archivos y configuraciones eliminados.${NC}"
+# 2.9. Aplicaciones Personalizadas (Paso 12: Safari, Apple Music, LocalSend, Apple TV)
+echo -e "${BLUE}      → Limpiando personalizaciones de aplicaciones (Paso 12)...${NC}"
+
+# Desinstalar paquetes si fueron instalados vía gestor
+sudo apt-get remove -y -qq zuno localsend iptvnator 2>/dev/null || true
+sudo dnf remove -y -q zuno localsend iptvnator 2>/dev/null || true
+sudo pacman -Rns --noconfirm zuno localsend-bin iptvnator-bin 2>/dev/null || true
+
+# Eliminar binarios locales (Fallback de AppImage)
+rm -f "$REAL_HOME/.local/bin/zuno"
+rm -f "$REAL_HOME/.local/bin/localsend"
+rm -f "$REAL_HOME/.local/bin/iptvnator"
+
+# Eliminar lanzadores personalizados
+rm -f "$REAL_HOME/.local/share/applications/safari.desktop"
+rm -f "$REAL_HOME/.local/share/applications/applemusic.desktop"
+rm -f "$REAL_HOME/.local/share/applications/appletv.desktop"
+rm -f "$REAL_HOME/.local/share/applications/localsend.desktop"
+
+# Eliminar archivos "Hidden=true" que ocultaban los lanzadores originales
+rm -f "$REAL_HOME/.local/share/applications/firefox.desktop"
+rm -f "$REAL_HOME/.local/share/applications/firefox-esr.desktop"
+rm -f "$REAL_HOME/.local/share/applications/org.mozilla.firefox.desktop"
+rm -f "$REAL_HOME/.local/share/applications/zuno.desktop"
+rm -f "$REAL_HOME/.local/share/applications/com.zuno.desktop.desktop"
+rm -f "$REAL_HOME/.local/share/applications/iptvnator.desktop"
+rm -f "$REAL_HOME/.local/share/applications/com.github.4gray.iptvnator.desktop"
+
+# Eliminar iconos personalizados descargados
+rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg"
+rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg"
+rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg"
+
+# Eliminar configuración de IPTVnator (Apple TV)
+rm -rf "$REAL_HOME/.config/iptvnator"
+
+# Limpiar reglas de firewall de LocalSend
+if command -v ufw &> /dev/null; then
+    sudo ufw delete allow 53317/tcp 2>/dev/null || true
+    sudo ufw delete allow 53317/udp 2>/dev/null || true
+fi
+if command -v firewall-cmd &> /dev/null; then
+    sudo firewall-cmd --permanent --remove-port=53317/tcp 2>/dev/null || true
+    sudo firewall-cmd --permanent --remove-port=53317/udp 2>/dev/null || true
+    sudo firewall-cmd --reload 2>/dev/null || true
+fi
+
+echo -e "${GREEN}✅ Archivos, configuraciones y apps personalizadas eliminados.${NC}"
 echo ""
 
 # =============================================================================
 # 3. RESTAURAR NOMBRE DEL EQUIPO (HOSTNAME)
 # =============================================================================
-echo -e "${YELLOW}💻 [2/8] Restableciendo nombre del equipo...${NC}"
-# Restauramos al nombre de usuario como valor seguro por defecto
+echo -e "${YELLOW}💻 [2/9] Restableciendo nombre del equipo...${NC}"
 sudo hostnamectl set-hostname "$REAL_USER" 2>/dev/null || true
 echo "$REAL_USER" | sudo tee /etc/hostname > /dev/null 2>/dev/null || true
 sudo sed -i "s/127.0.1.1.*/127.0.1.1\t$REAL_USER/g" /etc/hosts 2>/dev/null || true
@@ -168,7 +214,7 @@ echo ""
 # 4. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (GNOME)
 # =============================================================================
 if [ "$IS_GNOME" = true ]; then
-    echo -e "${YELLOW}⚙️  [3/8] Restaurando configuración de GNOME...${NC}"
+    echo -e "${YELLOW}⚙️  [3/9] Restaurando configuración de GNOME...${NC}"
     
     run_as_user gsettings reset org.gnome.desktop.interface gtk-theme
     run_as_user gsettings reset org.gnome.desktop.interface icon-theme
@@ -213,7 +259,7 @@ fi
 # 5. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (CINNAMON)
 # =============================================================================
 if [ "$IS_CINNAMON" = true ]; then
-    echo -e "${YELLOW}⚙️  [4/8] Restaurando configuración de Cinnamon...${NC}"
+    echo -e "${YELLOW}⚙️  [4/9] Restaurando configuración de Cinnamon...${NC}"
     
     run_as_user gsettings reset org.cinnamon.desktop.interface gtk-theme
     run_as_user gsettings reset org.cinnamon.desktop.interface icon-theme
@@ -236,7 +282,6 @@ if [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings reset org.cinnamon.desktop.effects minimize-effect
     run_as_user gsettings reset org.cinnamon.desktop.effects unminimize-effect
     
-    # Restaurar panel a su estado por defecto (elimina la configuración forzada de macOS)
     run_as_user gsettings reset org.cinnamon panels-enabled
     run_as_user gsettings reset org.cinnamon panel-height
     
@@ -251,7 +296,7 @@ fi
 # 6. RESTAURAR CONFIGURACIÓN DE ESCRITORIO (XFCE)
 # =============================================================================
 if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${YELLOW}⚙️  [5/8] Restaurando configuración de XFCE...${NC}"
+    echo -e "${YELLOW}⚙️  [5/9] Restaurando configuración de XFCE...${NC}"
     
     run_as_user xfconf-query -c xsettings -p /Net/ThemeName -r 2>/dev/null || true
     run_as_user xfconf-query -c xsettings -p /Net/IconThemeName -r 2>/dev/null || true
@@ -267,12 +312,10 @@ if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -r 2>/dev/null || true
     run_as_user xfconf-query -c xfwm4 -p /general/workspace_count -r 2>/dev/null || true
     
-    # Eliminar atajos de teclado personalizados de macOS
     for shortcut in "<Super>e" "<Super>a" "<Ctrl><Alt>t" "<Ctrl><Shift>Escape" "<Super>l" "<Ctrl><Alt>Delete" "<Ctrl>space" "<Ctrl><Alt>Escape" "<Ctrl>q" "<Super>c" "<Super>f" "<Super>v" "<Super>r" "<Super>o" "<Super><Ctrl>o" "<Super>i" "<Super><Shift>3" "<Super><Shift>4" "Print" "<Alt>Print" "<Shift>Print"; do
         run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$shortcut" -r 2>/dev/null || true
     done
     
-    # Restaurar notificaciones
     run_as_user xfconf-query -c xfce4-notifyd -p /theme -r 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -r 2>/dev/null || true
     
@@ -283,7 +326,7 @@ fi
 # =============================================================================
 # 7. RESTAURAR PLYMOUTH (PANTALLA DE ARRANQUE)
 # =============================================================================
-echo -e "${YELLOW}🖥️  [6/8] Restaurando pantalla de arranque (Plymouth)...${NC}"
+echo -e "${YELLOW}🖥️  [6/9] Restaurando pantalla de arranque (Plymouth)...${NC}"
 if [ -d /usr/share/plymouth/themes/apple-mac-plymouth ]; then
     sudo rm -rf /usr/share/plymouth/themes/apple-mac-plymouth
     sudo update-alternatives --auto default.plymouth 2>/dev/null || true
@@ -298,7 +341,7 @@ echo ""
 # =============================================================================
 # 8. RESTAURAR FIREFOX Y GDM
 # =============================================================================
-echo -e "${YELLOW}🦊 [7/8] Limpiando configuraciones de Firefox y GDM...${NC}"
+echo -e "${YELLOW}🦊 [7/9] Limpiando configuraciones profundas de Firefox y GDM...${NC}"
 rm -rf "$REAL_HOME/.mozilla/firefox/"*.default*/chrome 2>/dev/null || true
 rm -rf "$REAL_HOME/.var/app/org.mozilla.firefox/.mozilla/firefox/"*.default*/chrome 2>/dev/null || true
 
@@ -311,7 +354,13 @@ echo ""
 # =============================================================================
 # 9. LIMPIEZA FINAL DE PAQUETES
 # =============================================================================
-echo -e "${YELLOW}🧹 [8/8] Limpieza del sistema...${NC}"
+echo -e "${YELLOW}🧹 [8/9] Actualizando caché de escritorios e iconos...${NC}"
+run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
+run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
+echo -e "${GREEN}✅ Caché actualizado.${NC}"
+echo ""
+
+echo -e "${YELLOW}📦 [9/9] Limpieza de paquetes huérfanos del sistema...${NC}"
 if command -v apt-get &> /dev/null; then
     sudo apt-get autoremove -y -qq 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
@@ -319,7 +368,7 @@ elif command -v dnf &> /dev/null; then
 elif command -v pacman &> /dev/null; then
     sudo pacman -Rns --noconfirm $(pacman -Qdtq 2>/dev/null) 2>/dev/null || true
 fi
-echo -e "${GREEN}✅ Limpieza de paquetes huérfanos completada.${NC}"
+echo -e "${GREEN}✅ Limpieza de paquetes completada.${NC}"
 echo ""
 
 # =============================================================================
@@ -330,8 +379,9 @@ echo -e "${CYAN}║        🎉 ¡DESINSTALACIÓN COMPLETADA CON ÉXITO! 🎉   
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Tu sistema ha sido restaurado a su estado original.${NC}"
+echo -e "${GREEN}Se han eliminado las personalizaciones de Safari, Apple Music, LocalSend y Apple TV.${NC}"
 echo -e "${YELLOW}⚠️  IMPORTANTE: Debes ${RED}reiniciar el equipo${YELLOW} para que todos los cambios${NC}"
-echo -e "${YELLOW}   (especialmente Plymouth, nombre del equipo y configuraciones de sesión) surtan efecto.${NC}"
+echo -e "${YELLOW}   (especialmente Plymouth, nombre del equipo, firewall y configuraciones de sesión) surtan efecto.${NC}"
 echo ""
 
 if [ "$IS_GNOME" = true ]; then
