@@ -630,30 +630,35 @@ chmod +x "$ADVANCED_WM_SCRIPT"
 echo -e "${GREEN}✅ Script auxiliar creado.${NC}"
 echo ""
 
+
 # =============================================================================
 # PASO 15: CONFIGURACIÓN DEL SISTEMA Y ATAJO DE TECLADO
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/24] Configurando sistema y atajos de teclado macOS...${NC}"
 
+# Desactivar set -e temporalmente para evitar que un fallo detenga todo el paso
+set +e
+
 gnome_set_keybinding() {
     local name="${1:-}" command="${2:-}" binding="${3:-}" index="${4:-}"
     local PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${index}/"
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH name "$name" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH command "$command" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH binding "$binding" 2>/dev/null
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH name "$name" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH command "$command" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$PATH binding "$binding" 2>/dev/null || true
 }
 
 cinnamon_set_keybinding() {
     local name="${1:-}" command="${2:-}" binding="${3:-}" id="${4:-}"
     local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH name "$name" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH command "$command" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH binding "$binding" 2>/dev/null
+    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH name "$name" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH command "$command" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH binding "$binding" 2>/dev/null || true
 }
 
 xfce_set_keybinding() {
     local command="${1:-}" binding="${2:-}"
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -s "$command" 2>/dev/null
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || \
+        xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -s "$command" 2>/dev/null || true
 }
 
 if [ "$MOJAVE_INSTALLED" = true ]; then
@@ -665,31 +670,32 @@ else
 fi
 
 if [ "$IS_GNOME" = true ]; then
-    gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null
-    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null
-    gsettings set org.gnome.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { gsettings set org.gnome.desktop.interface font-name "$UI_FONT" 2>/dev/null; gsettings set org.gnome.desktop.interface document-font-name "$SERIF_FONT" 2>/dev/null; gsettings set org.gnome.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null; }
-    gsettings set org.gnome.shell.extensions.user-theme name "$SHELL_THEME" 2>/dev/null
-    [ -f "$WALLPAPER_PATH" ] && { gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null; gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null; }
-    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.gnome.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null; gsettings set org.gnome.desktop.sound event-sounds true 2>/dev/null; gsettings set org.gnome.desktop.sound input-feedback-sounds true 2>/dev/null; }
+    echo -e "${BLUE}   → Configurando GNOME...${NC}"
+    gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+    gsettings set org.gnome.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null || true
+    [ "$SF_INSTALLED" = true ] && { gsettings set org.gnome.desktop.interface font-name "$UI_FONT" 2>/dev/null || true; gsettings set org.gnome.desktop.interface document-font-name "$SERIF_FONT" 2>/dev/null || true; gsettings set org.gnome.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null || true; }
+    gsettings set org.gnome.shell.extensions.user-theme name "$SHELL_THEME" 2>/dev/null || true
+    [ -f "$WALLPAPER_PATH" ] && { gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true; gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true; }
+    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.gnome.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null || true; gsettings set org.gnome.desktop.sound event-sounds true 2>/dev/null || true; gsettings set org.gnome.desktop.sound input-feedback-sounds true 2>/dev/null || true; }
     
-    gsettings set org.gnome.desktop.wm.keybindings show-desktop "['<Super>d']" 2>/dev/null
-    gsettings set org.gnome.mutter.keybindings toggle-tiled-left "['<Super>Left']" 2>/dev/null
-    gsettings set org.gnome.mutter.keybindings toggle-tiled-right "['<Super>Right']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-1 "['<Super>1']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-2 "['<Super>2']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-3 "['<Super>3']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-1 "['<Super><Shift>1']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-2 "['<Super><Shift>2']" 2>/dev/null
-    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-3 "['<Super><Shift>3']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Ctrl><Alt>t']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys screenshot "['Print']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys window-screenshot "['<Alt>Print']" 2>/dev/null
-    gsettings set org.gnome.settings-daemon.plugins.media-keys area-screenshot "['<Shift>Print']" 2>/dev/null
+    gsettings set org.gnome.desktop.wm.keybindings show-desktop "['<Super>d']" 2>/dev/null || true
+    gsettings set org.gnome.mutter.keybindings toggle-tiled-left "['<Super>Left']" 2>/dev/null || true
+    gsettings set org.gnome.mutter.keybindings toggle-tiled-right "['<Super>Right']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-1 "['<Super>1']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-1 "['<Super><Shift>1']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-2 "['<Super><Shift>2']" 2>/dev/null || true
+    gsettings set org.gnome.desktop.wm.keybindings move-to-workspace-3 "['<Super><Shift>3']" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Ctrl><Alt>t']" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys screenshot "['Print']" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys window-screenshot "['<Alt>Print']" 2>/dev/null || true
+    gsettings set org.gnome.settings-daemon.plugins.media-keys area-screenshot "['<Shift>Print']" 2>/dev/null || true
     
     CUSTOM_PATHS=(); INDEX=0
     gnome_set_keybinding "Explorador" "nautilus" "<Super>e" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
@@ -710,36 +716,38 @@ if [ "$IS_GNOME" = true ]; then
     gnome_set_keybinding "Cerrar Sesión" "gnome-session-quit --logout --no-prompt" "<Ctrl><Alt>Delete" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
     gnome_set_keybinding "Apagar/Reiniciar" "gnome-session-quit --power-off" "<Ctrl><Alt>End" $INDEX; CUSTOM_PATHS+=("'/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${INDEX}/'"); INDEX=$((INDEX+1))
     
-    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$(IFS=,; echo "[${CUSTOM_PATHS[*]}]")" 2>/dev/null
+    CUSTOM_LIST=$(IFS=,; echo "[${CUSTOM_PATHS[*]}]")
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$CUSTOM_LIST" 2>/dev/null || true
     
-    command -v gnome-extensions &> /dev/null && { gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null; gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null; gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null; }
+    command -v gnome-extensions &> /dev/null && { gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true; gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true; gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null || true; }
     
     LG_SCHEMA="org.gnome.shell.extensions.liquid-glass"
-    gsettings list-schemas 2>/dev/null | grep -q "$LG_SCHEMA" && { gsettings set "$LG_SCHEMA" enable-top-bar true 2>/dev/null; gsettings set "$LG_SCHEMA" enable-dash-to-dock true 2>/dev/null; gsettings set "$LG_SCHEMA" enable-notifications true 2>/dev/null; }
+    gsettings list-schemas 2>/dev/null | grep -q "$LG_SCHEMA" && { gsettings set "$LG_SCHEMA" enable-top-bar true 2>/dev/null || true; gsettings set "$LG_SCHEMA" enable-dash-to-dock true 2>/dev/null || true; gsettings set "$LG_SCHEMA" enable-notifications true 2>/dev/null || true; }
     
     DOCK_SCHEMA="org.gnome.shell.extensions.dash-to-dock"
-    gsettings list-schemas 2>/dev/null | grep -q "$DOCK_SCHEMA" && { gsettings set "$DOCK_SCHEMA" dock-position 'BOTTOM' 2>/dev/null; gsettings set "$DOCK_SCHEMA" transparency-mode 'FIXED' 2>/dev/null; gsettings set "$DOCK_SCHEMA" background-opacity 0.4 2>/dev/null; }
+    gsettings list-schemas 2>/dev/null | grep -q "$DOCK_SCHEMA" && { gsettings set "$DOCK_SCHEMA" dock-position 'BOTTOM' 2>/dev/null || true; gsettings set "$DOCK_SCHEMA" transparency-mode 'FIXED' 2>/dev/null || true; gsettings set "$DOCK_SCHEMA" background-opacity 0.4 2>/dev/null || true; }
 
 elif [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]]; then
-    gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null
-    gsettings set org.cinnamon.theme name "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.wm.preferences theme "$GTK_THEME" 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null
-    gsettings set org.cinnamon.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.interface font-name "$UI_FONT" 2>/dev/null; gsettings set org.cinnamon.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null; }
-    [ -f "$WALLPAPER_PATH" ] && gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null
-    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null; gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null; }
+    echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
+    gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.theme name "$GTK_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.wm.preferences theme "$GTK_THEME" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.interface monospace-font-name "$MONO_FONT" 2>/dev/null || true
+    [ "$SF_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.interface font-name "$UI_FONT" 2>/dev/null || true; gsettings set org.cinnamon.desktop.wm.preferences titlebar-font "$UI_FONT" 2>/dev/null || true; }
+    [ -f "$WALLPAPER_PATH" ] && gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+    [ "$SOUND_INSTALLED" = true ] && { gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null || true; gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true; }
     
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-1 "['<Super>1']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-left "['<Ctrl><Alt>Left']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-right "['<Ctrl><Alt>Right']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm tile-left "['<Super>Left']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings.wm tile-right "['<Super>Right']" 2>/dev/null
-    gsettings set org.cinnamon.desktop.keybindings show-desktop "['<Super>d']" 2>/dev/null
+    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-1 "['<Super>1']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-left "['<Ctrl><Alt>Left']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-right "['<Ctrl><Alt>Right']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm tile-left "['<Super>Left']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings.wm tile-right "['<Super>Right']" 2>/dev/null || true
+    gsettings set org.cinnamon.desktop.keybindings show-desktop "['<Super>d']" 2>/dev/null || true
     
     CUSTOM_IDS=()
     cinnamon_set_keybinding "Explorador" "nemo" "<Super>e" "app-explorer"; CUSTOM_IDS+=("'app-explorer'")
@@ -763,19 +771,21 @@ elif [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKT
     cinnamon_set_keybinding "Cerrar Sesión" "cinnamon-session-quit --logout" "<Ctrl><Alt>Delete" "logout"; CUSTOM_IDS+=("'logout'")
     cinnamon_set_keybinding "Apagar" "cinnamon-session-quit --power-off" "<Ctrl><Alt>End" "poweroff"; CUSTOM_IDS+=("'poweroff'")
     
-    gsettings set org.cinnamon.desktop.keybindings custom-list "$(IFS=,; echo "[${CUSTOM_IDS[*]}]")" 2>/dev/null
-    gsettings set org.cinnamon panels-enabled "['1:0:bottom']" 2>/dev/null
+    CUSTOM_LIST=$(IFS=,; echo "[${CUSTOM_IDS[*]}]")
+    gsettings set org.cinnamon.desktop.keybindings custom-list "$CUSTOM_LIST" 2>/dev/null || true
+    gsettings set org.cinnamon panels-enabled "['1:0:bottom']" 2>/dev/null || true
 
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/ThemeName -s "$GTK_THEME" 2>/dev/null
-    xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$ICON_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICON_THEME" 2>/dev/null
-    xfconf-query -c xsettings -p /Net/CursorThemeName -n -t string -s "$CURSOR_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/CursorThemeName -s "$CURSOR_THEME" 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/theme -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xfwm4 -p /general/theme -s "$GTK_THEME" 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/show_dock_shadow -n -t bool -s false 2>/dev/null
-    xfconf-query -c xfwm4 -p /general/button_layout -n -t string -s "O|HMC" 2>/dev/null
-    [ "$SF_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Gtk/FontName -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/FontName -s "$UI_FONT" 2>/dev/null; xfconf-query -c xfwm4 -p /general/title_font -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xfwm4 -p /general/title_font -s "$UI_FONT" 2>/dev/null; }
-    xfconf-query -c xsettings -p /Gtk/MonospaceFontName -n -t string -s "$MONO_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/MonospaceFontName -s "$MONO_FONT" 2>/dev/null
-    [ "$SOUND_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Net/SoundThemeName -n -t string -s "$SOUND_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/SoundThemeName -s "$SOUND_THEME" 2>/dev/null; xfconf-query -c xsettings -p /Net/EnableEventSounds -n -t bool -s true 2>/dev/null; xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -n -t bool -s true 2>/dev/null; }
+    echo -e "${BLUE}   → Configurando XFCE...${NC}"
+    xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/ThemeName -s "$GTK_THEME" 2>/dev/null || true
+    xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$ICON_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICON_THEME" 2>/dev/null || true
+    xfconf-query -c xsettings -p /Net/CursorThemeName -n -t string -s "$CURSOR_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/CursorThemeName -s "$CURSOR_THEME" 2>/dev/null || true
+    xfconf-query -c xfwm4 -p /general/theme -n -t string -s "$GTK_THEME" 2>/dev/null || xfconf-query -c xfwm4 -p /general/theme -s "$GTK_THEME" 2>/dev/null || true
+    xfconf-query -c xfwm4 -p /general/show_dock_shadow -n -t bool -s false 2>/dev/null || true
+    xfconf-query -c xfwm4 -p /general/button_layout -n -t string -s "O|HMC" 2>/dev/null || true
+    [ "$SF_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Gtk/FontName -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/FontName -s "$UI_FONT" 2>/dev/null || true; xfconf-query -c xfwm4 -p /general/title_font -n -t string -s "$UI_FONT" 2>/dev/null || xfconf-query -c xfwm4 -p /general/title_font -s "$UI_FONT" 2>/dev/null || true; }
+    xfconf-query -c xsettings -p /Gtk/MonospaceFontName -n -t string -s "$MONO_FONT" 2>/dev/null || xfconf-query -c xsettings -p /Gtk/MonospaceFontName -s "$MONO_FONT" 2>/dev/null || true
+    [ "$SOUND_INSTALLED" = true ] && { xfconf-query -c xsettings -p /Net/SoundThemeName -n -t string -s "$SOUND_THEME" 2>/dev/null || xfconf-query -c xsettings -p /Net/SoundThemeName -s "$SOUND_THEME" 2>/dev/null || true; xfconf-query -c xsettings -p /Net/EnableEventSounds -n -t bool -s true 2>/dev/null || true; xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -n -t bool -s true 2>/dev/null || true; }
     
     xfce_set_keybinding "thunar" "<Super>e"
     xfce_set_keybinding "xfce4-settings-manager" "<Super>a"
@@ -796,31 +806,31 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     xfce_set_keybinding "xfce4-screenshooter -w" "<Alt>Print"
     xfce_set_keybinding "xfce4-screenshooter -r" "<Shift>Print"
     
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>m" -n -t string -s "hide_window_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>x" -n -t string -s "maximize_toggle_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Left" -n -t string -s "tile_left_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Right" -n -t string -s "tile_right_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Up" -n -t string -s "tile_up_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Down" -n -t string -s "tile_down_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/F11" -n -t string -s "fullscreen_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>1" -n -t string -s "workspace_1_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>2" -n -t string -s "workspace_2_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>3" -n -t string -s "workspace_3_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Left" -n -t string -s "left_workspace_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Right" -n -t string -s "right_workspace_key" 2>/dev/null
-    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>d" -n -t string -s "show_desktop_key" 2>/dev/null
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>m" -n -t string -s "hide_window_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>x" -n -t string -s "maximize_toggle_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Left" -n -t string -s "tile_left_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Right" -n -t string -s "tile_right_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Up" -n -t string -s "tile_up_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>Down" -n -t string -s "tile_down_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/F11" -n -t string -s "fullscreen_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>1" -n -t string -s "workspace_1_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>2" -n -t string -s "workspace_2_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>3" -n -t string -s "workspace_3_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Left" -n -t string -s "left_workspace_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Ctrl><Alt>Right" -n -t string -s "right_workspace_key" 2>/dev/null || true
+    xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>d" -n -t string -s "show_desktop_key" 2>/dev/null || true
     
-    [ -f "$WALLPAPER_PATH" ] && xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s "$WALLPAPER_PATH" 2>/dev/null || xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALLPAPER_PATH" 2>/dev/null
+    [ -f "$WALLPAPER_PATH" ] && xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -n -t string -s "$WALLPAPER_PATH" 2>/dev/null || xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$WALLPAPER_PATH" 2>/dev/null || true
     
     if ! command -v plank &> /dev/null; then
-        sudo apt-get install -y -qq plank 2>/dev/null || sudo dnf install -y -q plank 2>/dev/null || sudo pacman -S --noconfirm plank 2>/dev/null
+        sudo apt-get install -y -qq plank 2>/dev/null || sudo dnf install -y -q plank 2>/dev/null || sudo pacman -S --noconfirm plank 2>/dev/null || true
     fi
     if command -v plank &> /dev/null; then
         PLANK_DCONF="/net/launchpad/plank/docks/dock1"
-        dconf write "$PLANK_DCONF/theme" "'$PLANK_THEME'" 2>/dev/null
-        dconf write "$PLANK_DCONF/position" "'bottom'" 2>/dev/null
-        dconf write "$PLANK_DCONF/icon-size" "48" 2>/dev/null
-        dconf write "$PLANK_DCONF/hide-mode" "'intelligent'" 2>/dev/null
+        dconf write "$PLANK_DCONF/theme" "'$PLANK_THEME'" 2>/dev/null || true
+        dconf write "$PLANK_DCONF/position" "'bottom'" 2>/dev/null || true
+        dconf write "$PLANK_DCONF/icon-size" "48" 2>/dev/null || true
+        dconf write "$PLANK_DCONF/hide-mode" "'intelligent'" 2>/dev/null || true
         mkdir -p ~/.config/autostart
         cat > ~/.config/autostart/plank.desktop << 'EOF'
 [Desktop Entry]
@@ -834,6 +844,10 @@ EOF
         nohup plank > /dev/null 2>&1 &
     fi
 fi
+
+# Reactivar set -e
+set -e
+
 echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
