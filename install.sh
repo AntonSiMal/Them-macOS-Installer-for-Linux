@@ -590,15 +590,51 @@ fi
 echo ""
 
 # =============================================================================
-# PASO 12: TEMA DE FIREFOX
+# PASO 12: TEMA DE FIREFOX (WhiteSur Safari Theme)
 # =============================================================================
-echo -e "${YELLOW}🦊 [12/24] Instalando tema de Firefox...${NC}"
-if command -v firefox &> /dev/null || command -v firefox-bin &> /dev/null; then
-    pidof firefox &> /dev/null || pidof firefox-bin &> /dev/null && pkill -f firefox 2>/dev/null && sleep 2
-    ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./tweaks.sh -f > /dev/null 2>&1 )
-    echo -e "${GREEN}✅ Tema de Firefox instalado.${NC}"
+echo -e "${YELLOW}🦊 [12/24] Instalando tema de Firefox (Estilo Safari)...${NC}"
+
+# Verificar si hay algún navegador basado en Firefox instalado
+HAS_FIREFOX=false
+command -v firefox &> /dev/null && HAS_FIREFOX=true
+command -v firefox-bin &> /dev/null && HAS_FIREFOX=true
+command -v flatpak &> /dev/null && flatpak list --columns=application 2>/dev/null | grep -q "org.mozilla.firefox" && HAS_FIREFOX=true
+command -v snap &> /dev/null && snap list firefox &> /dev/null && HAS_FIREFOX=true
+command -v librewolf &> /dev/null && HAS_FIREFOX=true
+command -v floorp &> /dev/null && HAS_FIREFOX=true
+
+if [ "$HAS_FIREFOX" = true ]; then
+    echo -e "${BLUE}   → Navegador compatible detectado. Preparando instalación...${NC}"
+    
+    # Cerrar navegadores en ejecución para evitar bloqueos de perfil
+    pkill -f "firefox" 2>/dev/null || true
+    pkill -f "librewolf" 2>/dev/null || true
+    pkill -f "floorp" 2>/dev/null || true
+    sleep 2
+    
+    # Clonar el repositorio del tema WhiteSur Firefox
+    FIREFOX_THEME_REPO="$WORKDIR/WhiteSur-firefox-theme"
+    if [ ! -d "$FIREFOX_THEME_REPO" ]; then
+        echo -e "${BLUE}   → Clonando WhiteSur Firefox Theme...${NC}"
+        git clone --depth=1 https://github.com/vinceliuice/WhiteSur-firefox-theme.git "$FIREFOX_THEME_REPO" -q 2>/dev/null
+    fi
+    
+    if [ -d "$FIREFOX_THEME_REPO" ]; then
+        echo -e "${BLUE}   → Aplicando tema 'Monterey' (Estilo Safari moderno)...${NC}"
+        
+        # Ejecutar el script de instalación como el usuario real para evitar instalar en /root
+        # Se usa la variante '-m' (Monterey) que es la más parecida a macOS moderno
+        # El script interno detecta automáticamente el perfil (estándar, flatpak o snap)
+        sudo -u "$REAL_USER" HOME="$REAL_HOME" "$FIREFOX_THEME_REPO/install.sh" -m > /dev/null 2>&1
+        
+        echo -e "${GREEN}   ✅ Tema de Firefox instalado correctamente.${NC}"
+        echo -e "${BLUE}   💡 Nota: Si usas Wayland y las esquinas de la ventana se ven rectas,${NC}"
+        echo -e "${BLUE}      ve a about:config y activa 'layers.acceleration.force-enabled'${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  No se pudo clonar el tema de Firefox.${NC}"
+    fi
 else
-    echo -e "${YELLOW}⏭️  Firefox no instalado.${NC}"
+    echo -e "${YELLOW}   ⏭️  Firefox, Librewolf o Floorp no detectados. Omitiendo.${NC}"
 fi
 echo ""
 
