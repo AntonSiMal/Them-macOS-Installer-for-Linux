@@ -851,27 +851,69 @@ set -e
 echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
+
 # =============================================================================
 # PASO 16: TEMATIZACIÓN QT Y QUICK LOOK (Vista Previa)
 # =============================================================================
 echo -e "${YELLOW}🎨 [16/24] Tematizando aplicaciones Qt y activando Quick Look...${NC}"
-if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment; then
-    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null
+
+# Desactivar set -e para evitar fallos silenciosos
+set +e
+
+# --- Parte 1: Configuración Qt ---
+echo -e "${BLUE}   → Configurando tematización Qt...${NC}"
+if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment 2>/dev/null; then
+    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null 2>&1 || true
+    echo -e "${GREEN}   ✓ Variable Qt añadida a /etc/environment${NC}"
+else
+    echo -e "${BLUE}   ✓ Variable Qt ya configurada${NC}"
 fi
-mkdir -p ~/.config/qt5ct
-cat > ~/.config/qt5ct/qt5ct.conf << 'EOF'
+
+mkdir -p "$HOME/.config/qt5ct" 2>/dev/null || true
+cat > "$HOME/.config/qt5ct/qt5ct.conf" << 'EOF' 2>/dev/null || true
 [Appearance]
 style=gtk2
 color_scheme_path=
 icon_theme=MacTahoe-dark
 EOF
+echo -e "${GREEN}   ✓ Configuración qt5ct creada${NC}"
+
+# --- Parte 2: Quick Look ---
+echo -e "${BLUE}   → Configurando Quick Look...${NC}"
 
 if [ "$IS_GNOME" = true ]; then
-    sudo apt-get install -y -qq sushi 2>/dev/null || sudo dnf install -y -q sushi 2>/dev/null || sudo pacman -S --noconfirm sushi 2>/dev/null
+    echo -e "${BLUE}   → Detectado GNOME, buscando gnome-sushi...${NC}"
+    
+    # Intentar instalar gnome-sushi (nombre correcto en Ubuntu/Zorin)
+    if sudo apt-get install -y -qq gnome-sushi 2>/dev/null; then
+        echo -e "${GREEN}   ✓ gnome-sushi instalado${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  gnome-sushi no disponible en repositorios${NC}"
+        
+        # Intentar con nombre alternativo
+        if sudo apt-get install -y -qq sushi 2>/dev/null; then
+            echo -e "${GREEN}   ✓ sushi instalado (nombre alternativo)${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Quick Look no pudo instalarse automáticamente${NC}"
+            echo -e "${YELLOW}      (Puedes instalarlo manualmente con: sudo apt install gnome-sushi)${NC}"
+        fi
+    fi
+elif [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Detectado Cinnamon/XFCE, buscando gloobus-preview...${NC}"
+    
+    if sudo apt-get install -y -qq gloobus-preview 2>/dev/null; then
+        echo -e "${GREEN}   ✓ gloobus-preview instalado${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  gloobus-preview no disponible${NC}"
+    fi
 else
-    sudo apt-get install -y -qq gloobus-preview 2>/dev/null || sudo dnf install -y -q gloobus-preview 2>/dev/null || sudo pacman -S --noconfirm gloobus-preview 2>/dev/null
+    echo -e "${YELLOW}   ⏭️  Quick Look omitido (entorno no detectado)${NC}"
 fi
-echo -e "${GREEN}✅ Qt tematizado y Quick Look instalado.${NC}"
+
+# Reactivar set -e
+set -e
+
+echo -e "${GREEN}✅ Qt tematizado y Quick Look configurado.${NC}"
 echo ""
 
 # =============================================================================
