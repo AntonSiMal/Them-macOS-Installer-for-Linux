@@ -119,34 +119,26 @@ HAS_DASH_TO_DOCK=false
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (MODO NO INTERACTIVO)
+# PASO 1: DEPENDENCIAS DEL SISTEMA (100% NO INTERACTIVO)
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 
-# Variable clave: evita pantallas de configuración interactivas de apt
+# Forzar modo no interactivo a nivel de sistema para este script
 export DEBIAN_FRONTEND=noninteractive
 
 if command -v apt-get &> /dev/null; then
-    echo -e "${BLUE}   → Actualizando repositorios...${NC}"
-    sudo apt-get update -qq
+    echo -e "${BLUE}   → Actualizando repositorios (sin prompts)...${NC}"
+    sudo -E apt-get update -qq
     
-    echo -e "${BLUE}   → Instalando paquetes base...${NC}"
-    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+    echo -e "${BLUE}   → Instalando paquetes base (esto puede tardar un momento)...${NC}"
+    sudo -E apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
-        qt5ct qt6ct ruby libinput-tools \
-        clipit xfce4-clipman-plugin 2>/dev/null || true
-    
-    echo -e "${BLUE}   → Instalando Quick Look (Sushi)...${NC}"
-    sudo apt-get install -y -qq gnome-sushi 2>/dev/null || {
-        echo -e "${YELLOW}   ⚠️  No se pudo instalar gnome-sushi automáticamente.${NC}"
-        echo -e "${YELLOW}      (Es opcional. Puedes instalarlo después con: sudo apt install gnome-sushi)${NC}"
-    }
-    
-    echo -e "${BLUE}   → Instalando gestor de portapapeles...${NC}"
-    sudo apt-get install -y -qq gpaste 2>/dev/null || {
-        echo -e "${YELLOW}   ️  gpaste no disponible. Se usará la extensión de GNOME más adelante.${NC}"
+        qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi gpaste 2>/dev/null || {
+        
+        echo -e "${YELLOW}   ⚠️  Algunos paquetes opcionales no se pudieron instalar.${NC}"
+        echo -e "${YELLOW}      (No te preocupes, el script continuá con el resto de la instalación)${NC}"
     }
 
 elif command -v dnf &> /dev/null; then
@@ -165,14 +157,12 @@ elif command -v pacman &> /dev/null; then
         xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
         clipit xfce4-clipman-plugin 2>/dev/null || true
 else
-    echo -e "${RED}    No se detectó un gestor de paquetes compatible (apt, dnf, pacman)${NC}"
+    echo -e "${RED}    No se detectó un gestor de paquetes compatible${NC}"
     exit 1
 fi
 
-# Restaurar el valor original
-unset DEBIAN_FRONTEND
-
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
+
 # =============================================================================
 # PASO 2: FUENTES OFICIALES DE APPLE (SFWindows WWDC26)
 # =============================================================================
@@ -463,9 +453,13 @@ echo ""
 echo -e "${YELLOW}🖥️  [11/24] Instalando tema Plymouth...${NC}"
 if command -v plymouth &> /dev/null || [ -d /usr/share/plymouth/themes ]; then
     [ ! -d "$WORKDIR/apple-mac-plymouth" ] && git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git "$WORKDIR/apple-mac-plymouth" -q
+    
     sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null
     sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null
-    echo "1" | sudo update-alternatives --config default.plymouth > /dev/null 2>&1
+    
+    # Usar --set en lugar de --config para evitar el menú interactivo morado
+    sudo update-alternatives --set default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 2>/dev/null || true
+    
     command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1
     command -v dracut &> /dev/null && sudo dracut --force > /dev/null 2>&1
     echo -e "${GREEN}✅ Tema Plymouth instalado.${NC}"
