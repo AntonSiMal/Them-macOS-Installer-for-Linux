@@ -1210,42 +1210,77 @@ echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
 CRITICAL_ERRORS=0
 OPTIONAL_ERRORS=0
 
-# Verificar fuentes (instaladas en REAL_HOME)
-if ! sudo -u "$REAL_USER" fc-list 2>/dev/null | grep -q "SF Pro"; then
-    echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no instaladas${NC}"
-    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+# Detectar usuario real
+if [ -n "$SUDO_USER" ]; then
+    REAL_HOME=$(eval echo "~$SUDO_USER")
 else
-    echo -e "   ${GREEN}✓ Fuentes Apple instaladas${NC}"
+    REAL_HOME="$HOME"
 fi
 
-# Verificar tema GTK (puede estar en REAL_HOME o en /usr/share)
+echo -e "${BLUE}   Verificando en: $REAL_HOME${NC}"
+echo ""
+
+# Verificar fuentes (buscar en múltiples ubicaciones)
+echo -e "${BLUE}   → Verificando fuentes Apple...${NC}"
+FONTS_FOUND=false
+
+# Buscar en home del usuario real
+if [ -d "$REAL_HOME/.local/share/fonts" ] && sudo -u "$SUDO_USER" fc-list 2>/dev/null | grep -qi "SF Pro"; then
+    FONTS_FOUND=true
+fi
+
+# Buscar en sistema
+if [ -d "/usr/local/share/fonts" ] && fc-list 2>/dev/null | grep -qi "SF Pro"; then
+    FONTS_FOUND=true
+fi
+
+# Buscar archivos directamente
+if find "$REAL_HOME/.local/share/fonts" /usr/local/share/fonts /usr/share/fonts -name "SF-Pro*" 2>/dev/null | grep -q "SF-Pro"; then
+    FONTS_FOUND=true
+fi
+
+if [ "$FONTS_FOUND" = true ]; then
+    echo -e "   ${GREEN}✓ Fuentes Apple instaladas${NC}"
+else
+    echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no encontradas${NC}"
+    CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
+fi
+
+# Verificar tema GTK
+echo -e "${BLUE}   → Verificando tema GTK...${NC}"
 THEME_FOUND=false
 [ -d "$REAL_HOME/.themes/MacTahoe-Dark" ] && THEME_FOUND=true
 [ -d "$REAL_HOME/.local/share/themes/MacTahoe-Dark" ] && THEME_FOUND=true
 [ -d "/usr/share/themes/MacTahoe-Dark" ] && THEME_FOUND=true
 
-if [ "$THEME_FOUND" = false ]; then
+if [ "$THEME_FOUND" = true ]; then
+    echo -e "   ${GREEN}✓ Tema GTK instalado${NC}"
+else
     echo -e "   ${RED}✗ CRÍTICO: Tema GTK no instalado${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-else
-    echo -e "   ${GREEN}✓ Tema GTK instalado${NC}"
 fi
 
 # Verificar iconos y cursores
+echo -e "${BLUE}   → Verificando iconos y cursores...${NC}"
 ICONS_FOUND=false
 [ -d "$REAL_HOME/.icons/MacTahoe-dark" ] && ICONS_FOUND=true
 [ -d "$REAL_HOME/.local/share/icons/MacTahoe-dark" ] && ICONS_FOUND=true
 [ -d "/usr/share/icons/MacTahoe-dark" ] && ICONS_FOUND=true
 
-if [ "$ICONS_FOUND" = false ]; then
+if [ "$ICONS_FOUND" = true ]; then
+    echo -e "   ${GREEN}✓ Iconos y cursores instalados${NC}"
+else
     echo -e "   ${RED}✗ CRÍTICO: Iconos y cursores no instalados${NC}"
     CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
-else
-    echo -e "   ${GREEN}✓ Iconos y cursores instalados${NC}"
 fi
 
 # Verificar sonidos
-if [ -d "$REAL_HOME/.local/share/sounds/bigsur" ] || [ -d "/usr/share/sounds/bigsur" ]; then
+echo -e "${BLUE}   → Verificando sonidos...${NC}"
+SOUNDS_FOUND=false
+[ -d "$REAL_HOME/.local/share/sounds/bigsur" ] && SOUNDS_FOUND=true
+[ -d "/usr/share/sounds/bigsur" ] && SOUNDS_FOUND=true
+
+if [ "$SOUNDS_FOUND" = true ]; then
     echo -e "   ${GREEN}✓ Sonidos instalados${NC}"
 else
     echo -e "   ${RED}✗ CRÍTICO: Sonidos del sistema no instalados${NC}"
@@ -1253,15 +1288,16 @@ else
 fi
 
 # Verificaciones opcionales
-if [ ! -f "$REAL_HOME/.local/bin/rofi-spotlight-launcher" ]; then
+echo -e "${BLUE}   → Verificando componentes opcionales...${NC}"
+
+if [ -f "$REAL_HOME/.local/bin/rofi-spotlight-launcher" ]; then
+    echo -e "   ${GREEN}✓ Rofi Spotlight instalado${NC}"
+else
     echo -e "   ${YELLOW}⚠ OPCIONAL: Rofi Spotlight no instalado${NC}"
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
-else
-    echo -e "   ${GREEN}✓ Rofi Spotlight instalado${NC}"
 fi
 
-# Verificar Fusuma (servicio del usuario real)
-if sudo -u "$REAL_USER" systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
+if sudo -u "$SUDO_USER" systemctl --user is-active --quiet fusuma.service 2>/dev/null; then
     echo -e "   ${GREEN}✓ Gestos Fusuma activos${NC}"
 else
     echo -e "   ${YELLOW}⚠ OPCIONAL: Gestos Fusuma no activos${NC}"
@@ -1269,17 +1305,17 @@ else
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
 fi
 
-if ! command -v sushi &> /dev/null && ! command -v gloobus-preview &> /dev/null; then
+if command -v sushi &> /dev/null || command -v gloobus-preview &> /dev/null; then
+    echo -e "   ${GREEN}✓ Quick Look disponible${NC}"
+else
     echo -e "   ${YELLOW}⚠ OPCIONAL: Quick Look no disponible${NC}"
     OPTIONAL_ERRORS=$((OPTIONAL_ERRORS + 1))
-else
-    echo -e "   ${GREEN}✓ Quick Look disponible${NC}"
 fi
 
 echo ""
 
 # =============================================================================
-# TOMA DE DECISIÓN AUTOMÁTICA
+# TOMA DE DECISIÓN
 # =============================================================================
 if [ "$CRITICAL_ERRORS" -gt 0 ]; then
     echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
@@ -1303,7 +1339,7 @@ if [ "$CRITICAL_ERRORS" -gt 0 ]; then
     
 elif [ "$OPTIONAL_ERRORS" -gt 0 ]; then
     echo -e "${YELLOW}╔══════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${YELLOW}║   ⚠️  INSTALACIÓN COMPLETADA CON ADVERTENCIAS           ║${NC}"
+    echo -e "${YELLOW}║   ️  INSTALACIÓN COMPLETADA CON ADVERTENCIAS           ║${NC}"
     echo -e "${YELLOW}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${GREEN}✅ Los componentes críticos se instalaron correctamente.${NC}"
@@ -1316,17 +1352,13 @@ else
     echo ""
 fi
 
-# =============================================================================
-# DESACTIVAR TRAMPA DE ERROR (Solo si no hubo fallos críticos)
-# =============================================================================
+# Desactivar trampa de error
 if [ "$CRITICAL_ERRORS" -eq 0 ]; then
     INSTALLATION_SUCCESS=true
     trap - ERR
 fi
 
-# =============================================================================
-# MENSAJE FINAL (Solo si no hubo rollback)
-# =============================================================================
+# Mensaje final
 if [ "$CRITICAL_ERRORS" -eq 0 ]; then
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
     if [ "$OPTIONAL_ERRORS" -eq 0 ]; then
@@ -1337,7 +1369,7 @@ if [ "$CRITICAL_ERRORS" -eq 0 ]; then
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${GREEN}✨ Tu sistema Linux ahora tiene la experiencia ULTIMA de macOS Tahoe.${NC}"
-    echo -e "${YELLOW}⚠️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
+    echo -e "${YELLOW}️  IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto:${NC}"
     echo -e "${YELLOW}   • Permisos del grupo 'input' (para los gestos Fusuma)${NC}"
     echo -e "${YELLOW}   • Configuración de aplicaciones Qt${NC}"
     echo -e "${YELLOW}   • Tema de arranque Plymouth (si fue instalado)${NC}"
