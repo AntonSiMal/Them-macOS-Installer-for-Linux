@@ -119,30 +119,39 @@ HAS_DASH_TO_DOCK=false
 [ -d "/usr/share/gnome-shell/extensions/dash-to-dock@micxgx.gmail.com" ] && HAS_DASH_TO_DOCK=true
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA
+# PASO 1: DEPENDENCIAS DEL SISTEMA (CON DEBUG)
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
+
 if command -v apt-get &> /dev/null; then
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
+    echo -e "${BLUE}   → Actualizando repositorios...${NC}"
+    sudo apt-get update
+    echo -e "${BLUE}   → Instalando paquetes necesarios...${NC}"
+    sudo apt-get install -y git sassc libglib2.0-dev-bin libxml2-utils fontconfig \
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox \
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds \
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux \
         qt5ct qt6ct sushi ruby libinput-tools \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
 elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
+    echo -e "${BLUE}   → Instalando paquetes necesarios (Fedora)...${NC}"
+    sudo dnf install -y git sassc glib2-devel libxml2 fontconfig gnome-tweaks dconf \
         plymouth-theme-spinner firefox plank xorg-x11-server-utils python3-pillow curl \
         unzip wget jq gnome-backgrounds ffmpeg sox rofi fd-find python3-requests xdotool \
         wmctrl xorg-xprop xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
 elif command -v pacman &> /dev/null; then
+    echo -e "${BLUE}   → Instalando paquetes necesarios (Arch)...${NC}"
     sudo pacman -S --noconfirm --needed git sassc glib2 libxml2 fontconfig gnome-tweaks \
         dconf plymouth firefox plank xorg-xrandr python-pillow curl unzip wget jq \
         gnome-backgrounds ffmpeg sox rofi fd python-requests xdotool wmctrl xorg-xprop \
         xorg-xwininfo util-linux qt5ct qt6ct sushi ruby libinput \
-        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin 2>/dev/null
+        gnome-shell-extension-clipboard-indicator clipit xfce4-clipman-plugin
+else
+    echo -e "${RED}    No se detectó un gestor de paquetes compatible (apt, dnf, pacman)${NC}"
+    exit 1
 fi
+
 echo -e "${GREEN}✅ Dependencias listas.${NC}"
 
 # =============================================================================
