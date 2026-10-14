@@ -591,107 +591,63 @@ fi
 echo ""
 
 # =============================================================================
-# PASO 12: NAVEGADORES, STREAMING Y HERRAMIENTAS DE RED (Safari, Apple Music, LocalSend, Apple TV)
+# PASO 12: NAVEGADORES, STREAMING Y HERRAMIENTAS DE RED
 # =============================================================================
 echo -e "${YELLOW}🌐🎵📡 [12/24] Configurando aplicaciones de escritorio y red...${NC}"
 
-# Preparar directorios de usuario para personalizaciones (evita repetir esto en cada subpaso)
-mkdir -p ~/.local/share/applications
-mkdir -p ~/.local/share/icons/hicolor/256x256/apps
-mkdir -p ~/.local/bin
+# CRÍTICO: Usar $REAL_HOME en lugar de ~ para evitar que se guarde en /root/
+mkdir -p "$REAL_HOME/.local/share/applications"
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$REAL_HOME/.local/bin"
 
 # =============================================================================
-# 12.1: FIREFOX -> SAFARI (CORREGIDO)
+# 12.1: FIREFOX -> SAFARI
 # =============================================================================
 echo -e "${BLUE}   → [12.1] Verificando y configurando Firefox (renombrado a Safari)...${NC}"
 if ! command -v firefox &> /dev/null; then
     echo -e "${BLUE}      → Firefox no detectado. Instalando...${NC}"
-    if command -v apt-get &> /dev/null; then
-        sudo apt-get install -y -qq firefox
-    elif command -v dnf &> /dev/null; then
-        sudo dnf install -y -q firefox
-    elif command -v pacman &> /dev/null; then
-        sudo pacman -S --noconfirm --needed firefox
+    if command -v apt-get &> /dev/null; then sudo apt-get install -y -qq firefox
+    elif command -v dnf &> /dev/null; then sudo dnf install -y -q firefox
+    elif command -v pacman &> /dev/null; then sudo pacman -S --noconfirm --needed firefox
     fi
-    echo -e "${GREEN}      ✅ Firefox instalado.${NC}"
-    
-    # Esperar a que se actualice la base de datos de aplicaciones
-    sleep 2
-    update-desktop-database /usr/share/applications 2>/dev/null || true
-else
-    echo -e "${GREEN}      ✅ Firefox ya está instalado.${NC}"
 fi
 
-# Buscar el archivo .desktop de Firefox (ampliado para más rutas)
 ORIGINAL_FF_DESKTOP=""
-for path in "/usr/share/applications/firefox.desktop" \
-            "/usr/share/applications/firefox-esr.desktop" \
-            "/usr/share/applications/org.mozilla.firefox.desktop" \
-            "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop" \
-            "$REAL_HOME/.local/share/applications/firefox.desktop" \
-            "$REAL_HOME/.var/app/org.mozilla.firefox.desktop"; do
-    if [ -f "$path" ]; then
-        ORIGINAL_FF_DESKTOP="$path"
-        echo -e "${BLUE}      → Archivo .desktop encontrado en: $path${NC}"
-        break
-    fi
+for path in "/usr/share/applications/firefox.desktop" "/usr/share/applications/firefox-esr.desktop" "/usr/share/applications/org.mozilla.firefox.desktop" "/var/lib/flatpak/exports/share/applications/org.mozilla.firefox.desktop"; do
+    [ -f "$path" ] && ORIGINAL_FF_DESKTOP="$path" && break
 done
 
 if [ -n "$ORIGINAL_FF_DESKTOP" ]; then
-    # Descargar icono de Safari
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" \
-        "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
-    
-    # Crear nuevo archivo .desktop para Safari
+    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
     cp "$ORIGINAL_FF_DESKTOP" "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^Name=.*/Name=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^GenericName=.*/GenericName=Navegador Web Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^Icon=.*/Icon=safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
-    
-    # Ocultar el lanzador original
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ORIGINAL_FF_DESKTOP")"
-    
-    # Actualizar caché
-    update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-    
     echo -e "${GREEN}      ✅ Firefox renombrado a 'Safari'.${NC}"
 else
-    echo -e "${YELLOW}      ⚠️  No se encontró el archivo .desktop de Firefox. Creando uno manualmente...${NC}"
-    
-    # Crear archivo .desktop manualmente
+    # Fallback manual si no se encuentra el .desktop
     cat > "$REAL_HOME/.local/share/applications/safari.desktop" << 'EOF'
 [Desktop Entry]
 Version=1.0
 Name=Safari
 GenericName=Navegador Web Safari
-Comment=Accede a Internet
 Exec=firefox %u
 Icon=safari
 Terminal=false
 Type=Application
 Categories=Network;WebBrowser;
-MimeType=text/html;text/xml;application/xhtml+xml;application/xml;application/rss+xml;application/rdf+xml;image/gif;image/jpeg;image/png;x-scheme-handler/http;x-scheme-handler/https;
-StartupNotify=true
 EOF
-    
-    # Descargar icono
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" \
-        "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
-    
-    update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-    
+    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
     echo -e "${GREEN}      ✅ Safari creado manualmente.${NC}"
 fi
 
 # =============================================================================
-# 12.5: ZUNO -> APPLE MUSIC - CORREGIDO
+# 12.5: ZUNO -> APPLE MUSIC
 # =============================================================================
 echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
 
-# Codecs GStreamer (críticos para que Zuno reproduzca audio)
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
 elif command -v dnf &> /dev/null; then
@@ -700,150 +656,70 @@ elif command -v pacman &> /dev/null; then
     sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad
 fi
 
-# Detectar arquitectura
 ARCH=$(uname -m)
-[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_RPM="x86_64"; ARCH_APPIMAGE="x86_64"; }
-[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_RPM="aarch64"; ARCH_APPIMAGE="aarch64"; }
+[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_APPIMAGE="x86_64"; }
+[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_APPIMAGE="aarch64"; }
 
 ZUNO_INSTALLED=false
+LATEST_RELEASE=$(curl -s --max-time 10 https://api.github.com/repos/noFAYZ/zuno/releases/latest 2>/dev/null)
+LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
 
-# Intentar instalar desde repositorios oficiales primero
-echo -e "${BLUE}      → Intentando instalación desde repositorios oficiales...${NC}"
-if command -v apt-get &> /dev/null; then
-    if sudo apt-get install -y -qq zuno 2>/dev/null; then
-        ZUNO_INSTALLED=true
-        echo -e "${GREEN}      ✓ Zuno instalado desde repositorios${NC}"
-    fi
-elif command -v dnf &> /dev/null; then
-    if sudo dnf install -y -q zuno 2>/dev/null; then
-        ZUNO_INSTALLED=true
-        echo -e "${GREEN}      ✓ Zuno instalado desde repositorios${NC}"
-    fi
-elif command -v pacman &> /dev/null; then
-    if sudo pacman -S --noconfirm --needed zuno 2>/dev/null; then
-        ZUNO_INSTALLED=true
-        echo -e "${GREEN}      ✓ Zuno instalado desde repositorios${NC}"
+if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null && ZUNO_INSTALLED=true
     fi
 fi
 
-# Si no se instaló desde repos, intentar desde GitHub
+# FALLBACK ROBUSTO A APPIMAGE SI EL .DEB FALLA
 if [ "$ZUNO_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Descargando desde GitHub...${NC}"
-    
-    LATEST_RELEASE=$(curl -s --max-time 15 https://api.github.com/repos/noFAYZ/zuno/releases/latest 2>/dev/null)
-    LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
-    
-    if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
-        echo -e "${BLUE}      → Última versión detectada: $LATEST_VERSION${NC}"
-        
-        if command -v apt-get &> /dev/null; then
-            DEB_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
-            if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $DEB_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null; then
-                    if sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null; then
-                        ZUNO_INSTALLED=true
-                        echo -e "${GREEN}      ✓ Zuno instalado desde GitHub (.deb)${NC}"
-                    fi
-                fi
-            fi
-        elif command -v dnf &> /dev/null; then
-            RPM_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
-            if [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $RPM_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/zuno.rpm "$RPM_URL" 2>/dev/null; then
-                    if sudo dnf install -y -q /tmp/zuno.rpm 2>/dev/null; then
-                        ZUNO_INSTALLED=true
-                        echo -e "${GREEN}      ✓ Zuno instalado desde GitHub (.rpm)${NC}"
-                    fi
-                fi
-            fi
-        fi
-        
-        # Fallback a AppImage
-        if [ "$ZUNO_INSTALLED" = false ]; then
-            APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando AppImage: $APPIMAGE_URL${NC}"
-                mkdir -p "$REAL_HOME/.local/bin"
-                if wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null; then
-                    chmod +x "$REAL_HOME/.local/bin/zuno"
-                    ZUNO_INSTALLED=true
-                    echo -e "${GREEN}      ✓ Zuno instalado como AppImage${NC}"
-                fi
-            fi
-        fi
+    echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+    if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null
     else
-        echo -e "${YELLOW}      ⚠️  No se pudo consultar la API de GitHub.${NC}"
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_x86_64.AppImage" 2>/dev/null
     fi
+    chmod +x "$REAL_HOME/.local/bin/zuno"
+    ZUNO_INSTALLED=true
+    echo -e "${GREEN}      ✅ Zuno instalado como AppImage.${NC}"
 fi
 
-# Transformar Zuno a Apple Music
-if [ "$ZUNO_INSTALLED" = true ]; then
-    # Buscar el archivo .desktop
-    ZUNO_DESKTOP=""
-    for path in "/usr/share/applications/zuno.desktop" \
-                "/usr/share/applications/com.zuno.desktop.desktop" \
-                "/usr/share/applications/com.zuno.desktop-app.desktop" \
-                "$REAL_HOME/.local/share/applications/zuno.desktop" \
-                "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
-        if [ -f "$path" ]; then
-            ZUNO_DESKTOP="$path"
-            echo -e "${BLUE}      → Archivo .desktop encontrado en: $path${NC}"
-            break
-        fi
-    done
-    
-    # Descargar icono de Apple Music
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" \
-        "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
-    
-    if [ -n "$ZUNO_DESKTOP" ]; then
-        mkdir -p "$REAL_HOME/.local/share/applications"
-        cp "$ZUNO_DESKTOP" "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        sed -i 's/^GenericName=.*/GenericName=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        sed -i 's/^Icon=.*/Icon=applemusic/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-        
-        # Ocultar el lanzador original
-        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ZUNO_DESKTOP")"
-        
-        echo -e "${GREEN}      ✓ Zuno renombrado a 'Apple Music'.${NC}"
-    else
-        # Crear archivo .desktop manualmente
-        mkdir -p "$REAL_HOME/.local/share/applications"
-        cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
+# Transformar a Apple Music
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+
+ZUNO_DESKTOP=""
+for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "$REAL_HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
+    [ -f "$path" ] && ZUNO_DESKTOP="$path" && break
+done
+
+if [ -n "$ZUNO_DESKTOP" ]; then
+    cp "$ZUNO_DESKTOP" "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^GenericName=.*/GenericName=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's/^Icon=.*/Icon=applemusic/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ZUNO_DESKTOP")"
+else
+    cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
 [Desktop Entry]
 Name=Apple Music
 GenericName=Apple Music
-Comment=Reproductor de música
-Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $REAL_HOME/.local/bin/zuno %U
 Icon=applemusic
 Type=Application
 Categories=Audio;Music;Player;AudioVideo;
 Terminal=false
-MimeType=x-scheme-handler/music;
 EOF
-        echo -e "${GREEN}      ✓ Apple Music creado manualmente.${NC}"
-    fi
-    
-    # Actualizar cachés
-    update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-    
-    echo -e "${GREEN}      ✅ Apple Music configurado correctamente.${NC}"
-else
-    echo -e "${RED}      ❌ No se pudo instalar Zuno.${NC}"
 fi
+echo -e "${GREEN}      ✅ Zuno transformado a 'Apple Music'.${NC}"
 
 # =============================================================================
-# 12.6: LOCALSEND (AirDrop Open Source) - CORREGIDO
+# 12.6: LOCALSEND (AirDrop Open Source)
 # =============================================================================
 echo -e "${BLUE}   → [12.6] Instalando LocalSend y configurando red local...${NC}"
 
-# Dependencias de portal de escritorio
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk
 elif command -v dnf &> /dev/null; then
@@ -852,151 +728,48 @@ elif command -v pacman &> /dev/null; then
     sudo pacman -S --noconfirm --needed xdg-desktop-portal xdg-desktop-portal-gtk
 fi
 
-# Firewall (Puerto 53317 TCP/UDP)
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1
     sudo ufw allow 53317/udp >/dev/null 2>&1
-    echo -e "${GREEN}      ✓ Puerto 53317 abierto en el firewall${NC}"
 fi
 
-# Detectar arquitectura
-ARCH=$(uname -m)
-[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_RPM="x86_64"; ARCH_APPIMAGE="x86_64"; }
-[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_RPM="aarch64"; ARCH_APPIMAGE="aarch64"; }
+LS_INSTALLED=false
+LATEST_RELEASE_LS=$(curl -s --max-time 10 https://api.github.com/repos/localsend/localsend/releases/latest 2>/dev/null)
+LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
 
-LOCALSEND_INSTALLED=false
-
-# Intentar instalar desde repositorios oficiales primero
-echo -e "${BLUE}      → Intentando instalación desde repositorios oficiales...${NC}"
-if command -v apt-get &> /dev/null; then
-    if sudo apt-get install -y -qq localsend 2>/dev/null; then
-        LOCALSEND_INSTALLED=true
-        echo -e "${GREEN}      ✓ LocalSend instalado desde repositorios${NC}"
-    fi
-elif command -v dnf &> /dev/null; then
-    if sudo dnf install -y -q localsend 2>/dev/null; then
-        LOCALSEND_INSTALLED=true
-        echo -e "${GREEN}      ✓ LocalSend instalado desde repositorios${NC}"
-    fi
-elif command -v pacman &> /dev/null; then
-    if sudo pacman -S --noconfirm --needed localsend 2>/dev/null; then
-        LOCALSEND_INSTALLED=true
-        echo -e "${GREEN}      ✓ LocalSend instalado desde repositorios${NC}"
+if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
     fi
 fi
 
-# Si no se instaló desde repos, intentar desde GitHub
-if [ "$LOCALSEND_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Descargando desde GitHub...${NC}"
-    
-    # Intentar obtener la última versión desde la API
-    LATEST_RELEASE_LS=$(curl -s --max-time 15 https://api.github.com/repos/localsend/localsend/releases/latest 2>/dev/null)
-    LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
-    
-    if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
-        echo -e "${BLUE}      → Última versión detectada: $LATEST_VERSION_LS${NC}"
-        
-        if command -v apt-get &> /dev/null; then
-            DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
-            if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $DEB_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null; then
-                    if sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null; then
-                        LOCALSEND_INSTALLED=true
-                        echo -e "${GREEN}      ✓ LocalSend instalado desde GitHub (.deb)${NC}"
-                    fi
-                fi
-            fi
-        elif command -v dnf &> /dev/null; then
-            RPM_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
-            if [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $RPM_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/localsend.rpm "$RPM_URL" 2>/dev/null; then
-                    if sudo dnf install -y -q /tmp/localsend.rpm 2>/dev/null; then
-                        LOCALSEND_INSTALLED=true
-                        echo -e "${GREEN}      ✓ LocalSend instalado desde GitHub (.rpm)${NC}"
-                    fi
-                fi
-            fi
-        fi
-        
-        # Fallback a AppImage si falló la instalación por paquetes
-        if [ "$LOCALSEND_INSTALLED" = false ]; then
-            APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando AppImage: $APPIMAGE_URL${NC}"
-                mkdir -p "$REAL_HOME/.local/bin"
-                if wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null; then
-                    chmod +x "$REAL_HOME/.local/bin/localsend"
-                    LOCALSEND_INSTALLED=true
-                    echo -e "${GREEN}      ✓ LocalSend instalado como AppImage${NC}"
-                fi
-            fi
-        fi
+# FALLBACK ROBUSTO A APPIMAGE
+if [ "$LS_INSTALLED" = false ]; then
+    echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+    if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null
     else
-        echo -e "${YELLOW}      ⚠️  No se pudo consultar la API de GitHub. Usando versión estable...${NC}"
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null
     fi
+    chmod +x "$REAL_HOME/.local/bin/localsend"
+    LS_INSTALLED=true
+    echo -e "${GREEN}      ✅ LocalSend instalado como AppImage.${NC}"
 fi
 
-# Fallback final con URL directa conocida
-if [ "$LOCALSEND_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Usando URL de fallback estable...${NC}"
-    mkdir -p "$REAL_HOME/.local/bin"
-    FALLBACK_URL="https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage"
-    
-    if wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$FALLBACK_URL" 2>/dev/null; then
-        chmod +x "$REAL_HOME/.local/bin/localsend"
-        LOCALSEND_INSTALLED=true
-        echo -e "${GREEN}      ✓ LocalSend instalado desde fallback estable${NC}"
-    else
-        echo -e "${RED}      ❌ Fallo al descargar LocalSend desde todas las fuentes${NC}"
-    fi
-fi
-
-# Crear archivo .desktop si LocalSend se instaló
-if [ "$LOCALSEND_INSTALLED" = true ]; then
-    mkdir -p "$REAL_HOME/.local/share/applications"
-    
-    # Buscar el archivo .desktop existente
-    LOCALSEND_DESKTOP=""
-    for path in "/usr/share/applications/localsend.desktop" \
-                "$REAL_HOME/.local/share/applications/localsend.desktop" \
-                "/var/lib/flatpak/exports/share/applications/org.localsend.localsend_app.desktop"; do
-        if [ -f "$path" ]; then
-            LOCALSEND_DESKTOP="$path"
-            break
-        fi
-    done
-    
-    # Si no existe, crear uno
-    if [ -z "$LOCALSEND_DESKTOP" ]; then
-        cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
+# Crear .desktop manualmente para garantizar que se detecte
+cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
 [Desktop Entry]
 Name=LocalSend
-Comment=Comparte archivos con dispositivos cercanos
 Exec=$REAL_HOME/.local/bin/localsend %U
 Icon=localsend
 Type=Application
 Categories=Network;FileTransfer;
 Terminal=false
-MimeType=x-scheme-handler/localsend;
 EOF
-        echo -e "${GREEN}      ✓ Archivo .desktop creado para LocalSend${NC}"
-    fi
-    
-    # Descargar icono si no existe
-    if [ ! -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" ]; then
-        wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" \
-            "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/icon/512.png" 2>/dev/null || true
-    fi
-    
-    update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-    
-    echo -e "${GREEN}      ✅ LocalSend instalado y configurado correctamente.${NC}"
-else
-    echo -e "${RED}      ❌ No se pudo instalar LocalSend.${NC}"
-fi
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/icon/512.png" 2>/dev/null || true
+echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 
 # =============================================================================
 # 12.7: IPTVNATOR -> APPLE TV - CORREGIDO
