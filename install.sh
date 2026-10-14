@@ -810,6 +810,78 @@ echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplic
 echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV'.${NC}"
 
 # =============================================================================
+# 12.8: NAUTILUS/NEMO -> FINDER (Icono y nombre)
+# =============================================================================
+echo -e "${BLUE}   → [12.8] Transformando Nautilus/Nemo en Finder...${NC}"
+
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$REAL_HOME/.local/share/applications"
+
+# Descargar icono de Finder
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" \
+    "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || \
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" \
+    "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/apple.svg" 2>/dev/null || true
+
+# Para GNOME (Nautilus)
+if [ "$IS_GNOME" = true ]; then
+    NAUTILUS_DESKTOP=""
+    for path in "/usr/share/applications/org.gnome.Nautilus.desktop" \
+                "/usr/share/applications/nautilus.desktop" \
+                "$REAL_HOME/.local/share/applications/org.gnome.Nautilus.desktop"; do
+        [ -f "$path" ] && NAUTILUS_DESKTOP="$path" && break
+    done
+    
+    if [ -n "$NAUTILUS_DESKTOP" ]; then
+        cp "$NAUTILUS_DESKTOP" "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name=.*/Name=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Administrador de archivos/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$NAUTILUS_DESKTOP")"
+        echo -e "${GREEN}      ✅ Nautilus renombrado a 'Finder'.${NC}"
+    fi
+fi
+
+# Para Cinnamon (Nemo)
+if [ "$IS_CINNAMON" = true ]; then
+    NEMO_DESKTOP=""
+    for path in "/usr/share/applications/nemo.desktop" \
+                "$REAL_HOME/.local/share/applications/nemo.desktop"; do
+        [ -f "$path" ] && NEMO_DESKTOP="$path" && break
+    done
+    
+    if [ -n "$NEMO_DESKTOP" ]; then
+        cp "$NEMO_DESKTOP" "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name=.*/Name=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Administrador de archivos/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$NEMO_DESKTOP")"
+        echo -e "${GREEN}      ✅ Nemo renombrado a 'Finder'.${NC}"
+    fi
+fi
+
+# Para XFCE (Thunar)
+if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    THUNAR_DESKTOP=""
+    for path in "/usr/share/applications/thunar.desktop" \
+                "$REAL_HOME/.local/share/applications/thunar.desktop"; do
+        [ -f "$path" ] && THUNAR_DESKTOP="$path" && break
+    done
+    
+    if [ -n "$THUNAR_DESKTOP" ]; then
+        cp "$THUNAR_DESKTOP" "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name=.*/Name=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Name\[es\]=.*/Name[es]=Finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^GenericName=.*/GenericName=Administrador de archivos/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        sed -i 's/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$THUNAR_DESKTOP")"
+        echo -e "${GREEN}      ✅ Thunar renombrado a 'Finder'.${NC}"
+    fi
+fi
+
+# =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
 # =============================================================================
 echo -e "${YELLOW}🔐 [13/25] Configurando pantalla de login (GDM)...${NC}"
@@ -918,7 +990,6 @@ echo ""
 # PASO 15: CONFIGURACIÓN DEL SISTEMA, PANELES Y ATAJO DE TECLADO (UNIVERSAL)
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/25] Configurando sistema, paneles y atajos de teclado macOS...${NC}"
-
 set +e # Desactivar salida por error para evitar fallos en configuraciones menores
 
 # Determinar ruta del wallpaper
@@ -965,6 +1036,7 @@ if [ "$IS_GNOME" = true ]; then
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH"
         run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
     fi
+    
     if [ "$SOUND_INSTALLED" = true ]; then
         run_as_user gsettings set org.gnome.desktop.sound theme-name "$SOUND_THEME"
         run_as_user gsettings set org.gnome.desktop.sound event-sounds true
@@ -984,6 +1056,7 @@ if [ "$IS_GNOME" = true ]; then
     
     # Atajos personalizados usando el script del Paso 14
     CUSTOM_PATHS=(); INDEX=0
+    
     gnome_set_keybinding() {
         local name="$1" command="$2" binding="$3" idx="$4"
         local PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${idx}/"
@@ -1044,14 +1117,15 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']"
     run_as_user gsettings set org.cinnamon.panel-height 28
     run_as_user gsettings set org.cinnamon enabled-applets \
-        "['panel1:left:0:menu@cinnamon.org', \
-          'panel1:left:1:workspace-switcher@cinnamon.org', \
-          'panel1:right:2:notifications@cinnamon.org', \
-          'panel1:right:3:user@cinnamon.org', \
-          'panel1:right:4:calendar@cinnamon.org', \
-          'panel1:right:5:power@cinnamon.org', \
-          'panel1:right:6:sound@cinnamon.org', \
-          'panel1:right:7:network@cinnamon.org']" 2>/dev/null || true
+    "['panel1:left:0:menu@cinnamon.org', \
+    'panel1:left:1:workspace-switcher@cinnamon.org', \
+    'panel1:right:2:notifications@cinnamon.org', \
+    'panel1:right:3:user@cinnamon.org', \
+    'panel1:right:4:calendar@cinnamon.org', \
+    'panel1:right:5:power@cinnamon.org', \
+    'panel1:right:6:sound@cinnamon.org', \
+    'panel1:right:7:network@cinnamon.org']" 2>/dev/null || true
+    
     echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
     
     # --- ATAJO DE TECLADO ESTILO macOS (CINNAMON) ---
@@ -1065,6 +1139,7 @@ elif [ "$IS_CINNAMON" = true ]; then
     
     # Atajos personalizados
     CUSTOM_IDS=()
+    
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
         local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
@@ -1087,6 +1162,7 @@ elif [ "$IS_CINNAMON" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH"
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
     fi
+    
     if [ "$SOUND_INSTALLED" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME"
         run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true
@@ -1119,19 +1195,30 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # PANEL SUPERIOR ESTILO macOS
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position -s "p=6;x=0;y=0" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -s 28 2>/dev/null || true
+    # PANEL SUPERIOR ESTILO macOS (CORREGIDO: Posición arriba)
+    echo -e "${BLUE}   → Configurando panel superior estilo macOS...${NC}"
     
-    # Eliminar lista de ventanas
-    for plugin in $(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/panel-0/plugins/plugin-" | cut -d'/' -f5); do
-        plugin_type=$(run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugins/$plugin 2>/dev/null)
-        if [ "$plugin_type" = "tasklist" ] || [ "$plugin_type" = "windowmenu" ]; then
-            run_as_user xfconf-query -c xfce4-panel -r /panels/panel-0/plugins/$plugin 2>/dev/null
-        fi
-    done
-    echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
+    # Obtener el ID del panel (normalmente panel-0 o panel-1)
+    PANEL_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/panel-" | head -1 | cut -d'/' -f4)
+    
+    if [ -n "$PANEL_ID" ]; then
+        # Mover panel a la parte superior (p=8 = top-center)
+        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/position -s "p=8;x=0;y=0" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/position-locked -s true 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/size -s 28 2>/dev/null || true
+        
+        # Eliminar lista de ventanas (tasklist)
+        for plugin in $(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/$PANEL_ID/plugins/plugin-" | cut -d'/' -f5); do
+            plugin_type=$(run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/plugins/$plugin 2>/dev/null)
+            if [ "$plugin_type" = "tasklist" ] || [ "$plugin_type" = "windowmenu" ]; then
+                run_as_user xfconf-query -c xfce4-panel -r /panels/$PANEL_ID/plugins/$plugin 2>/dev/null
+            fi
+        done
+        
+        echo -e "${GREEN}   ✓ Panel movido a la parte superior (sin lista de ventanas)${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  No se pudo detectar el panel de XFCE${NC}"
+    fi
     
     # Formato de reloj estilo macOS
     CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
@@ -1142,6 +1229,7 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     
     # --- ATAJO DE TECLADO ESTILO macOS (XFCE) ---
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
+    
     xfce_set_keybinding() {
         local command="$1" binding="$2"
         run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || \
@@ -1162,6 +1250,7 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>1" -n -t string -s "workspace_1_key" 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>2" -n -t string -s "workspace_2_key" 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/<Super>3" -n -t string -s "workspace_3_key" 2>/dev/null || true
+    
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
     # Tema de notificaciones
