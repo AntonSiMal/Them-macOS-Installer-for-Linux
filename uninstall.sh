@@ -150,13 +150,16 @@ rm -f "$REAL_HOME/.config/xfce4/terminal/terminalrc"
 rm -rf "$REAL_HOME/.macos-theme-setup"
 rm -f "$REAL_HOME/.macos-keybindings.md"
 
-# 2.9. Aplicaciones Personalizadas (Paso 12: Safari, Apple Music, LocalSend, Apple TV)
-echo -e "${BLUE}      → Limpiando personalizaciones de aplicaciones (Paso 12)...${NC}"
+# 2.9. Aplicaciones Personalizadas (Safari, Apple Music, LocalSend, Apple TV, Office)
+echo -e "${BLUE}      → Limpiando personalizaciones de aplicaciones...${NC}"
 
 # Desinstalar paquetes si fueron instalados vía gestor
 sudo apt-get remove -y -qq zuno localsend iptvnator 2>/dev/null || true
 sudo dnf remove -y -q zuno localsend iptvnator 2>/dev/null || true
 sudo pacman -Rns --noconfirm zuno localsend-bin iptvnator-bin 2>/dev/null || true
+
+# Desinstalar ONLYOFFICE (Office) si fue instalado vía Flatpak
+run_as_user flatpak uninstall -y --delete-data org.onlyoffice.desktopeditors 2>/dev/null || true
 
 # Eliminar binarios locales (Fallback de AppImage)
 rm -f "$REAL_HOME/.local/bin/zuno"
@@ -168,6 +171,7 @@ rm -f "$REAL_HOME/.local/share/applications/safari.desktop"
 rm -f "$REAL_HOME/.local/share/applications/applemusic.desktop"
 rm -f "$REAL_HOME/.local/share/applications/appletv.desktop"
 rm -f "$REAL_HOME/.local/share/applications/localsend.desktop"
+rm -f "$REAL_HOME/.local/share/applications/office.desktop"
 
 # Eliminar archivos "Hidden=true" que ocultaban los lanzadores originales
 rm -f "$REAL_HOME/.local/share/applications/firefox.desktop"
@@ -177,11 +181,13 @@ rm -f "$REAL_HOME/.local/share/applications/zuno.desktop"
 rm -f "$REAL_HOME/.local/share/applications/com.zuno.desktop.desktop"
 rm -f "$REAL_HOME/.local/share/applications/iptvnator.desktop"
 rm -f "$REAL_HOME/.local/share/applications/com.github.4gray.iptvnator.desktop"
+rm -f "$REAL_HOME/.local/share/applications/org.onlyoffice.desktopeditors.desktop"
 
 # Eliminar iconos personalizados descargados
 rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg"
 rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg"
 rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg"
+rm -f "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg"
 
 # Eliminar configuración de IPTVnator (Apple TV)
 rm -rf "$REAL_HOME/.config/iptvnator"
@@ -352,7 +358,7 @@ echo -e "${GREEN}✅ Limpieza de Firefox/GDM completada.${NC}"
 echo ""
 
 # =============================================================================
-# 9. LIMPIEZA FINAL DE PAQUETES
+# 9. LIMPIEZA FINAL DE PAQUETES Y CACHÉ
 # =============================================================================
 echo -e "${YELLOW}🧹 [8/9] Actualizando caché de escritorios e iconos...${NC}"
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
@@ -379,7 +385,7 @@ echo -e "${CYAN}║        🎉 ¡DESINSTALACIÓN COMPLETADA CON ÉXITO! 🎉   
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "${GREEN}Tu sistema ha sido restaurado a su estado original.${NC}"
-echo -e "${GREEN}Se han eliminado las personalizaciones de Safari, Apple Music, LocalSend y Apple TV.${NC}"
+echo -e "${GREEN}Se han eliminado las personalizaciones de Safari, Apple Music, LocalSend, Apple TV y Office.${NC}"
 echo -e "${YELLOW}⚠️  IMPORTANTE: Debes ${RED}reiniciar el equipo${YELLOW} para que todos los cambios${NC}"
 echo -e "${YELLOW}   (especialmente Plymouth, nombre del equipo, firewall y configuraciones de sesión) surtan efecto.${NC}"
 echo ""
