@@ -2001,7 +2001,7 @@ echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 13: INTEGRACIÓN DE APLICACIONES EN EL DOCK (ESTILO macOS)
+# PASO 15.11: INTEGRACIÓN DE APLICACIONES EN EL DOCK (ESTILO macOS)
 # =============================================================================
 echo -e "${YELLOW}🚀 [13/25] Integrando aplicaciones en el Dock (Safari, Office, Apple Music, TV, LocalSend)...${NC}"
 
@@ -2123,7 +2123,7 @@ echo -e "${GREEN}✅ Integración de aplicaciones en el Dock completada.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 13.5: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
+# PASO 13.12: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
 # =============================================================================
 echo -e "${YELLOW}🔬 [13.5/25] Refinando comportamiento gráfico y renderizado (Nivel macOS)...${NC}"
 
@@ -2207,7 +2207,7 @@ elif [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
 fi
 
 # =============================================================================
-# 15.11 COMPACTACIÓN DE BARRAS DE TÍTULO (HEADERBARS) Y LIBADWAITA
+# 15.13 COMPACTACIÓN DE BARRAS DE TÍTULO (HEADERBARS) Y LIBADWAITA
 # =============================================================================
 echo -e "${BLUE}   → Forzando modo compacto en aplicaciones modernas (GTK4/Libadwaita)...${NC}"
 
