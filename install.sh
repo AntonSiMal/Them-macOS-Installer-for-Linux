@@ -166,14 +166,15 @@ if command -v apt-get &> /dev/null; then
     }
     
     echo -e "${BLUE}   → Instalando paquetes base (esto puede tardar unos minutos)...${NC}"
-    
-    # Lista de paquetes probados y estables en Ubuntu/Zorin/Debian
+
+        # Lista de paquetes probados y estables en Ubuntu/Zorin/Debian
     PACKAGES=(
         git sassc libglib2.0-dev-bin libxml2-utils fontconfig
         gnome-tweaks gnome-shell-extension-manager dconf-cli plymouth-themes firefox
         plank x11-xserver-utils python3-pil curl unzip wget jq gnome-backgrounds
         ffmpeg sox rofi fd-find python3-requests xdotool wmctrl x11-utils util-linux
         qt5ct qt6ct ruby libinput-tools clipit xfce4-clipman-plugin gnome-sushi
+        zenity  # <-- AÑADIDO: Crítico para la ventana "Acerca de este Mac"
     )
     
     # Forzamos la aceptación de configuraciones por defecto
@@ -717,7 +718,6 @@ echo -e "${GREEN}      ✅ Zuno renombrado a 'Apple Music'.${NC}"
 # 12.6: LOCALSEND (AirDrop Open Source)
 # =============================================================================
 echo -e "${BLUE}   → [12.6] Instalando LocalSend y configurando red local...${NC}"
-
 # Dependencias de portal de escritorio
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk
@@ -731,22 +731,21 @@ fi
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1; sudo ufw allow 53317/udp >/dev/null 2>&1
 fi
-if command -v firewall-cmd &> /dev/null && sudo firewall-cmd --state >/dev/null 2>&1; then
-    sudo firewall-cmd --permanent --add-port=53317/tcp >/dev/null 2>&1
-    sudo firewall-cmd --permanent --add-port=53317/udp >/dev/null 2>&1
-    sudo firewall-cmd --reload >/dev/null 2>&1
-fi
 
-LATEST_RELEASE_LS=$(curl -s https://api.github.com/repos/localsend/localsend/releases/latest)
+LATEST_RELEASE_LS=$(curl -s --max-time 10 https://api.github.com/repos/localsend/localsend/releases/latest 2>/dev/null)
 LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
 
 if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
     if command -v apt-get &> /dev/null; then
         DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
-        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q -O /tmp/localsend.deb "$DEB_URL" && sudo apt-get install -y -qq /tmp/localsend.deb
+        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
+            wget -q -O /tmp/localsend.deb "$DEB_URL" && sudo apt-get install -y -qq /tmp/localsend.deb
+        fi
     elif command -v dnf &> /dev/null; then
         RPM_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
-        [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ] && wget -q -O /tmp/localsend.rpm "$RPM_URL" && sudo dnf install -y -q /tmp/localsend.rpm
+        if [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ]; then
+            wget -q -O /tmp/localsend.rpm "$RPM_URL" && sudo dnf install -y -q /tmp/localsend.rpm
+        fi
     elif command -v pacman &> /dev/null; then
         if command -v yay &> /dev/null; then yay -S --noconfirm localsend-bin
         elif command -v paru &> /dev/null; then paru -S --noconfirm localsend-bin
@@ -756,21 +755,30 @@ if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
                 mkdir -p "$REAL_HOME/.local/bin"
                 wget -q -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL"
                 chmod +x "$REAL_HOME/.local/bin/localsend"
-                mkdir -p "$REAL_HOME/.local/share/applications"
-                cat <<EOF > "$REAL_HOME/.local/share/applications/localsend.desktop"
-[Desktop Entry]
-Name=LocalSend
-GenericName=File Sharing
-Exec=$REAL_HOME/.local/bin/localsend %U
-Icon=localsend
-Type=Application
-Categories=Network;FileTransfer;Utility;
-Terminal=false
-EOF
             fi
         fi
     fi
-    echo -e "${GREEN}      ✅ LocalSend instalado.${NC}"
+    echo -e "${GREEN}      ✅ LocalSend instalado desde la última versión.${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se pudo consultar la API de GitHub (posible límite de tasa).${NC}"
+    echo -e "${BLUE}   → Usando URL de fallback estable para LocalSend (AppImage)...${NC}"
+    mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications"
+    FALLBACK_URL="https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage"
+    if wget -q --max-time 30 -O "$REAL_HOME/.local/bin/localsend" "$FALLBACK_URL" 2>/dev/null; then
+        chmod +x "$REAL_HOME/.local/bin/localsend"
+        cat <<EOF > "$REAL_HOME/.local/share/applications/localsend.desktop"
+[Desktop Entry]
+Name=LocalSend
+Exec=$REAL_HOME/.local/bin/localsend %U
+Icon=localsend
+Type=Application
+Categories=Network;FileTransfer;
+Terminal=false
+EOF
+        echo -e "${GREEN}      ✅ LocalSend instalado desde fallback estable.${NC}"
+    else
+        echo -e "${RED}      ❌ Fallo al descargar LocalSend.${NC}"
+    fi
 fi
 
 # =============================================================================
@@ -895,17 +903,17 @@ if [ "$IS_GNOME" = true ]; then
     if [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
         echo -e "${BLUE}   → Aplicando tema a GDM (esto puede tardar unos segundos)...${NC}"
         
-        # Ejecutamos el tweak. Redirigimos la salida a un archivo de log temporal en lugar de /dev/null
+        # Ejecutamos el tweak. Redirigimos la salida a un archivo de log temporal
         if sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1; then
             echo -e "${GREEN}   ✅ Pantalla de login configurada correctamente.${NC}"
         else
-            echo -e "${YELLOW}   ️  No se pudo configurar GDM automáticamente.${NC}"
+            echo -e "${YELLOW}   ⚠️  No se pudo configurar GDM automáticamente.${NC}"
             echo -e "${YELLOW}      (Esto es común en algunas distros por políticas de seguridad de GDM).${NC}"
             echo -e "${YELLOW}      El resto de la instalación continuará normalmente.${NC}"
             echo -e "${BLUE}      → Si deseas investigar, revisa el registro: /tmp/gdm-tweak.log${NC}"
         fi
     else
-        echo -e "${YELLOW}   ️  No se encontró la carpeta del tema para configurar GDM.${NC}"
+        echo -e "${YELLOW}   ⚠️  No se encontró la carpeta del tema para configurar GDM.${NC}"
     fi
 else
     echo -e "${BLUE}   ⏭️  GDM omitido (Entorno no compatible o no es GNOME/Zorin).${NC}"
@@ -2024,7 +2032,7 @@ echo ""
 # PASO 15.11: INTEGRACIÓN INTELIGENTE DE APLICACIONES EN EL DOCK
 # (Usa los .desktop ya creados en el Paso 12, NO crea duplicados rotos)
 # =============================================================================
-echo -e "${YELLOW} [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
+echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
 
 APPS_DIR="$REAL_HOME/.local/share/applications"
 mkdir -p "$APPS_DIR" 2>/dev/null || true
@@ -2057,7 +2065,7 @@ if [ -f "$APPS_DIR/appletv.desktop" ] || command -v iptvnator &> /dev/null; then
 fi
 
 # --- 5. LOCALSEND (ya configurado en Paso 12) ---
-if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null; then
+if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null || [ -f "$REAL_HOME/.local/bin/localsend" ]; then
     FOUND_DOCK_APPS+=("localsend.desktop")
     echo -e "${GREEN}   ✓ LocalSend detectado${NC}"
 fi
