@@ -643,77 +643,33 @@ EOF
 fi
 
 # =============================================================================
-# 12.5: ZUNO -> APPLE MUSIC
+# 12.5: ZUNO -> APPLE MUSIC (CORREGIDO CON DESCARGA DIRECTA)
 # =============================================================================
 echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
 
+# Instalar codecs
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad 2>/dev/null || true
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q gstreamer1-libav gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free 2>/dev/null || true
-elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad 2>/dev/null || true
 fi
 
-ARCH=$(uname -m)
-[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_APPIMAGE="x86_64"; }
-[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_APPIMAGE="aarch64"; }
+mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-ZUNO_INSTALLED=false
-LATEST_RELEASE=$(curl -s --max-time 10 https://api.github.com/repos/noFAYZ/zuno/releases/latest 2>/dev/null)
-LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
-
-if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
-    if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
-        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-            wget -q --max-time 30 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null && ZUNO_INSTALLED=true
-        fi
-    fi
-fi
-
-# FALLBACK ROBUSTO A APPIMAGE SI EL .DEB FALLA
-if [ "$ZUNO_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
-    mkdir -p "$REAL_HOME/.local/bin" # Asegurar que existe ANTES de descargar
-    
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
-    if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null || true
-    else
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" 2>/dev/null || true
-    fi
-    
-    if [ -f "$REAL_HOME/.local/bin/zuno" ]; then
-        chmod +x "$REAL_HOME/.local/bin/zuno"
-        ZUNO_INSTALLED=true
-        echo -e "${GREEN}      ✅ Zuno instalado como AppImage.${NC}"
-    else
-        echo -e "${RED}      ❌ Fallo al descargar Zuno.${NC}"
-    fi
-fi
-
-# Transformar a Apple Music
-mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
-
-ZUNO_DESKTOP=""
-for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.zuno.desktop.desktop" "$REAL_HOME/.local/share/applications/zuno.desktop" "/var/lib/flatpak/exports/share/applications/com.zuno.desktop.desktop"; do
-    [ -f "$path" ] && ZUNO_DESKTOP="$path" && break
-done
-
-if [ -n "$ZUNO_DESKTOP" ]; then
-    mkdir -p "$REAL_HOME/.local/share/applications"
-    cp "$ZUNO_DESKTOP" "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    sed -i 's/^GenericName=.*/GenericName=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    sed -i 's/^Icon=.*/Icon=applemusic/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
-    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ZUNO_DESKTOP")"
+# Descarga directa del AppImage (más estable que la API de GitHub)
+ZUNO_URL="https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage"
+echo -e "${BLUE}      → Descargando Zuno AppImage...${NC}"
+if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/zuno" "$ZUNO_URL" 2>/dev/null; then
+    chmod +x "$REAL_HOME/.local/bin/zuno"
+    echo -e "${GREEN}      ✅ Zuno descargado correctamente.${NC}"
 else
-    mkdir -p "$REAL_HOME/.local/share/applications"
-    cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
+    echo -e "${YELLOW}      ⚠️  Fallo en descarga directa, intentando versión anterior...${NC}"
+    wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.3.2/Zuno_1.3.2_amd64.AppImage" 2>/dev/null || true
+    chmod +x "$REAL_HOME/.local/bin/zuno" 2>/dev/null || true
+fi
+
+# Crear lanzador Apple Music
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+
+cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
 [Desktop Entry]
 Name=Apple Music
 GenericName=Apple Music
@@ -723,7 +679,6 @@ Type=Application
 Categories=Audio;Music;Player;AudioVideo;
 Terminal=false
 EOF
-fi
 echo -e "${GREEN}      ✅ Zuno transformado a 'Apple Music'.${NC}"
 
 # =============================================================================
@@ -791,72 +746,32 @@ wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "h
 echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 
 # =============================================================================
-# 12.7: IPTVNATOR -> APPLE TV
+# 12.7: IPTVNATOR -> APPLE TV (CORREGIDO CON DESCARGA DIRECTA)
 # =============================================================================
 echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
 
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq mpv xdg-utils 2>/dev/null || true
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q mpv xdg-utils 2>/dev/null || true
-elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed mpv xdg-utils 2>/dev/null || true
 fi
 
-IPTV_INSTALLED=false
-LATEST_RELEASE_IPTV=$(curl -s --max-time 10 https://api.github.com/repos/4gray/iptvnator/releases/latest 2>/dev/null)
-LATEST_VERSION_IPTV=$(echo "$LATEST_RELEASE_IPTV" | jq -r .tag_name 2>/dev/null)
+mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
-    if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
-        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-            wget -q --max-time 30 -O /tmp/iptvnator.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
-        fi
-    fi
-fi
-
-if [ "$IPTV_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Instalación de paquete falló, usando fallback...${NC}"
-    mkdir -p "$REAL_HOME/.local/bin"
-    
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
-    if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL" 2>/dev/null || true
-        chmod +x "$REAL_HOME/.local/bin/iptvnator" 2>/dev/null || true
-        IPTV_INSTALLED=true
-    else
-        wget -q --max-time 60 -O /tmp/iptvnator.deb "https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb" 2>/dev/null || true
-        sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
-    fi
-    
-    if [ "$IPTV_INSTALLED" = true ]; then
-        echo -e "${GREEN}      ✅ IPTVnator instalado desde fallback.${NC}"
-    else
-        echo -e "${RED}      ❌ Fallo al descargar IPTVnator.${NC}"
-    fi
-fi
-
-mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
-
-IPTV_DESKTOP=""
-for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
-    [ -f "$path" ] && IPTV_DESKTOP="$path" && break
-done
-
-if [ -n "$IPTV_DESKTOP" ]; then
-    mkdir -p "$REAL_HOME/.local/share/applications"
-    cp "$IPTV_DESKTOP" "$REAL_HOME/.local/share/applications/appletv.desktop"
-    sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-    sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-    sed -i 's/^GenericName=.*/GenericName=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-    sed -i 's/^Icon=.*/Icon=appletv/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-    sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$IPTV_DESKTOP")"
+# Descarga directa del AppImage de IPTVnator
+IPTV_URL="https://github.com/4gray/iptvnator/releases/download/v0.14.0/iptvnator-0.14.0-linux-x86_64.AppImage"
+echo -e "${BLUE}      → Descargando IPTVnator AppImage...${NC}"
+if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/iptvnator" "$IPTV_URL" 2>/dev/null; then
+    chmod +x "$REAL_HOME/.local/bin/iptvnator"
+    echo -e "${GREEN}      ✅ IPTVnator descargado correctamente.${NC}"
 else
-    mkdir -p "$REAL_HOME/.local/share/applications"
-    cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
+    echo -e "${YELLOW}      ⚠️  Fallo en AppImage, intentando paquete .deb...${NC}"
+    wget -q --user-agent="Mozilla/5.0" -O "/tmp/iptvnator.deb" "https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb" 2>/dev/null || true
+    sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null || true
+fi
+
+# Crear lanzador Apple TV
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
+
+cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
 [Desktop Entry]
 Name=Apple TV
 GenericName=Apple TV
@@ -866,12 +781,11 @@ Type=Application
 Categories=AudioVideo;Video;Player;
 Terminal=false
 EOF
-fi
 
+# Pre-configurar lista de reproducción en Español
 CONFIG_DIR="$REAL_HOME/.config/iptvnator"
 mkdir -p "$CONFIG_DIR"
-if [ ! -f "$CONFIG_DIR/store.json" ]; then
-    cat > "$CONFIG_DIR/store.json" << 'EOF'
+cat > "$CONFIG_DIR/store.json" << 'EOF'
 {
   "playlists": [
     {
@@ -889,15 +803,7 @@ if [ ! -f "$CONFIG_DIR/store.json" ]; then
   }
 }
 EOF
-    echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplicada.${NC}"
-fi
-echo -e "${GREEN}      ✅ IPTVnator renombrado a 'Apple TV'.${NC}"
-
-# ACTUALIZACIÓN FINAL DE CACHÉ
-run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
-echo ""
+echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV' con lista en español.${NC}"
 
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
@@ -1272,16 +1178,17 @@ echo ""
 # PASO 15.4: INSTALAR ONLYOFFICE Y TRANSFORMAR EN "OFFICE"
 # =============================================================================
 echo -e "${YELLOW}📝 [15.4/25] Instalando ONLYOFFICE y transformando en 'Office'...${NC}"
+set +e
 
 # 1. Asegurar que Flatpak esté instalado
 if ! command -v flatpak &> /dev/null; then
     echo -e "${BLUE}   → Flatpak no detectado. Instalando...${NC}"
     if command -v apt-get &> /dev/null; then
-        sudo apt-get install -y -qq flatpak
+        sudo apt-get install -y -qq flatpak 2>/dev/null || true
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y -q flatpak
+        sudo dnf install -y -q flatpak 2>/dev/null || true
     elif command -v pacman &> /dev/null; then
-        sudo pacman -S --noconfirm --needed flatpak
+        sudo pacman -S --noconfirm --needed flatpak 2>/dev/null || true
     fi
     echo -e "${GREEN}   ✅ Flatpak instalado.${NC}"
 fi
@@ -1298,7 +1205,6 @@ run_as_user flatpak install -y flathub org.onlyoffice.desktopeditors 2>/dev/null
 
 # 4. Transformar a "Office" (Renombrar y cambiar icono)
 echo -e "${BLUE}   → Personalizando lanzador e icono a 'Office'...${NC}"
-
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
@@ -1312,23 +1218,25 @@ for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktope
     fi
 done
 
-# Descargar icono moderno de Office (SVG de alta calidad desde Wikimedia)
-wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" \
-    "https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg" 2>/dev/null || true
+# Descargar icono moderno de Office (con User-Agent para evitar bloqueo de Wikimedia)
+echo -e "${BLUE}      → Descargando icono de Office...${NC}"
+ICON_URL="https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg"
+BACKUP_ICON_URL="https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/microsoftoffice.svg"
+
+if ! wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "$ICON_URL" 2>/dev/null; then
+    wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "$BACKUP_ICON_URL" 2>/dev/null || true
+fi
 
 if [ -n "$ONLYOFFICE_DESKTOP" ]; then
     # Copiar y modificar el lanzador
     cp "$ONLYOFFICE_DESKTOP" "$REAL_HOME/.local/share/applications/office.desktop"
-    
     # Cambiar nombres y asignar nuevo icono
     sed -i 's/^Name=.*/Name=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^GenericName=.*/GenericName=Suite de Oficina/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^Icon=.*/Icon=office/g' "$REAL_HOME/.local/share/applications/office.desktop"
-    
     # Ocultar el lanzador original de ONLYOFFICE para evitar duplicados en el menú
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ONLYOFFICE_DESKTOP")"
-    
     echo -e "${GREEN}   ✅ ONLYOFFICE renombrado e icono actualizado a 'Office'.${NC}"
 else
     echo -e "${YELLOW}   ⚠️  No se encontró el lanzador de ONLYOFFICE. Es posible que necesites reiniciar la sesión.${NC}"
@@ -1338,44 +1246,42 @@ fi
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
+set -e
 echo ""
 
 # =============================================================================
-# PASO 15.5: BOTÓN DE MENÚ CON ICONO DE APPLE (macOS)
+# PASO 15.5: INSTALAR WHISKER MENU (SI FALTA) Y CONFIGURAR ICONO DE APPLE
 # =============================================================================
-echo -e "${YELLOW}🍎 [15.5/25] Configurando icono de Apple en el botón de inicio...${NC}"
-
+echo -e "${YELLOW}🍎 [15.5/25] Configurando menú de inicio estilo macOS...${NC}"
 set +e
 
-if [ "$IS_GNOME" = true ]; then
-    echo -e "${BLUE}   → Configurando GNOME...${NC}"
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Botón de aplicaciones configurado con icono de Apple${NC}"
+if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Verificando Whisker Menu en XFCE...${NC}"
+    # Instalar Whisker Menu si no está presente
+    if ! command -v xfce4-popup-whiskermenu &> /dev/null; then
+        echo -e "${BLUE}      → Whisker Menu no detectado. Instalando...${NC}"
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y -qq xfce4-whiskermenu-plugin 2>/dev/null || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q xfce4-whiskermenu-plugin 2>/dev/null || true
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm --needed xfce4-whiskermenu-plugin 2>/dev/null || true
+        fi
+        echo -e "${GREEN}      ✅ Whisker Menu instalado.${NC}"
+    else
+        echo -e "${GREEN}      ✓ Whisker Menu ya está instalado.${NC}"
+    fi
     
-elif [ "$IS_CINNAMON" = true ]; then
-    echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
-    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon "distributor-logo" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon-size 16 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.menu-favorites-show true 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.menu-show-category-icons true 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.menu-show-application-icons true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Icono de Apple aplicado al menú de Cinnamon${NC}"
-    
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${BLUE}   → Configurando XFCE...${NC}"
+    # Configurar icono de Apple y ocultar texto
     WHISKER_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "whiskermenu" | head -1 | cut -d'/' -f4)
     if [ -n "$WHISKER_ID" ]; then
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -s "distributor-logo" 2>/dev/null || true
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -s false 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-1 -s "whiskermenu" 2>/dev/null || true
-        echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu (solo icono, sin texto)${NC}"
+        echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu (solo icono, sin texto).${NC}"
     else
-        echo -e "${YELLOW}   ⚠️  No se encontró Whisker Menu. Asegúrate de tenerlo instalado.${NC}"
+        echo -e "${YELLOW}   ⚠️  No se pudo configurar Whisker Menu automáticamente. Añádelo al panel manualmente.${NC}"
     fi
 fi
-
 set -e
 echo ""
 
@@ -1787,38 +1693,29 @@ echo ""
 # PASO 15.9: PERFECCIONAMIENTO DE EXPERIENCIA MACOS (DOCK, FINDER, SONIDOS)
 # =============================================================================
 echo -e "${YELLOW}✨ [15.9/25] Perfeccionando experiencia macOS (Dock, Finder, Sonidos)...${NC}"
-
 set +e
 
 # =============================================================================
 # 1. FORMATO DE RELOJ Y FECHA IDÉNTICO A macOS (UNIVERSAL)
 # =============================================================================
 echo -e "${BLUE}   → Ajustando formato de reloj y fecha estilo macOS...${NC}"
-
 if [ "$IS_GNOME" = true ]; then
-    # GNOME: Formato completo con día, fecha y hora
     run_as_user gsettings set org.gnome.desktop.interface clock-show-date true 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.interface clock-show-weekday true 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.interface clock-show-seconds false 2>/dev/null || true
-    # Formato personalizado: "lun 14 oct 10:30"
     run_as_user gsettings set org.gnome.desktop.interface clock-format '24h' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Reloj GNOME configurado con formato macOS${NC}"
-    
 elif [ "$IS_CINNAMON" = true ]; then
-    # Cinnamon: Formato de fecha en el panel
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-date true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-weekday true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-seconds false 2>/dev/null || true
-    # Buscar el applet de calendario y configurar su formato
     CALENDAR_APPLET=$(run_as_user gsettings get org.cinnamon enabled-applets 2>/dev/null | grep -o "calendar@cinnamon.org" | head -1)
     if [ -n "$CALENDAR_APPLET" ]; then
         run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org use-custom-format true 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org custom-format "%a %d %b, %H:%M" 2>/dev/null || true
     fi
     echo -e "${GREEN}   ✓ Reloj Cinnamon configurado con formato macOS${NC}"
-    
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    # XFCE: Formato en el plugin de reloj
     CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
     if [ -n "$CLOCK_PLUGIN" ]; then
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
@@ -1833,29 +1730,21 @@ fi
 # 2. SONIDO DE TECLADO AL ESCRIBIR (UNIVERSAL)
 # =============================================================================
 echo -e "${BLUE}   → Configurando sonido de teclado al escribir...${NC}"
-
-# Crear archivo de sonido de teclado si no existe
 KEYBOARD_SOUND_DIR="$REAL_HOME/.local/share/sounds/bigsur/stereo"
 mkdir -p "$KEYBOARD_SOUND_DIR" 2>/dev/null || true
-
-# Usar un sonido de sistema existente como base para teclado
 if [ ! -f "$KEYBOARD_SOUND_DIR/keyboard-click.oga" ]; then
     if [ -f "$KEYBOARD_SOUND_DIR/button-pressed.oga" ]; then
         cp "$KEYBOARD_SOUND_DIR/button-pressed.oga" "$KEYBOARD_SOUND_DIR/keyboard-click.oga" 2>/dev/null || true
     fi
 fi
-
-# Habilitar sonidos de feedback de entrada (teclado)
 if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.sound input-feedback-sounds true 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.sound event-sounds true 2>/dev/null || true
     echo -e "${GREEN}   ✓ Sonidos de teclado activados en GNOME${NC}"
-    
 elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
     echo -e "${GREEN}   ✓ Sonidos de teclado activados en Cinnamon${NC}"
-    
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     run_as_user xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -s true 2>/dev/null || true
     run_as_user xfconf-query -c xsettings -p /Net/EnableEventSounds -s true 2>/dev/null || true
@@ -1867,67 +1756,20 @@ fi
 # =============================================================================
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}   → Aplicando estilo Finder a Nautilus...${NC}"
-    
-    # Configuración básica de Nautilus
     run_as_user gsettings set org.gnome.nautilus.preferences default-folder-viewer 'list-view' 2>/dev/null || true
     run_as_user gsettings set org.gnome.nautilus.preferences show-hidden-files false 2>/dev/null || true
     run_as_user gsettings set org.gnome.nautilus.preferences always-use-location-entry false 2>/dev/null || true
     run_as_user gsettings set org.gnome.nautilus.preferences show-image-thumbnails 'always' 2>/dev/null || true
     
-    # CSS personalizado para Nautilus (sidebar estilo Finder)
     NAUTILUS_CSS_DIR="$REAL_HOME/.config/gtk-3.0"
     mkdir -p "$NAUTILUS_CSS_DIR" 2>/dev/null || true
-    
-    cat > "$NAUTILUS_CSS_DIR/gtk.css" << 'NAUTILUSCSS'
-/* Estilo Finder para Nautilus */
-.nautilus-window .sidebar {
-    background-color: alpha(@theme_bg_color, 0.95);
-    border-right: 1px solid alpha(@borders, 0.3);
-}
-
-.nautilus-window .sidebar row {
-    border-radius: 6px;
-    margin: 2px 8px;
-    padding: 6px 10px;
-    transition: all 200ms ease;
-}
-
-.nautilus-window .sidebar row:selected {
-    background-color: @theme_selected_bg_color;
-    color: @theme_selected_fg_color;
-}
-
-.nautilus-window .sidebar row:hover:not(:selected) {
-    background-color: alpha(@theme_fg_color, 0.08);
-}
-
-.nautilus-window .sidebar-row image {
-    margin-right: 8px;
-}
-
-/* Barra de herramientas superior más compacta */
-.nautilus-window headerbar {
-    min-height: 40px;
-    padding: 0px 12px;
-}
-
-.nautilus-window .path-bar-box {
-    background-color: alpha(@theme_bg_color, 0.6);
-    border-radius: 6px;
-    padding: 4px 8px;
-}
-
-/* Botones de vista más pequeños */
-.nautilus-window .view-toggle-button {
-    min-width: 32px;
-    min-height: 32px;
-}
+    cat > "$NAUTILUS_CSS_DIR/gtk.css" << 'NAUTILUSCSS' 2>/dev/null || true
+.nautilus-window .sidebar { background-color: alpha(@theme_bg_color, 0.95); border-right: 1px solid alpha(@borders, 0.3); }
+.nautilus-window .sidebar row { border-radius: 6px; margin: 2px 8px; padding: 6px 10px; transition: all 200ms ease; }
+.nautilus-window .sidebar row:selected { background-color: @theme_selected_bg_color; color: @theme_selected_fg_color; }
+.nautilus-window .sidebar row:hover:not(:selected) { background-color: alpha(@theme_fg_color, 0.08); }
 NAUTILUSCSS
-
-    if [ -n "$SUDO_USER" ]; then
-        chown -R "$SUDO_USER:$SUDO_USER" "$NAUTILUS_CSS_DIR" 2>/dev/null || true
-    fi
-    
+    if [ -n "$SUDO_USER" ]; then chown -R "$SUDO_USER:$SUDO_USER" "$NAUTILUS_CSS_DIR" 2>/dev/null || true; fi
     echo -e "${GREEN}   ✓ Nautilus configurado con estilo Finder${NC}"
 fi
 
@@ -1936,65 +1778,24 @@ fi
 # =============================================================================
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}   → Configurando Dash to Dock con estilo macOS Dock...${NC}"
-    
-    # Asegurar que la extensión esté instalada
-    if ! run_as_user gnome-extensions list 2>/dev/null | grep -q "dash-to-dock@micxgx.gmail.com"; then
-        echo -e "${YELLOW}   ⚠️  Dash to Dock no instalado, intentando instalar...${NC}"
-        if command -v apt-get &> /dev/null; then
-            sudo apt-get install -y -qq gnome-shell-extension-dash-to-dock 2>/dev/null || true
-        elif command -v dnf &> /dev/null; then
-            sudo dnf install -y -q gnome-shell-extension-dash-to-dock 2>/dev/null || true
-        fi
-    fi
-    
-    # Configuración avanzada del Dock estilo macOS
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM' 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-fixed false 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide-mode 'FOCUS_APPLICATION_WINDOWS' 2>/dev/null || true
-    
-    # Transparencia y apariencia
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock transparency-mode 'DYNAMIC' 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock background-opacity 0.4 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-background-color false 2>/dev/null || true
-    
-    # Iconos y tamaño
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 48 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock icon-size-fixed false 2>/dev/null || true
-    
-    # Indicadores de aplicaciones abiertas (punto blanco debajo)
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-running true 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-style 'DOTS' 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-dominant-color true 2>/dev/null || true
-    
-    # Comportamiento
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock click-action 'minimize-or-previews' 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock scroll-action 'cycle-windows' 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock isolate-workspaces true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock isolate-monitors false 2>/dev/null || true
-    
-    # Botón de aplicaciones
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
-    
-    # Tema personalizado
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock apply-custom-theme true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-color '#ffffff' 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-border-color '#ffffff' 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-running-dots-border-width 2 2>/dev/null || true
-    
-    # Activar la extensión
     run_as_user gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
-    
     echo -e "${GREEN}   ✓ Dash to Dock configurado con estilo macOS${NC}"
 fi
 
 # =============================================================================
-# 5. REFORZAR BOTONES DE VENTANA A LA IZQUIERDA (UNIVERSAL)
+# 5. REFORZAR BOTONES DE VENTANA A LA IZQUIERDA (UNIVERSAL Y A PRUEBA DE FALLOS)
 # =============================================================================
-echo -e "${BLUE}   → Reforzando botones de ventana a la izquierda...${NC}"
-
+echo -e "${BLUE}   → Reforzando botones de ventana a la izquierda (Cerrar, Minimizar, Maximizar)...${NC}"
 if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones GNOME reforzados${NC}"
@@ -2002,8 +1803,15 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones Cinnamon reforzados${NC}"
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    # OHM = Close (O), Maximize (H), Minimize (M). El orden es de izquierda a derecha.
     run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Botones XFCE reforzados${NC}"
+    
+    # Si el tema no carga los botones, forzar recarga del gestor de ventanas
+    if command -v xfwm4 &> /dev/null; then
+        run_as_user xfwm4 --replace &>/dev/null &
+        sleep 1
+    fi
+    echo -e "${GREEN}   ✓ Botones XFCE reforzados y gestor de ventanas recargado.${NC}"
 fi
 
 set -e
