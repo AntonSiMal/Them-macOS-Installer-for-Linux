@@ -77,14 +77,24 @@ IS_GNOME=false; IS_CINNAMON=false
 [[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]] && IS_GNOME=true
 [[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && IS_CINNAMON=true
 
+# Detección robusta de resolución (idéntica al install.sh)
+SCREEN_WIDTH=""
 if command -v xrandr &> /dev/null; then
-    SCREEN_WIDTH=$(xrandr --current | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1)
-    [ -n "$SCREEN_WIDTH" ] && {
-        if [ "$SCREEN_WIDTH" -ge 3840 ]; then ICON_BOLD_FLAG="-b"
-        else ICON_BOLD_FLAG=""; fi
-    } || ICON_BOLD_FLAG="-b"
-else
-    ICON_BOLD_FLAG="-b"
+    SCREEN_WIDTH=$(xrandr --current 2>/dev/null | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1)
+fi
+if [ -z "$SCREEN_WIDTH" ] && command -v xdpyinfo &> /dev/null; then
+    SCREEN_WIDTH=$(xdpyinfo 2>/dev/null | grep dimensions | awk '{print $2}' | cut -d'x' -f1)
+fi
+if [ -z "$SCREEN_WIDTH" ]; then
+    SCREEN_WIDTH="1920"
+fi
+
+if [ "$SCREEN_WIDTH" -ge 3840 ]; then 
+    SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
+elif [ "$SCREEN_WIDTH" -ge 2560 ]; then 
+    SCREEN_VARIANT="2k"; ICON_BOLD_FLAG=""
+else 
+    SCREEN_VARIANT="1080p"; ICON_BOLD_FLAG=""
 fi
 
 UPDATED_COMPONENTS=0
@@ -433,7 +443,7 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🔄 Sincronizando configuraciones del sistema...${NC}"
 
-# 1. Actualizar scripts auxiliares (Acerca de este Mac)
+# 1. Actualizar scripts auxiliares (Acerca de este Mac con función de actualización real)
 ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
 mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
 cat > "$ABOUT_SCRIPT" << 'ABOUTEOF'
@@ -444,7 +454,56 @@ DISK=$(df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "Disco")
 GRAPHICS=$(lspci 2>/dev/null | grep -i "vga\|3d\|display" | head -1 | cut -d':' -f3 | xargs | sed 's/Corporation//g; s/Inc.//g' 2>/dev/null || echo "Gráficos")
 KERNEL=$(uname -r 2>/dev/null || echo "Kernel")
 
-zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
+run_real_update() {
+    TERM_CMD=""
+    for term in gnome-terminal xfce4-terminal konsole x-terminal-emulator xterm; do
+        if command -v $term &> /dev/null; then
+            TERM_CMD=$term
+            break
+        fi
+    done
+    if [ -z "$TERM_CMD" ]; then
+        zenity --error --text="No se encontró una terminal para ejecutar la actualización." 2>/dev/null
+        return
+    fi
+    TEMP_UPDATE=$(mktemp /tmp/macos-update-XXXXXX.sh)
+    cat > "$TEMP_UPDATE" << 'UPDATEEOF'
+#!/bin/bash
+clear
+echo "🍎 Iniciando Actualización de Software de macOS Tahoe..."
+echo "=========================================================="
+echo ""
+echo "📦 [1/2] Actualizando paquetes del sistema base..."
+if command -v apt-get &> /dev/null; then
+    sudo apt-get update && sudo apt-get upgrade -y
+elif command -v dnf &> /dev/null; then
+    sudo dnf upgrade -y
+elif command -v pacman &> /dev/null; then
+    sudo pacman -Syu --noconfirm
+fi
+echo ""
+echo "🔄 [2/2] Actualizando componentes del tema macOS Tahoe..."
+curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/tahoe-updater.sh
+chmod +x /tmp/tahoe-updater.sh
+sudo /tmp/tahoe-updater.sh
+echo ""
+echo "✅ ¡Proceso de actualización finalizado con éxito!"
+echo "Presiona [ENTER] para cerrar esta ventana."
+read -r
+UPDATEEOF
+    chmod +x "$TEMP_UPDATE"
+    if [ "$TERM_CMD" = "gnome-terminal" ]; then
+        gnome-terminal -- bash -c "$TEMP_UPDATE"
+    elif [ "$TERM_CMD" = "xfce4-terminal" ]; then
+        xfce4-terminal -x bash -c "$TEMP_UPDATE"
+    elif [ "$TERM_CMD" = "konsole" ]; then
+        konsole -e bash -c "$TEMP_UPDATE"
+    else
+        $TERM_CMD -e bash -c "$TEMP_UPDATE"
+    fi
+}
+
+if zenity --question --title="Acerca de este Mac" --width=360 --height=420 \
 --text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
 <span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
 <span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
@@ -452,9 +511,15 @@ zenity --info --title="Acerca de este Mac" --width=340 --height=400 \
 <span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
 <span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
 <span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
---ok-label="Actualización de software..." 2>/dev/null || true
+--ok-label="Actualización de software..." \
+--cancel-label="Aceptar" 2>/dev/null; then
+    run_real_update
+fi
 ABOUTEOF
 chmod +x "$ABOUT_SCRIPT"
+if [ -n "$SUDO_USER" ]; then
+    chown "$SUDO_USER:$SUDO_USER" "$ABOUT_SCRIPT" 2>/dev/null || true
+fi
 
 # 2. Re-aplicar tamaño de cursor (32px) y fuentes
 if [ "$IS_GNOME" = true ]; then
