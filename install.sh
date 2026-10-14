@@ -595,7 +595,7 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🌐🎵📡 [12/24] Configurando aplicaciones de escritorio y red...${NC}"
 
-# CRÍTICO: Usar $REAL_HOME en lugar de ~ para evitar que se guarde en /root/
+# CRÍTICO: Usar $REAL_HOME en lugar de ~ para evitar que se guarde en /root/ al usar sudo
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -627,7 +627,6 @@ if [ -n "$ORIGINAL_FF_DESKTOP" ]; then
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ORIGINAL_FF_DESKTOP")"
     echo -e "${GREEN}      ✅ Firefox renombrado a 'Safari'.${NC}"
 else
-    # Fallback manual si no se encuentra el .desktop
     cat > "$REAL_HOME/.local/share/applications/safari.desktop" << 'EOF'
 [Desktop Entry]
 Version=1.0
@@ -649,11 +648,11 @@ fi
 echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
 
 if command -v apt-get &> /dev/null; then
-    sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+    sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q gstreamer1-libav gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free
+    sudo dnf install -y -q gstreamer1-libav gstreamer1-plugins-base gstreamer1-plugins-good gstreamer1-plugins-bad-free 2>/dev/null || true
 elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad
+    sudo pacman -S --noconfirm --needed gst-libav gst-plugins-base gst-plugins-good gst-plugins-bad 2>/dev/null || true
 fi
 
 ARCH=$(uname -m)
@@ -667,25 +666,35 @@ LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
 if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
     if command -v apt-get &> /dev/null; then
         DEB_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
-        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null && ZUNO_INSTALLED=true
+        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
+            wget -q --max-time 30 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null && ZUNO_INSTALLED=true
+        fi
     fi
 fi
 
 # FALLBACK ROBUSTO A APPIMAGE SI EL .DEB FALLA
 if [ "$ZUNO_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
+    mkdir -p "$REAL_HOME/.local/bin" # Asegurar que existe ANTES de descargar
+    
     APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null || true
     else
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" 2>/dev/null
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" 2>/dev/null || true
     fi
-    chmod +x "$REAL_HOME/.local/bin/zuno"
-    ZUNO_INSTALLED=true
-    echo -e "${GREEN}      ✅ Zuno instalado como AppImage.${NC}"
+    
+    if [ -f "$REAL_HOME/.local/bin/zuno" ]; then
+        chmod +x "$REAL_HOME/.local/bin/zuno"
+        ZUNO_INSTALLED=true
+        echo -e "${GREEN}      ✅ Zuno instalado como AppImage.${NC}"
+    else
+        echo -e "${RED}      ❌ Fallo al descargar Zuno.${NC}"
+    fi
 fi
 
 # Transformar a Apple Music
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
 
 ZUNO_DESKTOP=""
@@ -694,6 +703,7 @@ for path in "/usr/share/applications/zuno.desktop" "/usr/share/applications/com.
 done
 
 if [ -n "$ZUNO_DESKTOP" ]; then
+    mkdir -p "$REAL_HOME/.local/share/applications"
     cp "$ZUNO_DESKTOP" "$REAL_HOME/.local/share/applications/applemusic.desktop"
     sed -i 's/^Name=.*/Name=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Apple Music/g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
@@ -702,6 +712,7 @@ if [ -n "$ZUNO_DESKTOP" ]; then
     sed -i 's|^Exec=.*zuno.*|Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 zuno %U|g' "$REAL_HOME/.local/share/applications/applemusic.desktop"
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ZUNO_DESKTOP")"
 else
+    mkdir -p "$REAL_HOME/.local/share/applications"
     cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
 [Desktop Entry]
 Name=Apple Music
@@ -721,16 +732,16 @@ echo -e "${GREEN}      ✅ Zuno transformado a 'Apple Music'.${NC}"
 echo -e "${BLUE}   → [12.6] Instalando LocalSend y configurando red local...${NC}"
 
 if command -v apt-get &> /dev/null; then
-    sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk
+    sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q xdg-desktop-portal xdg-desktop-portal-gnome
+    sudo dnf install -y -q xdg-desktop-portal xdg-desktop-portal-gnome 2>/dev/null || true
 elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed xdg-desktop-portal xdg-desktop-portal-gtk
+    sudo pacman -S --noconfirm --needed xdg-desktop-portal xdg-desktop-portal-gtk 2>/dev/null || true
 fi
 
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
-    sudo ufw allow 53317/tcp >/dev/null 2>&1
-    sudo ufw allow 53317/udp >/dev/null 2>&1
+    sudo ufw allow 53317/tcp >/dev/null 2>&1 || true
+    sudo ufw allow 53317/udp >/dev/null 2>&1 || true
 fi
 
 LS_INSTALLED=false
@@ -739,26 +750,34 @@ LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
 
 if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
     if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("linux-x86-64.deb|linux-amd64.deb"; "i")).browser_download_url' | head -n 1)
-        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
+        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
+        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
+            wget -q --max-time 30 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
+        fi
     fi
 fi
 
-# FALLBACK ROBUSTO A APPIMAGE
 if [ "$LS_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("linux-x86-64.AppImage"; "i")).browser_download_url' | head -n 1)
+    mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications"
+    
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null || true
     else
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null || true
     fi
-    chmod +x "$REAL_HOME/.local/bin/localsend"
-    LS_INSTALLED=true
-    echo -e "${GREEN}      ✅ LocalSend instalado como AppImage.${NC}"
+    
+    if [ -f "$REAL_HOME/.local/bin/localsend" ]; then
+        chmod +x "$REAL_HOME/.local/bin/localsend"
+        LS_INSTALLED=true
+        echo -e "${GREEN}      ✅ LocalSend instalado como AppImage.${NC}"
+    else
+        echo -e "${RED}      ❌ Fallo al descargar LocalSend.${NC}"
+    fi
 fi
 
-# Crear .desktop manualmente para garantizar que se detecte
+mkdir -p "$REAL_HOME/.local/share/applications"
 cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
 [Desktop Entry]
 Name=LocalSend
@@ -777,11 +796,11 @@ echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
 
 if command -v apt-get &> /dev/null; then
-    sudo apt-get install -y -qq mpv xdg-utils
+    sudo apt-get install -y -qq mpv xdg-utils 2>/dev/null || true
 elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q mpv xdg-utils
+    sudo dnf install -y -q mpv xdg-utils 2>/dev/null || true
 elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed mpv xdg-utils
+    sudo pacman -S --noconfirm --needed mpv xdg-utils 2>/dev/null || true
 fi
 
 IPTV_INSTALLED=false
@@ -790,27 +809,35 @@ LATEST_VERSION_IPTV=$(echo "$LATEST_RELEASE_IPTV" | jq -r .tag_name 2>/dev/null)
 
 if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
     if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("linux-amd64.deb"; "i")).browser_download_url' | head -n 1)
-        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/iptvnator.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
+        DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
+        if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
+            wget -q --max-time 30 -O /tmp/iptvnator.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
+        fi
     fi
 fi
 
-# FALLBACK ROBUSTO
 if [ "$IPTV_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando fallback...${NC}"
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("linux-x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
+    mkdir -p "$REAL_HOME/.local/bin"
+    
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL" 2>/dev/null
-        chmod +x "$REAL_HOME/.local/bin/iptvnator"
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL" 2>/dev/null || true
+        chmod +x "$REAL_HOME/.local/bin/iptvnator" 2>/dev/null || true
         IPTV_INSTALLED=true
     else
-        wget -q --max-time 60 -O /tmp/iptvnator.deb "https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb" 2>/dev/null
+        wget -q --max-time 60 -O /tmp/iptvnator.deb "https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb" 2>/dev/null || true
         sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
     fi
-    echo -e "${GREEN}      ✅ IPTVnator instalado desde fallback.${NC}"
+    
+    if [ "$IPTV_INSTALLED" = true ]; then
+        echo -e "${GREEN}      ✅ IPTVnator instalado desde fallback.${NC}"
+    else
+        echo -e "${RED}      ❌ Fallo al descargar IPTVnator.${NC}"
+    fi
 fi
 
-# Transformar a Apple TV
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
 
 IPTV_DESKTOP=""
@@ -819,6 +846,7 @@ for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share
 done
 
 if [ -n "$IPTV_DESKTOP" ]; then
+    mkdir -p "$REAL_HOME/.local/share/applications"
     cp "$IPTV_DESKTOP" "$REAL_HOME/.local/share/applications/appletv.desktop"
     sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
@@ -827,6 +855,7 @@ if [ -n "$IPTV_DESKTOP" ]; then
     sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$IPTV_DESKTOP")"
 else
+    mkdir -p "$REAL_HOME/.local/share/applications"
     cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
 [Desktop Entry]
 Name=Apple TV
@@ -839,7 +868,6 @@ Terminal=false
 EOF
 fi
 
-# Pre-configurar lista de reproducción
 CONFIG_DIR="$REAL_HOME/.config/iptvnator"
 mkdir -p "$CONFIG_DIR"
 if [ ! -f "$CONFIG_DIR/store.json" ]; then
@@ -863,22 +891,11 @@ if [ ! -f "$CONFIG_DIR/store.json" ]; then
 EOF
     echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplicada.${NC}"
 fi
-echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV'.${NC}"
+echo -e "${GREEN}      ✅ IPTVnator renombrado a 'Apple TV'.${NC}"
 
-# =============================================================================
-# ACTUALIZACIÓN FINAL DE CACHÉ (Ejecutar con run_as_user para usar $REAL_HOME)
-# =============================================================================
+# ACTUALIZACIÓN FINAL DE CACHÉ
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
-echo ""
-
-# =============================================================================
-# ACTUALIZACIÓN FINAL DE CACHÉ (Optimización: se ejecuta una sola vez al final)
-# =============================================================================
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
-gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
-
 echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
 echo ""
 
