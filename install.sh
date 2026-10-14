@@ -643,30 +643,28 @@ EOF
 fi
 
 # =============================================================================
-# 12.5: ZUNO -> APPLE MUSIC (CORREGIDO CON DESCARGA DIRECTA)
+# 12.5: ZUNO -> APPLE MUSIC (CORREGIDO CON USER-AGENT)
 # =============================================================================
 echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
 
-# Instalar codecs
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad 2>/dev/null || true
 fi
 
 mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-# Descarga directa del AppImage (más estable que la API de GitHub)
 ZUNO_URL="https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage"
 echo -e "${BLUE}      → Descargando Zuno AppImage...${NC}"
 if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/zuno" "$ZUNO_URL" 2>/dev/null; then
     chmod +x "$REAL_HOME/.local/bin/zuno"
     echo -e "${GREEN}      ✅ Zuno descargado correctamente.${NC}"
 else
-    echo -e "${YELLOW}      ⚠️  Fallo en descarga directa, intentando versión anterior...${NC}"
+    echo -e "${YELLOW}      ⚠️  Fallo en descarga, intentando versión anterior...${NC}"
     wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.3.2/Zuno_1.3.2_amd64.AppImage" 2>/dev/null || true
     chmod +x "$REAL_HOME/.local/bin/zuno" 2>/dev/null || true
 fi
 
-# Crear lanzador Apple Music
+# Descargar icono con User-Agent para evitar bloqueo de Wikimedia
 wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
 
 cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
@@ -679,6 +677,10 @@ Type=Application
 Categories=Audio;Music;Player;AudioVideo;
 Terminal=false
 EOF
+
+for path in "/usr/share/applications/zuno.desktop" "$REAL_HOME/.local/share/applications/zuno.desktop"; do
+    [ -f "$path" ] && echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$path")"
+done
 echo -e "${GREEN}      ✅ Zuno transformado a 'Apple Music'.${NC}"
 
 # =============================================================================
@@ -746,7 +748,7 @@ wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "h
 echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 
 # =============================================================================
-# 12.7: IPTVNATOR -> APPLE TV (CORREGIDO CON DESCARGA DIRECTA)
+# 12.7: IPTVNATOR -> APPLE TV (CORREGIDO CON LISTA M3U Y USER-AGENT)
 # =============================================================================
 echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
 
@@ -756,7 +758,6 @@ fi
 
 mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-# Descarga directa del AppImage de IPTVnator
 IPTV_URL="https://github.com/4gray/iptvnator/releases/download/v0.14.0/iptvnator-0.14.0-linux-x86_64.AppImage"
 echo -e "${BLUE}      → Descargando IPTVnator AppImage...${NC}"
 if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/iptvnator" "$IPTV_URL" 2>/dev/null; then
@@ -768,7 +769,6 @@ else
     sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null || true
 fi
 
-# Crear lanzador Apple TV
 wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
 
 cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
@@ -782,7 +782,10 @@ Categories=AudioVideo;Video;Player;
 Terminal=false
 EOF
 
-# Pre-configurar lista de reproducción en Español
+for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share/applications/iptvnator.desktop"; do
+    [ -f "$path" ] && echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$path")"
+done
+
 CONFIG_DIR="$REAL_HOME/.config/iptvnator"
 mkdir -p "$CONFIG_DIR"
 cat > "$CONFIG_DIR/store.json" << 'EOF'
@@ -803,7 +806,8 @@ cat > "$CONFIG_DIR/store.json" << 'EOF'
   }
 }
 EOF
-echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV' con lista en español.${NC}"
+echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplicada.${NC}"
+echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV'.${NC}"
 
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
@@ -1208,7 +1212,7 @@ echo -e "${BLUE}   → Personalizando lanzador e icono a 'Office'...${NC}"
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-# Buscar el lanzador original de Flatpak (puede estar en sistema o en usuario)
+# Buscar el lanzador original de Flatpak
 ONLYOFFICE_DESKTOP=""
 for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop" \
             "$REAL_HOME/.local/share/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop"; do
@@ -1218,7 +1222,7 @@ for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktope
     fi
 done
 
-# Descargar icono moderno de Office (con User-Agent para evitar bloqueo de Wikimedia)
+# Descargar icono con User-Agent para evitar bloqueo de Wikimedia + URL de respaldo
 echo -e "${BLUE}      → Descargando icono de Office...${NC}"
 ICON_URL="https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg"
 BACKUP_ICON_URL="https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/microsoftoffice.svg"
@@ -1228,21 +1232,18 @@ if ! wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolo
 fi
 
 if [ -n "$ONLYOFFICE_DESKTOP" ]; then
-    # Copiar y modificar el lanzador
     cp "$ONLYOFFICE_DESKTOP" "$REAL_HOME/.local/share/applications/office.desktop"
-    # Cambiar nombres y asignar nuevo icono
     sed -i 's/^Name=.*/Name=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Office/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^GenericName=.*/GenericName=Suite de Oficina/g' "$REAL_HOME/.local/share/applications/office.desktop"
     sed -i 's/^Icon=.*/Icon=office/g' "$REAL_HOME/.local/share/applications/office.desktop"
-    # Ocultar el lanzador original de ONLYOFFICE para evitar duplicados en el menú
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$ONLYOFFICE_DESKTOP")"
     echo -e "${GREEN}   ✅ ONLYOFFICE renombrado e icono actualizado a 'Office'.${NC}"
 else
     echo -e "${YELLOW}   ⚠️  No se encontró el lanzador de ONLYOFFICE. Es posible que necesites reiniciar la sesión.${NC}"
 fi
 
-# Actualizar cachés de escritorio e iconos
+# Forzar actualización de cachés
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
@@ -1250,14 +1251,28 @@ set -e
 echo ""
 
 # =============================================================================
-# PASO 15.5: INSTALAR WHISKER MENU (SI FALTA) Y CONFIGURAR ICONO DE APPLE
+# PASO 15.5: BOTÓN DE MENÚ CON ICONO DE APPLE (macOS)
 # =============================================================================
-echo -e "${YELLOW}🍎 [15.5/25] Configurando menú de inicio estilo macOS...${NC}"
+echo -e "${YELLOW}🍎 [15.5/25] Configurando icono de Apple en el botón de inicio...${NC}"
 set +e
 
-if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    echo -e "${BLUE}   → Verificando Whisker Menu en XFCE...${NC}"
-    # Instalar Whisker Menu si no está presente
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Configurando GNOME...${NC}"
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-show-apps-button true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock show-apps-at-top true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock custom-theme-shrink true 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Botón de aplicaciones configurado con icono de Apple${NC}"
+
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
+    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon "distributor-logo" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon-size 16 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Icono de Apple aplicado al menú de Cinnamon${NC}"
+
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Verificando e instalando Whisker Menu en XFCE...${NC}"
+    
+    # INSTALAR WHISKER MENU SI FALTA
     if ! command -v xfce4-popup-whiskermenu &> /dev/null; then
         echo -e "${BLUE}      → Whisker Menu no detectado. Instalando...${NC}"
         if command -v apt-get &> /dev/null; then
@@ -1272,16 +1287,17 @@ if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
         echo -e "${GREEN}      ✓ Whisker Menu ya está instalado.${NC}"
     fi
     
-    # Configurar icono de Apple y ocultar texto
+    # CONFIGURAR EL ICONO
     WHISKER_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "whiskermenu" | head -1 | cut -d'/' -f4)
     if [ -n "$WHISKER_ID" ]; then
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -s "distributor-logo" 2>/dev/null || true
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -s false 2>/dev/null || true
         echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu (solo icono, sin texto).${NC}"
     else
-        echo -e "${YELLOW}   ⚠️  No se pudo configurar Whisker Menu automáticamente. Añádelo al panel manualmente.${NC}"
+        echo -e "${YELLOW}   ⚠️  Whisker Menu instalado. Para usarlo: Clic derecho en el panel > Panel > Añadir nuevos elementos > 'Menú de aplicaciones' (Whisker) y elimina el menú antiguo.${NC}"
     fi
 fi
+
 set -e
 echo ""
 
@@ -1361,19 +1377,15 @@ echo ""
 # PASO 15.7: DETALLES FINALES DE EXPERIENCIA macOS (SONIDO, ACERCA DE, SIDEBAR, CURSOR)
 # =============================================================================
 echo -e "${YELLOW}✨ [15.7/25] Aplicando detalles finales de experiencia macOS...${NC}"
-
 set +e
 
 # =============================================================================
 # 1. SONIDO DE ARRANQUE (STARTUP CHIME)
 # =============================================================================
 echo -e "${BLUE}   → Configurando sonido de arranque estilo macOS...${NC}"
-
 AUTOSTART_DIR="$REAL_HOME/.config/autostart"
 mkdir -p "$AUTOSTART_DIR" 2>/dev/null || true
-
 SOUND_FILE="$REAL_HOME/.local/share/sounds/bigsur/stereo/desktop-login.oga"
-
 if [ -f "$SOUND_FILE" ]; then
     cat > "$AUTOSTART_DIR/mac-startup-chime.desktop" << EOF
 [Desktop Entry]
@@ -1386,154 +1398,96 @@ X-GNOME-Autostart-enabled=true
 Comment=Reproduce el sonido de arranque de macOS Big Sur
 EOF
     echo -e "${GREEN}   ✓ Sonido de arranque configurado${NC}"
-else
-    echo -e "${YELLOW}   ⚠️  Archivo de sonido no encontrado, omitiendo${NC}"
 fi
 
 # =============================================================================
-# 2. VENTANA "ACERCA DE ESTE MAC" (CON ACTUALIZACIÓN REAL DEL SISTEMA Y TEMA)
+# 2. VENTANA "ACERCA DE ESTE MAC" (CON ACTUALIZACIÓN REAL Y ACCESO DESDE EL MENÚ)
 # =============================================================================
 echo -e "${BLUE}   → Creando ventana 'Acerca de este Mac' con actualización real...${NC}"
-
 ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
 mkdir -p "$REAL_HOME/.local/bin" 2>/dev/null || true
 
 cat > "$ABOUT_SCRIPT" << 'ABOUTEOF'
 #!/bin/bash
-# Simulación de "Acerca de este Mac" con Actualización de Software Real
-
 CPU=$(lscpu | grep "Model name" | cut -d':' -f2 | xargs | sed 's/(R)//g; s/(TM)//g; s/(C)//g' 2>/dev/null || echo "Procesador")
 RAM=$(free -h | awk '/^Mem:/ {print $2}' 2>/dev/null || echo "RAM")
 DISK=$(df -h / | awk 'NR==2 {print $2}' 2>/dev/null || echo "Disco")
 GRAPHICS=$(lspci 2>/dev/null | grep -i "vga\|3d\|display" | head -1 | cut -d':' -f3 | xargs | sed 's/Corporation//g; s/Inc.//g' 2>/dev/null || echo "Gráficos")
 KERNEL=$(uname -r 2>/dev/null || echo "Kernel")
 
-# Función para ejecutar la actualización real en una terminal
 run_real_update() {
-    # Detectar emulador de terminal disponible
     TERM_CMD=""
     for term in gnome-terminal xfce4-terminal konsole x-terminal-emulator xterm; do
-        if command -v $term &> /dev/null; then
-            TERM_CMD=$term
-            break
-        fi
+        if command -v $term &> /dev/null; then TERM_CMD=$term; break; fi
     done
-
-    if [ -z "$TERM_CMD" ]; then
-        zenity --error --text="No se encontró una terminal para ejecutar la actualización." 2>/dev/null
-        return
-    fi
-
-    # Crear script temporal de actualización
+    [ -z "$TERM_CMD" ] && { zenity --error --text="No se encontró una terminal." 2>/dev/null; return; }
+    
     TEMP_UPDATE=$(mktemp /tmp/macos-update-XXXXXX.sh)
     cat > "$TEMP_UPDATE" << 'UPDATEEOF'
 #!/bin/bash
 clear
 echo "🍎 Iniciando Actualización de Software de macOS Tahoe..."
 echo "=========================================================="
-echo ""
-echo "📦 [1/2] Actualizando paquetes del sistema base..."
-if command -v apt-get &> /dev/null; then
-    sudo apt-get update
-    sudo apt-get upgrade -y
-elif command -v dnf &> /dev/null; then
-    sudo dnf upgrade -y
-elif command -v pacman &> /dev/null; then
-    sudo pacman -Syu --noconfirm
+if command -v apt-get &> /dev/null; then sudo apt-get update && sudo apt-get upgrade -y
+elif command -v dnf &> /dev/null; then sudo dnf upgrade -y
+elif command -v pacman &> /dev/null; then sudo pacman -Syu --noconfirm
 fi
-
-echo ""
-echo "🔄 [2/2] Actualizando componentes del tema macOS Tahoe..."
-# Descargar la última versión del script de actualización
-curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/tahoe-updater.sh
-chmod +x /tmp/tahoe-updater.sh
-
-# Ejecutar el script de actualización
-sudo /tmp/tahoe-updater.sh
-
-echo ""
-echo "✅ ¡Proceso de actualización finalizado con éxito!"
-echo "Presiona [ENTER] para cerrar esta ventana."
+echo "✅ ¡Proceso de actualización finalizado!"
+echo "Presiona [ENTER] para cerrar."
 read -r
 UPDATEEOF
     chmod +x "$TEMP_UPDATE"
-
-    # Ejecutar en la terminal detectada
-    if [ "$TERM_CMD" = "gnome-terminal" ]; then
-        gnome-terminal -- bash -c "$TEMP_UPDATE"
-    elif [ "$TERM_CMD" = "xfce4-terminal" ]; then
-        xfce4-terminal -x bash -c "$TEMP_UPDATE"
-    elif [ "$TERM_CMD" = "konsole" ]; then
-        konsole -e bash -c "$TEMP_UPDATE"
-    else
-        $TERM_CMD -e bash -c "$TEMP_UPDATE"
-    fi
+    $TERM_CMD -e bash -c "$TEMP_UPDATE"
 }
 
-# Mostrar ventana "Acerca de este Mac"
-# Usamos --question para tener dos botones: "Aceptar" y "Actualización de software..."
 if zenity --question --title="Acerca de este Mac" --width=360 --height=420 \
---text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n\
-<span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n\
-<span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n\
-<span font='SF Pro Text 11'><b>Disco de arranque:</b> Macintosh HD ($DISK)</span>\n\
-<span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n\
-<span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n\
-<span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
+--text="<span font='SF Pro Display 18' weight='bold'>macOS Tahoe</span>\n\n<span font='SF Pro Text 11'><b>Chip:</b> $CPU</span>\n<span font='SF Pro Text 11'><b>Memoria:</b> $RAM</span>\n<span font='SF Pro Text 11'><b>Disco de arranque:</b> Macintosh HD ($DISK)</span>\n<span font='SF Pro Text 11'><b>Gráficos:</b> $GRAPHICS</span>\n<span font='SF Pro Text 11'><b>Sistema:</b> Linux (Kernel $KERNEL)</span>\n\n<span font='SF Pro Text 9' foreground='#888888'>TM y © 1983-2026 Apple Inc.\nTodos los derechos reservados.</span>" \
 --ok-label="Actualización de software..." \
 --cancel-label="Aceptar" 2>/dev/null; then
-    
-    # Si el usuario hace clic en "Actualización de software..." (salida 0), ejecutamos la función
     run_real_update
 fi
 ABOUTEOF
 
 chmod +x "$ABOUT_SCRIPT"
-if [ -n "$SUDO_USER" ]; then 
-    chown "$SUDO_USER:$SUDO_USER" "$ABOUT_SCRIPT" 2>/dev/null || true 
-fi
+[ -n "$SUDO_USER" ] && chown "$SUDO_USER:$SUDO_USER" "$ABOUT_SCRIPT" 2>/dev/null || true
 echo -e "${GREEN}   ✓ Script 'Acerca de este Mac' creado con actualización real${NC}"
 
-# Asignar atajo Super+I para abrir la ventana (universal)
-if [ "$IS_GNOME" = true ]; then
+# CREAR ARCHIVO .DESKTOP PARA QUE APAREZCA EN EL MENÚ DE INICIO
+mkdir -p "$REAL_HOME/.local/share/applications"
+cat > "$REAL_HOME/.local/share/applications/about-this-mac.desktop" << EOF
+[Desktop Entry]
+Name=Acerca de este Mac
+Comment=Información del sistema y actualizaciones
+Exec=$ABOUT_SCRIPT
+Icon=preferences-system
+Type=Application
+Categories=Settings;System;
+EOF
+echo -e "${GREEN}   ✓ Acceso añadido al menú de inicio${NC}"
+
+# Asignar atajo Super+I forzando la creación
+if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -n -t string -s "$ABOUT_SCRIPT" 2>/dev/null || \
+    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -s "$ABOUT_SCRIPT" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Atajo Super+I asignado correctamente en XFCE.${NC}"
+elif [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 binding "'<Super>i'" 2>/dev/null || true
-    
     EXISTING=$(run_as_user gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null || echo "[]")
-    if echo "$EXISTING" | grep -q "custom0"; then
-        echo -e "${GREEN}   ✓ Atajo Super+I ya configurado${NC}"
-    else
+    if ! echo "$EXISTING" | grep -q "custom0"; then
         NEW_LIST=$(echo "$EXISTING" | sed "s/]$/, '\/org\/gnome\/settings-daemon\/plugins\/media-keys\/custom-keybindings\/custom0\/']/")
         run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_LIST" 2>/dev/null || true
-        echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
     fi
-elif [ "$IS_CINNAMON" = true ]; then
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:custom0 binding "['<Super>i']" 2>/dev/null || true
-    
-    EXISTING=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
-    if echo "$EXISTING" | grep -q "custom0"; then
-        echo -e "${GREEN}   ✓ Atajo Super+I ya configurado${NC}"
-    else
-        NEW_LIST=$(echo "$EXISTING" | sed "s/]$/, 'custom0']/")
-        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$NEW_LIST" 2>/dev/null || true
-        echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
-    fi
-elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -s "$ABOUT_SCRIPT" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Atajo Super+I asignado${NC}"
+    echo -e "${GREEN}   ✓ Atajo Super+I asignado correctamente en GNOME.${NC}"
 fi
 
 # =============================================================================
 # 3. SIDEBAR DEL ADMINISTRADOR DE ARCHIVOS (ESTILO FINDER)
 # =============================================================================
 echo -e "${BLUE}   → Configurando barra lateral estilo Finder...${NC}"
-
 GTK_CONFIG_DIR="$REAL_HOME/.config/gtk-3.0"
 mkdir -p "$GTK_CONFIG_DIR" 2>/dev/null || true
-
 cat > "$GTK_CONFIG_DIR/bookmarks" << EOF
 file://$REAL_HOME/Desktop Desktop
 file://$REAL_HOME/Downloads Downloads
@@ -1543,17 +1497,13 @@ file://$REAL_HOME/Pictures Pictures
 file://$REAL_HOME/Videos Videos
 file://$REAL_HOME/.local/share/Trash Trash
 EOF
-
-if [ -n "$SUDO_USER" ]; then
-    chown -R "$SUDO_USER:$SUDO_USER" "$GTK_CONFIG_DIR" 2>/dev/null || true
-fi
+[ -n "$SUDO_USER" ] && chown -R "$SUDO_USER:$SUDO_USER" "$GTK_CONFIG_DIR" 2>/dev/null || true
 echo -e "${GREEN}   ✓ Barra lateral de archivos configurada${NC}"
 
 # =============================================================================
 # 4. CURSOR MÁS GRANDE (DETALLE VISUAL)
 # =============================================================================
 echo -e "${BLUE}   → Ajustando tamaño del cursor (32px estilo macOS)...${NC}"
-
 if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.interface cursor-size 32 2>/dev/null || true
     echo -e "${GREEN}   ✓ Cursor GNOME ajustado a 32px${NC}"
