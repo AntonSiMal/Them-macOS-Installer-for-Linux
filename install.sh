@@ -2021,9 +2021,10 @@ echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 15.11: INTEGRACIÓN DE APLICACIONES EN EL DOCK (USANDO APPS YA INSTALADAS)
+# PASO 15.11: INTEGRACIÓN INTELIGENTE DE APLICACIONES EN EL DOCK
+# (Usa los .desktop ya creados en el Paso 12, NO crea duplicados rotos)
 # =============================================================================
-echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (Safari, Office, Apple Music, TV, LocalSend)...${NC}"
+echo -e "${YELLOW} [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
 
 APPS_DIR="$REAL_HOME/.local/share/applications"
 mkdir -p "$APPS_DIR" 2>/dev/null || true
@@ -2043,19 +2044,19 @@ if [ -f "$APPS_DIR/office.desktop" ] || command -v onlyoffice-desktopeditors &> 
     echo -e "${GREEN}   ✓ Office (OnlyOffice) detectado${NC}"
 fi
 
-# --- 3. APPLE MUSIC (Zuno) ---
+# --- 3. APPLE MUSIC (Zuno - ya configurado en Paso 12) ---
 if [ -f "$APPS_DIR/applemusic.desktop" ] || command -v zuno &> /dev/null; then
     FOUND_DOCK_APPS+=("applemusic.desktop")
     echo -e "${GREEN}   ✓ Apple Music (Zuno) detectado${NC}"
 fi
 
-# --- 4. APPLE TV (IPTVnator) ---
+# --- 4. APPLE TV (IPTVnator - ya configurado en Paso 12) ---
 if [ -f "$APPS_DIR/appletv.desktop" ] || command -v iptvnator &> /dev/null; then
     FOUND_DOCK_APPS+=("appletv.desktop")
     echo -e "${GREEN}   ✓ Apple TV (IPTVnator) detectado${NC}"
 fi
 
-# --- 5. LOCALSEND ---
+# --- 5. LOCALSEND (ya configurado en Paso 12) ---
 if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null; then
     FOUND_DOCK_APPS+=("localsend.desktop")
     echo -e "${GREEN}   ✓ LocalSend detectado${NC}"
