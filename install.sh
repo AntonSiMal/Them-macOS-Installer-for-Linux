@@ -2030,7 +2030,6 @@ echo ""
 
 # =============================================================================
 # PASO 15.11: INTEGRACIÓN INTELIGENTE DE APLICACIONES EN EL DOCK
-# (Usa los .desktop ya creados en el Paso 12, NO crea duplicados rotos)
 # =============================================================================
 echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
 
@@ -2052,20 +2051,20 @@ if [ -f "$APPS_DIR/office.desktop" ] || command -v onlyoffice-desktopeditors &> 
     echo -e "${GREEN}   ✓ Office (OnlyOffice) detectado${NC}"
 fi
 
-# --- 3. APPLE MUSIC (Zuno - ya configurado en Paso 12) ---
+# --- 3. APPLE MUSIC (Zuno) ---
 if [ -f "$APPS_DIR/applemusic.desktop" ] || command -v zuno &> /dev/null; then
     FOUND_DOCK_APPS+=("applemusic.desktop")
     echo -e "${GREEN}   ✓ Apple Music (Zuno) detectado${NC}"
 fi
 
-# --- 4. APPLE TV (IPTVnator - ya configurado en Paso 12) ---
+# --- 4. APPLE TV (IPTVnator) ---
 if [ -f "$APPS_DIR/appletv.desktop" ] || command -v iptvnator &> /dev/null; then
     FOUND_DOCK_APPS+=("appletv.desktop")
     echo -e "${GREEN}   ✓ Apple TV (IPTVnator) detectado${NC}"
 fi
 
-# --- 5. LOCALSEND (ya configurado en Paso 12) ---
-if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null || [ -f "$REAL_HOME/.local/bin/localsend" ]; then
+# --- 5. LOCALSEND ---
+if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null; then
     FOUND_DOCK_APPS+=("localsend.desktop")
     echo -e "${GREEN}   ✓ LocalSend detectado${NC}"
 fi
@@ -2082,7 +2081,6 @@ fi
 if [ "$IS_GNOME" = true ] && [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
     echo -e "${BLUE}   → Configurando favoritos en GNOME Dash...${NC}"
     
-    # Construimos el array de favoritos: Apps de macOS encontradas + Nautilus + Terminal + Software
     FAVORITES_ARRAY="["
     for app in "${FOUND_DOCK_APPS[@]}"; do
         FAVORITES_ARRAY+="'$app', "
@@ -2128,123 +2126,6 @@ EOF
 fi
 
 echo -e "${GREEN}✅ Integración inteligente de aplicaciones en el Dock completada.${NC}"
-echo ""
-
-# =============================================================================
-# PASO 15.12: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
-# =============================================================================
-echo -e "${YELLOW}🔬 [13.5/25] Refinando comportamiento gráfico y renderizado (Nivel macOS)...${NC}"
-
-set +e
-
-# =============================================================================
-# 1. SCROLLBARS Y COLOR DE SELECCIÓN ESTILO MACOS (GTK3 y GTK4)
-# =============================================================================
-echo -e "${BLUE}   → Forzando scrollbars superpuestas y color de selección macOS...${NC}"
-
-MACOS_CSS_BLOCK='
-/* === macOS Scrollbar Behavior === */
-scrollbar, scrollbar trough {
-    background-color: transparent !important;
-    border: none !important;
-}
-scrollbar slider {
-    min-width: 8px !important;
-    min-height: 8px !important;
-    border-radius: 4px !important;
-    background-color: alpha(@theme_fg_color, 0.4) !important;
-    transition: all 200ms ease !important;
-}
-scrollbar slider:hover {
-    background-color: alpha(@theme_fg_color, 0.8) !important;
-    min-width: 10px !important;
-}
-
-/* === macOS Text Selection Color (Apple System Blue) === */
-*:selected, *:selected:focus {
-    background-color: #007AFF !important;
-    color: #ffffff !important;
-}
-'
-
-for GTK_VER in "gtk-3.0" "gtk-4.0"; do
-    GTK_CSS_DIR="$REAL_HOME/.config/$GTK_VER"
-    GTK_CSS_FILE="$GTK_CSS_DIR/gtk.css"
-    mkdir -p "$GTK_CSS_DIR" 2>/dev/null || true
-    
-    # Solo inyectar si no existe ya el bloque (Idempotencia)
-    if [ -f "$GTK_CSS_FILE" ]; then
-        if ! grep -q "macOS Scrollbar Behavior" "$GTK_CSS_FILE" 2>/dev/null; then
-            echo "$MACOS_CSS_BLOCK" >> "$GTK_CSS_FILE"
-        fi
-    else
-        echo "$MACOS_CSS_BLOCK" > "$GTK_CSS_FILE"
-    fi
-    
-    if [ -n "$SUDO_USER" ]; then
-        chown -R "$SUDO_USER:$SUDO_USER" "$GTK_CSS_DIR" 2>/dev/null || true
-    fi
-done
-echo -e "${GREEN}   ✓ CSS de renderizado macOS aplicado (Scrollbars finas y Selección azul)${NC}"
-
-# =============================================================================
-# 2. INDICADORES DE DOCK (PUNTOS, NO CUADRADOS) Y COMPORTAMIENTO
-# =============================================================================
-echo -e "${BLUE}   → Configurando indicadores de aplicaciones en ejecución (Puntos)...${NC}"
-
-if [ "$IS_GNOME" = true ]; then
-    # Forzar el estilo de indicador a "PUNTOS" (DOTS)
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock running-indicator-style 'DOTS' 2>/dev/null || true
-    # Asegurar que el dock no se extienda a toda la pantalla (comportamiento macOS)
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock extend-height false 2>/dev/null || true
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-fixed false 2>/dev/null || true
-    # Asegurar que el dock esté centrado
-    run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM' 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Indicadores de Dash-to-Dock configurados como puntos${NC}"
-elif [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    # Plank ya usa puntos por defecto, pero forzamos la configuración en su archivo
-    PLANK_CONF="$REAL_HOME/.config/plank/dock1/settings"
-    if [ -f "$PLANK_CONF" ]; then
-        # Autohide inteligente (solo se oculta cuando hay ventanas maximizadas o superpuestas)
-        sed -i 's/^HideMode=.*/HideMode=1/' "$PLANK_CONF" 2>/dev/null || true
-        # Tamaño de iconos estándar macOS
-        sed -i 's/^IconSize=.*/IconSize=48/' "$PLANK_CONF" 2>/dev/null || true
-        if [ -n "$SUDO_USER" ]; then chown "$SUDO_USER:$SUDO_USER" "$PLANK_CONF" 2>/dev/null || true; fi
-    fi
-    echo -e "${GREEN}   ✓ Configuración de Plank refinada${NC}"
-fi
-
-# =============================================================================
-# 15.13 COMPACTACIÓN DE BARRAS DE TÍTULO (HEADERBARS) Y LIBADWAITA
-# =============================================================================
-echo -e "${BLUE}   → Forzando modo compacto en aplicaciones modernas (GTK4/Libadwaita)...${NC}"
-
-# Libadwaita (GTK4) usa un archivo de configuración específico
-ADWAITA_DIR="$REAL_HOME/.config/adwaita-1"
-ADWAITA_SETTINGS="$ADWAITA_DIR/settings.ini"
-mkdir -p "$ADWAITA_DIR" 2>/dev/null || true
-
-cat > "$ADWAITA_SETTINGS" << 'ADWAITAEOF'
-[Settings]
-gtk-application-prefer-dark-theme=1
-ADWAITAEOF
-
-# Forzar compactación y decoración en GTK3 también
-GTK3_SETTINGS="$REAL_HOME/.config/gtk-3.0/settings.ini"
-if [ -f "$GTK3_SETTINGS" ]; then
-    if ! grep -q "gtk-decoration-layout" "$GTK3_SETTINGS"; then
-        echo "gtk-decoration-layout = close,minimize,maximize:" >> "$GTK3_SETTINGS"
-    fi
-fi
-
-if [ -n "$SUDO_USER" ]; then
-    chown -R "$SUDO_USER:$SUDO_USER" "$ADWAITA_DIR" 2>/dev/null || true
-    chown -R "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/gtk-3.0" 2>/dev/null || true
-fi
-echo -e "${GREEN}   ✓ Modo compacto y decoración de ventanas aplicados${NC}"
-
-set -e
-echo -e "${GREEN}✅ Refinamiento microscópico de la GUI completado.${NC}"
 echo ""
 
 # =============================================================================
