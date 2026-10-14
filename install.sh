@@ -886,13 +886,33 @@ echo ""
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
 # =============================================================================
-echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
+echo -e "${YELLOW}🔐 [13/25] Configurando pantalla de login (GDM)...${NC}"
+
+# Desactivar temporalmente la detención por errores para evitar que el script "desaparezca"
+set +e
+
 if [ "$IS_GNOME" = true ]; then
-    ( cd "$WORKDIR/MacTahoe-gtk-theme" && sudo ./tweaks.sh -g -b default > /dev/null 2>&1 )
-    echo -e "${GREEN}✅ Pantalla de login configurada.${NC}"
+    if [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
+        echo -e "${BLUE}   → Aplicando tema a GDM (esto puede tardar unos segundos)...${NC}"
+        
+        # Ejecutamos el tweak. Redirigimos la salida a un archivo de log temporal en lugar de /dev/null
+        if sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1; then
+            echo -e "${GREEN}   ✅ Pantalla de login configurada correctamente.${NC}"
+        else
+            echo -e "${YELLOW}   ️  No se pudo configurar GDM automáticamente.${NC}"
+            echo -e "${YELLOW}      (Esto es común en algunas distros por políticas de seguridad de GDM).${NC}"
+            echo -e "${YELLOW}      El resto de la instalación continuará normalmente.${NC}"
+            echo -e "${BLUE}      → Si deseas investigar, revisa el registro: /tmp/gdm-tweak.log${NC}"
+        fi
+    else
+        echo -e "${YELLOW}   ️  No se encontró la carpeta del tema para configurar GDM.${NC}"
+    fi
 else
-    echo -e "${YELLOW}⏭️  GDM omitido.${NC}"
+    echo -e "${BLUE}   ⏭️  GDM omitido (Entorno no compatible o no es GNOME/Zorin).${NC}"
 fi
+
+# Reactivar la detención de errores para el resto del script
+set -e
 echo ""
 
 # =============================================================================
@@ -2001,104 +2021,83 @@ echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 15.11: INTEGRACIÓN DE APLICACIONES EN EL DOCK (ESTILO macOS)
+# PASO 15.11: INTEGRACIÓN DE APLICACIONES EN EL DOCK (USANDO APPS YA INSTALADAS)
 # =============================================================================
-echo -e "${YELLOW}🚀 [13/25] Integrando aplicaciones en el Dock (Safari, Office, Apple Music, TV, LocalSend)...${NC}"
+echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (Safari, Office, Apple Music, TV, LocalSend)...${NC}"
 
-# 1. Crear archivos .desktop personalizados para "enmascarar" los nombres reales
 APPS_DIR="$REAL_HOME/.local/share/applications"
 mkdir -p "$APPS_DIR" 2>/dev/null || true
 
-# Safari (Enmascara a Firefox)
-cat > "$APPS_DIR/safari.desktop" << 'EOF'
-[Desktop Entry]
-Name=Safari
-GenericName=Navegador Web
-Comment=Navega por la web
-Exec=firefox %u
-Icon=firefox
-Terminal=false
-Type=Application
-Categories=Network;WebBrowser;
-EOF
+# Array para guardar los nombres de las apps que SÍ encontramos instaladas
+FOUND_DOCK_APPS=()
 
-# Office (Enmascara a OnlyOffice)
-cat > "$APPS_DIR/office.desktop" << 'EOF'
-[Desktop Entry]
-Name=Office
-GenericName=Suite de Oficina
-Comment=Edita documentos, hojas de cálculo y presentaciones
-Exec=onlyoffice-desktopeditors %U
-Icon=onlyoffice-desktopeditors
-Terminal=false
-Type=Application
-Categories=Office;
-EOF
-
-# Apple Music (Ajusta 'Exec' si tu aplicación se llama diferente, ej: spotify, lollypop)
-cat > "$APPS_DIR/apple-music.desktop" << 'EOF'
-[Desktop Entry]
-Name=Apple Music
-GenericName=Reproductor de Música
-Comment=Escucha tu música
-Exec=apple-music
-Icon=apple-music
-Terminal=false
-Type=Application
-Categories=AudioVideo;Audio;Player;
-EOF
-
-# Apple TV (Ajusta 'Exec' si tu aplicación se llama diferente, ej: celluloid, vlc)
-cat > "$APPS_DIR/apple-tv.desktop" << 'EOF'
-[Desktop Entry]
-Name=Apple TV
-GenericName=Reproductor de Video
-Comment=Mira tus series y películas favoritas
-Exec=apple-tv
-Icon=apple-tv
-Terminal=false
-Type=Application
-Categories=AudioVideo;Video;Player;
-EOF
-
-# LocalSend (Ajusta 'Exec' si el comando es 'localsend-app' o similar)
-cat > "$APPS_DIR/localsend.desktop" << 'EOF'
-[Desktop Entry]
-Name=LocalSend
-GenericName=Compartir Archivos
-Comment=Comparte archivos de forma local y segura
-Exec=localsend %U
-Icon=localsend
-Terminal=false
-Type=Application
-Categories=Network;FileTransfer;
-EOF
-
-# Hacer ejecutables y asignar permisos
-chmod +x "$APPS_DIR"/*.desktop 2>/dev/null || true
-if [ -n "$SUDO_USER" ]; then
-    chown -R "$SUDO_USER:$SUDO_USER" "$APPS_DIR" 2>/dev/null || true
+# --- 1. SAFARI (Firefox) ---
+if [ -f "$APPS_DIR/safari.desktop" ] || command -v firefox &> /dev/null; then
+    FOUND_DOCK_APPS+=("safari.desktop")
+    echo -e "${GREEN}   ✓ Safari (Firefox) detectado${NC}"
 fi
-echo -e "${GREEN}   ✓ Accesos directos con nombres macOS creados${NC}"
 
-# 2. Anclar aplicaciones al Dock de GNOME (Dash-to-Dock)
-if [ "$IS_GNOME" = true ]; then
+# --- 2. OFFICE (OnlyOffice) ---
+if [ -f "$APPS_DIR/office.desktop" ] || command -v onlyoffice-desktopeditors &> /dev/null || flatpak list --columns=application 2>/dev/null | grep -q "org.onlyoffice.desktopeditors"; then
+    FOUND_DOCK_APPS+=("office.desktop")
+    echo -e "${GREEN}   ✓ Office (OnlyOffice) detectado${NC}"
+fi
+
+# --- 3. APPLE MUSIC (Zuno) ---
+if [ -f "$APPS_DIR/applemusic.desktop" ] || command -v zuno &> /dev/null; then
+    FOUND_DOCK_APPS+=("applemusic.desktop")
+    echo -e "${GREEN}   ✓ Apple Music (Zuno) detectado${NC}"
+fi
+
+# --- 4. APPLE TV (IPTVnator) ---
+if [ -f "$APPS_DIR/appletv.desktop" ] || command -v iptvnator &> /dev/null; then
+    FOUND_DOCK_APPS+=("appletv.desktop")
+    echo -e "${GREEN}   ✓ Apple TV (IPTVnator) detectado${NC}"
+fi
+
+# --- 5. LOCALSEND ---
+if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null; then
+    FOUND_DOCK_APPS+=("localsend.desktop")
+    echo -e "${GREEN}   ✓ LocalSend detectado${NC}"
+fi
+
+if [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
+    echo -e "${GREEN}   ✓ Accesos directos con nombres macOS detectados${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se detectaron aplicaciones compatibles para el Dock.${NC}"
+fi
+
+# =============================================================================
+# ANCLAR AL DOCK DE GNOME (Dash-to-Dock)
+# =============================================================================
+if [ "$IS_GNOME" = true ] && [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
     echo -e "${BLUE}   → Configurando favoritos en GNOME Dash...${NC}"
-    # Orden típico de macOS: Safari, Finder (Nautilus), Música, TV, LocalSend, Office, Terminal, App Store (Software)
-    run_as_user gsettings set org.gnome.shell favorite-apps "['safari.desktop', 'org.gnome.Nautilus.desktop', 'apple-music.desktop', 'apple-tv.desktop', 'localsend.desktop', 'office.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Software.desktop']" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Dock de GNOME configurado${NC}"
+    
+    # Construimos el array de favoritos: Apps de macOS encontradas + Nautilus + Terminal + Software
+    FAVORITES_ARRAY="["
+    for app in "${FOUND_DOCK_APPS[@]}"; do
+        FAVORITES_ARRAY+="'$app', "
+    done
+    FAVORITES_ARRAY+="'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Software.desktop']"
+    
+    # Limpiar comas dobles o espacios extraños
+    FAVORITES_ARRAY=$(echo "$FAVORITES_ARRAY" | sed "s/, ]/]/g")
+    
+    run_as_user gsettings set org.gnome.shell favorite-apps "$FAVORITES_ARRAY" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Dock de GNOME configurado con las apps instaladas${NC}"
 fi
 
-# 3. Anclar aplicaciones a Plank (XFCE / Cinnamon)
-if [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+# =============================================================================
+# ANCLAR AL DOCK DE PLANK (XFCE / CINNAMON)
+# =============================================================================
+if ([ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]) && [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
     echo -e "${BLUE}   → Configurando lanzadores en Plank...${NC}"
     PLANK_LAUNCHERS_DIR="$REAL_HOME/.config/plank/dock1/launchers"
     mkdir -p "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
 
-    # Lista de apps a anclar
-    DOCK_APPS=("safari" "org.gnome.Nautilus" "apple-music" "apple-tv" "localsend" "office" "org.gnome.Terminal")
-
-    for app in "${DOCK_APPS[@]}"; do
+    for app_stem in "${FOUND_DOCK_APPS[@]}"; do
+        app="${app_stem%.desktop}" # Quitar .desktop para buscar el archivo base
+        
         DESKTOP_FILE=""
         [ -f "$APPS_DIR/${app}.desktop" ] && DESKTOP_FILE="$APPS_DIR/${app}.desktop"
         [ -z "$DESKTOP_FILE" ] && [ -f "/usr/share/applications/${app}.desktop" ] && DESKTOP_FILE="/usr/share/applications/${app}.desktop"
@@ -2116,14 +2115,14 @@ EOF
     if [ -n "$SUDO_USER" ]; then
         chown -R "$SUDO_USER:$SUDO_USER" "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
     fi
-    echo -e "${GREEN}   ✓ Dock de Plank configurado${NC}"
+    echo -e "${GREEN}   ✓ Dock de Plank configurado con las apps instaladas${NC}"
 fi
 
-echo -e "${GREEN}✅ Integración de aplicaciones en el Dock completada.${NC}"
+echo -e "${GREEN}✅ Integración inteligente de aplicaciones en el Dock completada.${NC}"
 echo ""
 
 # =============================================================================
-# PASO 13.12: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
+# PASO 15.12: REFINAMIENTO MICROSCÓPICO DE LA GUI (COMPORTAMIENTO MACOS REAL)
 # =============================================================================
 echo -e "${YELLOW}🔬 [13.5/25] Refinando comportamiento gráfico y renderizado (Nivel macOS)...${NC}"
 
