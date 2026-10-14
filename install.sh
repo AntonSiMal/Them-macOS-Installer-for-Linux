@@ -666,7 +666,7 @@ LATEST_VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name 2>/dev/null)
 
 if [ -n "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "null" ]; then
     if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        DEB_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
         [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/zuno.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/zuno.deb 2>/dev/null && ZUNO_INSTALLED=true
     fi
 fi
@@ -674,11 +674,11 @@ fi
 # FALLBACK ROBUSTO A APPIMAGE SI EL .DEB FALLA
 if [ "$ZUNO_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
         wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "$APPIMAGE_URL" 2>/dev/null
     else
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_x86_64.AppImage" 2>/dev/null
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/zuno" "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" 2>/dev/null
     fi
     chmod +x "$REAL_HOME/.local/bin/zuno"
     ZUNO_INSTALLED=true
@@ -739,7 +739,7 @@ LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
 
 if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
     if command -v apt-get &> /dev/null; then
-        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
+        DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("linux-x86-64.deb|linux-amd64.deb"; "i")).browser_download_url' | head -n 1)
         [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
     fi
 fi
@@ -747,7 +747,7 @@ fi
 # FALLBACK ROBUSTO A APPIMAGE
 if [ "$LS_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
-    APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("linux-x86-64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
         wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null
     else
@@ -772,11 +772,10 @@ wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "h
 echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 
 # =============================================================================
-# 12.7: IPTVNATOR -> APPLE TV - CORREGIDO
+# 12.7: IPTVNATOR -> APPLE TV
 # =============================================================================
 echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
 
-# Dependencia MPV (crítica para reproducción)
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq mpv xdg-utils
 elif command -v dnf &> /dev/null; then
@@ -786,151 +785,65 @@ elif command -v pacman &> /dev/null; then
 fi
 
 IPTV_INSTALLED=false
+LATEST_RELEASE_IPTV=$(curl -s --max-time 10 https://api.github.com/repos/4gray/iptvnator/releases/latest 2>/dev/null)
+LATEST_VERSION_IPTV=$(echo "$LATEST_RELEASE_IPTV" | jq -r .tag_name 2>/dev/null)
 
-# Detectar arquitectura
-ARCH=$(uname -m)
-[[ "$ARCH" == "x86_64" ]] && { ARCH_DEB="amd64"; ARCH_RPM="x86_64"; ARCH_APPIMAGE="x86_64"; }
-[[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]] && { ARCH_DEB="arm64"; ARCH_RPM="aarch64"; ARCH_APPIMAGE="aarch64"; }
-
-# Intentar instalar desde repositorios oficiales primero
-echo -e "${BLUE}      → Intentando instalación desde repositorios oficiales...${NC}"
-if command -v apt-get &> /dev/null; then
-    if sudo apt-get install -y -qq iptvnator 2>/dev/null; then
-        IPTV_INSTALLED=true
-        echo -e "${GREEN}      ✓ IPTVnator instalado desde repositorios${NC}"
-    fi
-elif command -v dnf &> /dev/null; then
-    if sudo dnf install -y -q iptvnator 2>/dev/null; then
-        IPTV_INSTALLED=true
-        echo -e "${GREEN}      ✓ IPTVnator instalado desde repositorios${NC}"
-    fi
-elif command -v pacman &> /dev/null; then
-    if sudo pacman -S --noconfirm --needed iptvnator 2>/dev/null; then
-        IPTV_INSTALLED=true
-        echo -e "${GREEN}      ✓ IPTVnator instalado desde repositorios${NC}"
+if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
+    if command -v apt-get &> /dev/null; then
+        DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("linux-amd64.deb"; "i")).browser_download_url' | head -n 1)
+        [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ] && wget -q --max-time 30 -O /tmp/iptvnator.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
     fi
 fi
 
-# Si no se instaló desde repos, intentar desde GitHub
+# FALLBACK ROBUSTO
 if [ "$IPTV_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Descargando desde GitHub...${NC}"
-    
-    LATEST_RELEASE_IPTV=$(curl -s --max-time 15 https://api.github.com/repos/4gray/iptvnator/releases/latest 2>/dev/null)
-    LATEST_VERSION_IPTV=$(echo "$LATEST_RELEASE_IPTV" | jq -r .tag_name 2>/dev/null)
-    
-    if [ -n "$LATEST_VERSION_IPTV" ] && [ "$LATEST_VERSION_IPTV" != "null" ]; then
-        echo -e "${BLUE}      → Última versión detectada: $LATEST_VERSION_IPTV${NC}"
-        
-        if command -v apt-get &> /dev/null; then
-            DEB_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_DEB}.deb\")).browser_download_url" | head -n 1)
-            if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $DEB_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/iptvnator.deb "$DEB_URL" 2>/dev/null; then
-                    if sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null; then
-                        IPTV_INSTALLED=true
-                        echo -e "${GREEN}      ✓ IPTVnator instalado desde GitHub (.deb)${NC}"
-                    fi
-                fi
-            fi
-        elif command -v dnf &> /dev/null; then
-            RPM_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\".${ARCH_RPM}.rpm\")).browser_download_url" | head -n 1)
-            if [ -n "$RPM_URL" ] && [ "$RPM_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando: $RPM_URL${NC}"
-                if wget -q --max-time 60 -O /tmp/iptvnator.rpm "$RPM_URL" 2>/dev/null; then
-                    if sudo dnf install -y -q /tmp/iptvnator.rpm 2>/dev/null; then
-                        IPTV_INSTALLED=true
-                        echo -e "${GREEN}      ✓ IPTVnator instalado desde GitHub (.rpm)${NC}"
-                    fi
-                fi
-            fi
-        fi
-        
-        # Fallback a AppImage
-        if [ "$IPTV_INSTALLED" = false ]; then
-            APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r ".assets[] | select(.name | endswith(\"_${ARCH_APPIMAGE}.AppImage\")).browser_download_url" | head -n 1)
-            if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-                echo -e "${BLUE}      → Descargando AppImage: $APPIMAGE_URL${NC}"
-                mkdir -p "$REAL_HOME/.local/bin"
-                if wget -q --max-time 60 -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL" 2>/dev/null; then
-                    chmod +x "$REAL_HOME/.local/bin/iptvnator"
-                    IPTV_INSTALLED=true
-                    echo -e "${GREEN}      ✓ IPTVnator instalado como AppImage${NC}"
-                fi
-            fi
-        fi
+    echo -e "${BLUE}      → Instalación de paquete falló, usando fallback...${NC}"
+    APPIMAGE_URL=$(echo "$LATEST_RELEASE_IPTV" | jq -r '.assets[] | select(.name | test("linux-x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
+    if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
+        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/iptvnator" "$APPIMAGE_URL" 2>/dev/null
+        chmod +x "$REAL_HOME/.local/bin/iptvnator"
+        IPTV_INSTALLED=true
     else
-        echo -e "${YELLOW}      ⚠️  No se pudo consultar la API de GitHub. Usando versión estable...${NC}"
+        wget -q --max-time 60 -O /tmp/iptvnator.deb "https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb" 2>/dev/null
+        sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null && IPTV_INSTALLED=true
     fi
+    echo -e "${GREEN}      ✅ IPTVnator instalado desde fallback.${NC}"
 fi
 
-# Fallback final con URL directa conocida
-if [ "$IPTV_INSTALLED" = false ]; then
-    echo -e "${BLUE}      → Usando URL de fallback estable...${NC}"
-    mkdir -p "$REAL_HOME/.local/bin"
-    FALLBACK_URL="https://github.com/4gray/iptvnator/releases/download/v0.12.0/iptvnator_0.12.0_amd64.deb"
-    
-    if wget -q --max-time 60 -O /tmp/iptvnator.deb "$FALLBACK_URL" 2>/dev/null; then
-        if sudo apt-get install -y -qq /tmp/iptvnator.deb 2>/dev/null; then
-            IPTV_INSTALLED=true
-            echo -e "${GREEN}      ✓ IPTVnator instalado desde fallback estable${NC}"
-        fi
-    fi
-fi
+# Transformar a Apple TV
+wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
 
-# Transformar IPTVnator a Apple TV
-if [ "$IPTV_INSTALLED" = true ]; then
-    # Buscar el archivo .desktop
-    IPTV_DESKTOP=""
-    for path in "/usr/share/applications/iptvnator.desktop" \
-                "$REAL_HOME/.local/share/applications/iptvnator.desktop" \
-                "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
-        if [ -f "$path" ]; then
-            IPTV_DESKTOP="$path"
-            echo -e "${BLUE}      → Archivo .desktop encontrado en: $path${NC}"
-            break
-        fi
-    done
-    
-    # Descargar icono de Apple TV
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/appletv.svg" \
-        "https://upload.wikimedia.org/wikipedia/commons/8/8b/Apple_TV_Icon.svg" 2>/dev/null || true
-    
-    if [ -n "$IPTV_DESKTOP" ]; then
-        mkdir -p "$REAL_HOME/.local/share/applications"
-        cp "$IPTV_DESKTOP" "$REAL_HOME/.local/share/applications/appletv.desktop"
-        sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-        sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-        sed -i 's/^GenericName=.*/GenericName=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-        sed -i 's/^Icon=.*/Icon=appletv/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-        sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
-        
-        # Ocultar el lanzador original
-        echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$IPTV_DESKTOP")"
-        
-        echo -e "${GREEN}      ✓ IPTVnator renombrado a 'Apple TV'.${NC}"
-    else
-        # Crear archivo .desktop manualmente
-        mkdir -p "$REAL_HOME/.local/share/applications"
-        cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
+IPTV_DESKTOP=""
+for path in "/usr/share/applications/iptvnator.desktop" "$REAL_HOME/.local/share/applications/iptvnator.desktop" "/var/lib/flatpak/exports/share/applications/com.github.4gray.iptvnator.desktop"; do
+    [ -f "$path" ] && IPTV_DESKTOP="$path" && break
+done
+
+if [ -n "$IPTV_DESKTOP" ]; then
+    cp "$IPTV_DESKTOP" "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Name=.*/Name=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Name\[es\]=.*/Name[es]=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^GenericName=.*/GenericName=Apple TV/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's/^Icon=.*/Icon=appletv/g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    sed -i 's|^Exec=.*|Exec=iptvnator --no-sandbox --ozone-platform=x11 %U|g' "$REAL_HOME/.local/share/applications/appletv.desktop"
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/$(basename "$IPTV_DESKTOP")"
+else
+    cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
 [Desktop Entry]
 Name=Apple TV
 GenericName=Apple TV
-Comment=Reproductor IPTV
-Exec=iptvnator --no-sandbox --ozone-platform=x11 %U
+Exec=$REAL_HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
 Icon=appletv
 Type=Application
 Categories=AudioVideo;Video;Player;
 Terminal=false
-MimeType=video/mp4;video/x-matroska;application/x-mpegurl;
 EOF
-        echo -e "${GREEN}      ✓ Apple TV creado manualmente.${NC}"
-    fi
-    
-    # Pre-configurar lista de reproducción en Español
-    CONFIG_DIR="$REAL_HOME/.config/iptvnator"
-    mkdir -p "$CONFIG_DIR"
-    if [ ! -f "$CONFIG_DIR/store.json" ]; then
-        cat > "$CONFIG_DIR/store.json" << 'EOF'
+fi
+
+# Pre-configurar lista de reproducción
+CONFIG_DIR="$REAL_HOME/.config/iptvnator"
+mkdir -p "$CONFIG_DIR"
+if [ ! -f "$CONFIG_DIR/store.json" ]; then
+    cat > "$CONFIG_DIR/store.json" << 'EOF'
 {
   "playlists": [
     {
@@ -948,17 +861,17 @@ EOF
   }
 }
 EOF
-        echo -e "${GREEN}      ✓ Configuración inicial de 'Canales en Español' aplicada.${NC}"
-    fi
-    
-    # Actualizar cachés
-    update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-    gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
-    
-    echo -e "${GREEN}      ✅ Apple TV configurado correctamente.${NC}"
-else
-    echo -e "${RED}      ❌ No se pudo instalar IPTVnator.${NC}"
+    echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplicada.${NC}"
 fi
+echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV'.${NC}"
+
+# =============================================================================
+# ACTUALIZACIÓN FINAL DE CACHÉ (Ejecutar con run_as_user para usar $REAL_HOME)
+# =============================================================================
+run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
+run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
+echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
+echo ""
 
 # =============================================================================
 # ACTUALIZACIÓN FINAL DE CACHÉ (Optimización: se ejecuta una sola vez al final)
