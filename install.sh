@@ -594,8 +594,9 @@ echo ""
 # PASO 12: NAVEGADORES, STREAMING Y HERRAMIENTAS DE RED
 # =============================================================================
 echo -e "${YELLOW}🌐🎵📡 [12/24] Configurando aplicaciones de escritorio y red...${NC}"
+set +e
 
-# CRÍTICO: Usar $REAL_HOME en lugar de ~ para evitar que se guarde en /root/ al usar sudo
+# Preparar directorios de usuario
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -618,7 +619,7 @@ for path in "/usr/share/applications/firefox.desktop" "/usr/share/applications/f
 done
 
 if [ -n "$ORIGINAL_FF_DESKTOP" ]; then
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+    wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
     cp "$ORIGINAL_FF_DESKTOP" "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^Name=.*/Name=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
     sed -i 's/^Name\[es\]=.*/Name[es]=Safari/g' "$REAL_HOME/.local/share/applications/safari.desktop"
@@ -638,12 +639,12 @@ Terminal=false
 Type=Application
 Categories=Network;WebBrowser;
 EOF
-    wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+    wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
     echo -e "${GREEN}      ✅ Safari creado manualmente.${NC}"
 fi
 
 # =============================================================================
-# 12.5: ZUNO -> APPLE MUSIC (CORREGIDO CON USER-AGENT)
+# 12.5: ZUNO -> APPLE MUSIC
 # =============================================================================
 echo -e "${BLUE}   → [12.5] Instalando Zuno y transformando en Apple Music...${NC}"
 
@@ -651,11 +652,9 @@ if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq gstreamer1.0-libav gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad 2>/dev/null || true
 fi
 
-mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-
 ZUNO_URL="https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage"
 echo -e "${BLUE}      → Descargando Zuno AppImage...${NC}"
-if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/zuno" "$ZUNO_URL" 2>/dev/null; then
+if wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/zuno" "$ZUNO_URL" 2>/dev/null; then
     chmod +x "$REAL_HOME/.local/bin/zuno"
     echo -e "${GREEN}      ✅ Zuno descargado correctamente.${NC}"
 else
@@ -664,8 +663,9 @@ else
     chmod +x "$REAL_HOME/.local/bin/zuno" 2>/dev/null || true
 fi
 
-# Descargar icono con User-Agent para evitar bloqueo de Wikimedia
-wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || true
+# Icono con User-Agent + respaldo
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://upload.wikimedia.org/wikipedia/commons/6/6a/Apple_Music_icon.svg" 2>/dev/null || \
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/applemusic.svg" "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/applemusic.svg" 2>/dev/null || true
 
 cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
 [Desktop Entry]
@@ -690,10 +690,6 @@ echo -e "${BLUE}   → [12.6] Instalando LocalSend y configurando red local...${
 
 if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq xdg-desktop-portal xdg-desktop-portal-gtk 2>/dev/null || true
-elif command -v dnf &> /dev/null; then
-    sudo dnf install -y -q xdg-desktop-portal xdg-desktop-portal-gnome 2>/dev/null || true
-elif command -v pacman &> /dev/null; then
-    sudo pacman -S --noconfirm --needed xdg-desktop-portal xdg-desktop-portal-gtk 2>/dev/null || true
 fi
 
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
@@ -703,26 +699,23 @@ fi
 
 LS_INSTALLED=false
 LATEST_RELEASE_LS=$(curl -s --max-time 10 https://api.github.com/repos/localsend/localsend/releases/latest 2>/dev/null)
-LATEST_VERSION_LS=$(echo "$LATEST_RELEASE_LS" | jq -r .tag_name 2>/dev/null)
 
-if [ -n "$LATEST_VERSION_LS" ] && [ "$LATEST_VERSION_LS" != "null" ]; then
+if [ -n "$LATEST_RELEASE_LS" ]; then
     if command -v apt-get &> /dev/null; then
         DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")).browser_download_url' | head -n 1)
         if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
-            wget -q --max-time 30 -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
+            wget -q --user-agent="Mozilla/5.0" -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
         fi
     fi
 fi
 
 if [ "$LS_INSTALLED" = false ]; then
     echo -e "${BLUE}      → Instalación de paquete falló, usando AppImage como fallback...${NC}"
-    mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications"
-    
     APPIMAGE_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("amd64.AppImage|x86_64.AppImage"; "i")).browser_download_url' | head -n 1)
     if [ -n "$APPIMAGE_URL" ] && [ "$APPIMAGE_URL" != "null" ]; then
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null || true
+        wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/localsend" "$APPIMAGE_URL" 2>/dev/null || true
     else
-        wget -q --max-time 60 -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null || true
+        wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null || true
     fi
     
     if [ -f "$REAL_HOME/.local/bin/localsend" ]; then
@@ -734,7 +727,6 @@ if [ "$LS_INSTALLED" = false ]; then
     fi
 fi
 
-mkdir -p "$REAL_HOME/.local/share/applications"
 cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
 [Desktop Entry]
 Name=LocalSend
@@ -744,11 +736,11 @@ Type=Application
 Categories=Network;FileTransfer;
 Terminal=false
 EOF
-wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/icon/512.png" 2>/dev/null || true
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/icon/512.png" 2>/dev/null || true
 echo -e "${GREEN}      ✅ LocalSend configurado correctamente.${NC}"
 
 # =============================================================================
-# 12.7: IPTVNATOR -> APPLE TV (CORREGIDO CON LISTA M3U Y USER-AGENT)
+# 12.7: IPTVNATOR -> APPLE TV
 # =============================================================================
 echo -e "${BLUE}   → [12.7] Instalando IPTVnator y transformando en Apple TV...${NC}"
 
@@ -756,11 +748,9 @@ if command -v apt-get &> /dev/null; then
     sudo apt-get install -y -qq mpv xdg-utils 2>/dev/null || true
 fi
 
-mkdir -p "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications" "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-
 IPTV_URL="https://github.com/4gray/iptvnator/releases/download/v0.14.0/iptvnator-0.14.0-linux-x86_64.AppImage"
 echo -e "${BLUE}      → Descargando IPTVnator AppImage...${NC}"
-if wget -q --user-agent="Mozilla/5.0" --show-progress -O "$REAL_HOME/.local/bin/iptvnator" "$IPTV_URL" 2>/dev/null; then
+if wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/bin/iptvnator" "$IPTV_URL" 2>/dev/null; then
     chmod +x "$REAL_HOME/.local/bin/iptvnator"
     echo -e "${GREEN}      ✅ IPTVnator descargado correctamente.${NC}"
 else
@@ -810,12 +800,9 @@ echo -e "${GREEN}      ✅ Configuración inicial de 'Canales en Español' aplic
 echo -e "${GREEN}      ✅ IPTVnator transformado a 'Apple TV'.${NC}"
 
 # =============================================================================
-# 12.8: NAUTILUS/NEMO -> FINDER (Icono y nombre)
+# 12.8: NAUTILUS/NEMO/THUNAR -> FINDER
 # =============================================================================
-echo -e "${BLUE}   → [12.8] Transformando Nautilus/Nemo en Finder...${NC}"
-
-mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-mkdir -p "$REAL_HOME/.local/share/applications"
+echo -e "${BLUE}   → [12.8] Transformando gestor de archivos en Finder...${NC}"
 
 # Descargar icono de Finder
 wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" \
@@ -826,9 +813,7 @@ wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256
 # Para GNOME (Nautilus)
 if [ "$IS_GNOME" = true ]; then
     NAUTILUS_DESKTOP=""
-    for path in "/usr/share/applications/org.gnome.Nautilus.desktop" \
-                "/usr/share/applications/nautilus.desktop" \
-                "$REAL_HOME/.local/share/applications/org.gnome.Nautilus.desktop"; do
+    for path in "/usr/share/applications/org.gnome.Nautilus.desktop" "/usr/share/applications/nautilus.desktop"; do
         [ -f "$path" ] && NAUTILUS_DESKTOP="$path" && break
     done
     
@@ -846,8 +831,7 @@ fi
 # Para Cinnamon (Nemo)
 if [ "$IS_CINNAMON" = true ]; then
     NEMO_DESKTOP=""
-    for path in "/usr/share/applications/nemo.desktop" \
-                "$REAL_HOME/.local/share/applications/nemo.desktop"; do
+    for path in "/usr/share/applications/nemo.desktop"; do
         [ -f "$path" ] && NEMO_DESKTOP="$path" && break
     done
     
@@ -865,8 +849,7 @@ fi
 # Para XFCE (Thunar)
 if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     THUNAR_DESKTOP=""
-    for path in "/usr/share/applications/thunar.desktop" \
-                "$REAL_HOME/.local/share/applications/thunar.desktop"; do
+    for path in "/usr/share/applications/thunar.desktop"; do
         [ -f "$path" ] && THUNAR_DESKTOP="$path" && break
     done
     
@@ -880,6 +863,14 @@ if [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
         echo -e "${GREEN}      ✅ Thunar renombrado a 'Finder'.${NC}"
     fi
 fi
+
+# Actualización final de caché
+run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
+run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
+
+set -e
+echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}"
+echo ""
 
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
@@ -990,7 +981,7 @@ echo ""
 # PASO 15: CONFIGURACIÓN DEL SISTEMA, PANELES Y ATAJO DE TECLADO (UNIVERSAL)
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/25] Configurando sistema, paneles y atajos de teclado macOS...${NC}"
-set +e # Desactivar salida por error para evitar fallos en configuraciones menores
+set +e
 
 # Determinar ruta del wallpaper
 if [ "$MOJAVE_INSTALLED" = true ]; then
@@ -1007,13 +998,11 @@ fi
 if [ "$IS_GNOME" = true ]; then
     echo -e "${BLUE}   → Configurando GNOME...${NC}"
     
-    # Temas y colores
     run_as_user gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME"
     run_as_user gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME"
     run_as_user gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME"
     run_as_user gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
     
-    # Fuentes Apple
     if [ "$SF_INSTALLED" = true ]; then
         run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11'
         run_as_user gsettings set org.gnome.desktop.interface document-font-name 'New York Medium 11'
@@ -1022,16 +1011,13 @@ if [ "$IS_GNOME" = true ]; then
         echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
-    # Botones de ventana a la izquierda
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # Reloj en barra superior estilo macOS
     run_as_user gsettings set org.gnome.desktop.interface clock-show-date true
     run_as_user gsettings set org.gnome.desktop.interface clock-show-weekday true
     run_as_user gsettings set org.gnome.desktop.interface clock-show-seconds false
     
-    # Fondo de pantalla y sonidos
     if [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH"
         run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
@@ -1043,7 +1029,6 @@ if [ "$IS_GNOME" = true ]; then
         run_as_user gsettings set org.gnome.desktop.sound input-feedback-sounds true
     fi
     
-    # --- ATAJO DE TECLADO ESTILO macOS (GNOME) ---
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings show-desktop "['<Super>d']"
     run_as_user gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']"
@@ -1054,9 +1039,7 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Ctrl><Alt>t']"
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']"
     
-    # Atajos personalizados usando el script del Paso 14
     CUSTOM_PATHS=(); INDEX=0
-    
     gnome_set_keybinding() {
         local name="$1" command="$2" binding="$3" idx="$4"
         local PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom${idx}/"
@@ -1074,13 +1057,11 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$(IFS=,; echo "[${CUSTOM_PATHS[*]}]")" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
-    # Activar extensiones clave
     run_as_user gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com 2>/dev/null || true
     run_as_user gnome-extensions enable dash-to-dock@micxgx.gmail.com 2>/dev/null || true
     run_as_user gnome-extensions enable liquid-glass@thinkingcoding1231.gmail.com 2>/dev/null || true
     run_as_user gnome-extensions enable ding@rastersoft.com 2>/dev/null || true
     
-    # Configuración fina del Dock
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'BOTTOM'
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock hide-mode 'AUTOHIDE'
     run_as_user gsettings set org.gnome.shell.extensions.dash-to-dock intellihide-mode 'ALL_WINDOWS'
@@ -1128,7 +1109,6 @@ elif [ "$IS_CINNAMON" = true ]; then
     
     echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
     
-    # --- ATAJO DE TECLADO ESTILO macOS (CINNAMON) ---
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm minimize "['<Super>m']" 2>/dev/null || true
@@ -1137,9 +1117,7 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
     
-    # Atajos personalizados
     CUSTOM_IDS=()
-    
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
         local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
@@ -1157,7 +1135,6 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$(IFS=,; echo "[${CUSTOM_IDS[*]}]")" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
-    # Fondo y sonidos
     if [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH"
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
@@ -1169,9 +1146,7 @@ elif [ "$IS_CINNAMON" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true
     fi
     
-    # Activar Hot Corners
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences enable-hot-corners true 2>/dev/null || true
-    
     echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada al 100%${NC}"
 
 # =============================================================================
@@ -1192,40 +1167,65 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
         echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
-    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
+    # OMH = Close (O), Minimize (M), Maximize (H) - Orden exacto de macOS
+    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OMH" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # PANEL SUPERIOR ESTILO macOS (CORREGIDO: Posición arriba)
-    echo -e "${BLUE}   → Configurando panel superior estilo macOS...${NC}"
+    # =============================================================================
+    # RECONSTRUCCIÓN TOTAL DEL PANEL DE XFCE (ESTILO MACOS - PARTE SUPERIOR)
+    # =============================================================================
+    echo -e "${BLUE}   → Reconstruyendo panel superior estilo macOS desde cero...${NC}"
     
-    # Obtener el ID del panel (normalmente panel-0 o panel-1)
-    PANEL_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/panel-" | head -1 | cut -d'/' -f4)
+    # 1. Detener el panel actual para evitar conflictos
+    run_as_user xfce4-panel --quit 2>/dev/null || true
+    pkill xfce4-panel 2>/dev/null || true
+    sleep 1
     
-    if [ -n "$PANEL_ID" ]; then
-        # Mover panel a la parte superior (p=8 = top-center)
-        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/position -s "p=8;x=0;y=0" 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/position-locked -s true 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/size -s 28 2>/dev/null || true
-        
-        # Eliminar lista de ventanas (tasklist)
-        for plugin in $(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/panels/$PANEL_ID/plugins/plugin-" | cut -d'/' -f5); do
-            plugin_type=$(run_as_user xfconf-query -c xfce4-panel -p /panels/$PANEL_ID/plugins/$plugin 2>/dev/null)
-            if [ "$plugin_type" = "tasklist" ] || [ "$plugin_type" = "windowmenu" ]; then
-                run_as_user xfconf-query -c xfce4-panel -r /panels/$PANEL_ID/plugins/$plugin 2>/dev/null
-            fi
-        done
-        
-        echo -e "${GREEN}   ✓ Panel movido a la parte superior (sin lista de ventanas)${NC}"
-    else
-        echo -e "${YELLOW}   ⚠️  No se pudo detectar el panel de XFCE${NC}"
-    fi
+    # 2. Eliminar configuraciones antiguas de paneles y plugins
+    run_as_user xfconf-query -c xfce4-panel -r -R /panels 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -r -R /plugins 2>/dev/null || true
     
-    # Formato de reloj estilo macOS
-    CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
-    if [ -n "$CLOCK_PLUGIN" ]; then
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -s 3 2>/dev/null || true
-    fi
+    # 3. Crear nuevo Panel 0 en la parte superior (p=6 es arriba-izquierda)
+    run_as_user xfconf-query -c xfce4-panel -p /panels -n -t empty -a 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0 -n -t empty -a 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position -s "p=6;x=0;y=0" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -s 28 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/autohide -s false 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/disable-struts -s false 2>/dev/null || true
+    
+    # 4. Inicializar array de IDs de plugins
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t empty -a 2>/dev/null || true
+    
+    # Plugin 1: Whisker Menu (Menú de Apple)
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/1 -s 1 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s "whiskermenu" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/button-icon -s "distributor-logo" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/show-button-title -s false 2>/dev/null || true
+    
+    # Plugin 2: Separador expansible (empuja el resto a la derecha)
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/2 -s 2 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2 -n -t string -s "separator" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/expand -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/style -s 0 2>/dev/null || true
+    
+    # Plugin 3: Reloj (Formato macOS)
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/3 -s 3 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3 -n -t string -s "clock" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-layout -s 3 2>/dev/null || true
+    
+    # Plugin 4: Área de notificaciones
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/4 -s 4 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-4 -n -t string -s "notification-plugin" 2>/dev/null || true
+    
+    # Plugin 5: Indicador de energía
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/5 -s 5 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-5 -n -t string -s "power-manager-plugin" 2>/dev/null || true
+    
+    # 5. Reiniciar el panel
+    run_as_user xfce4-panel &>/dev/null &
+    echo -e "${GREEN}   ✓ Panel de XFCE reconstruido en la parte superior con elementos macOS.${NC}"
     
     # --- ATAJO DE TECLADO ESTILO macOS (XFCE) ---
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
@@ -1253,7 +1253,6 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
-    # Tema de notificaciones
     run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
     
     if [ "$SOUND_INSTALLED" = true ]; then
@@ -1263,7 +1262,7 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     echo -e "${GREEN}   ✓ Configuración XFCE aplicada al 100%${NC}"
 fi
 
-set -e # Reactivar salida por error
+set -e
 echo -e "${GREEN}✅ Configuración del sistema aplicada.${NC}"
 echo ""
 
@@ -1286,7 +1285,7 @@ if ! command -v flatpak &> /dev/null; then
     echo -e "${GREEN}   ✅ Flatpak instalado.${NC}"
 fi
 
-# 2. Agregar repositorio Flathub (como usuario real)
+# 2. Agregar repositorio Flathub
 echo -e "${BLUE}   → Verificando y añadiendo repositorio Flathub...${NC}"
 run_as_user flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
@@ -1296,12 +1295,11 @@ run_as_user flatpak install -y flathub org.onlyoffice.desktopeditors 2>/dev/null
     echo -e "${YELLOW}   ⚠️  No se pudo instalar ONLYOFFICE automáticamente. Verifica tu conexión o espacio en disco.${NC}"
 }
 
-# 4. Transformar a "Office" (Renombrar y cambiar icono)
+# 4. Transformar a "Office"
 echo -e "${BLUE}   → Personalizando lanzador e icono a 'Office'...${NC}"
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 
-# Buscar el lanzador original de Flatpak
 ONLYOFFICE_DESKTOP=""
 for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop" \
             "$REAL_HOME/.local/share/flatpak/exports/share/applications/org.onlyoffice.desktopeditors.desktop"; do
@@ -1311,14 +1309,10 @@ for path in "/var/lib/flatpak/exports/share/applications/org.onlyoffice.desktope
     fi
 done
 
-# Descargar icono con User-Agent para evitar bloqueo de Wikimedia + URL de respaldo
+# Icono con User-Agent + URL de respaldo
 echo -e "${BLUE}      → Descargando icono de Office...${NC}"
-ICON_URL="https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg"
-BACKUP_ICON_URL="https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/microsoftoffice.svg"
-
-if ! wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "$ICON_URL" 2>/dev/null; then
-    wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "$BACKUP_ICON_URL" 2>/dev/null || true
-fi
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "https://upload.wikimedia.org/wikipedia/commons/5/59/Microsoft_Office_logo_%282019%E2%80%93present%29.svg" 2>/dev/null || \
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/office.svg" "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/microsoftoffice.svg" 2>/dev/null || true
 
 if [ -n "$ONLYOFFICE_DESKTOP" ]; then
     cp "$ONLYOFFICE_DESKTOP" "$REAL_HOME/.local/share/applications/office.desktop"
@@ -1332,7 +1326,6 @@ else
     echo -e "${YELLOW}   ⚠️  No se encontró el lanzador de ONLYOFFICE. Es posible que necesites reiniciar la sesión.${NC}"
 fi
 
-# Forzar actualización de cachés
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
@@ -1759,8 +1752,6 @@ elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
     if [ -n "$CLOCK_PLUGIN" ]; then
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
         run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -s 3 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-time-format -s "%H:%M" 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-date-format -s "%a %d %b" 2>/dev/null || true
     fi
     echo -e "${GREEN}   ✓ Reloj XFCE configurado con formato macOS${NC}"
 fi
@@ -1832,7 +1823,7 @@ if [ "$IS_GNOME" = true ]; then
 fi
 
 # =============================================================================
-# 5. REFORZAR BOTONES DE VENTANA A LA IZQUIERDA (UNIVERSAL Y A PRUEBA DE FALLOS)
+# 5. REFORZAR BOTONES DE VENTANA A LA IZQUIERDA (OMH + Recarga xfwm4)
 # =============================================================================
 echo -e "${BLUE}   → Reforzando botones de ventana a la izquierda (Cerrar, Minimizar, Maximizar)...${NC}"
 if [ "$IS_GNOME" = true ]; then
@@ -1842,15 +1833,15 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones Cinnamon reforzados${NC}"
 elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
-    # OHM = Close (O), Maximize (H), Minimize (M). El orden es de izquierda a derecha.
-    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OHM" 2>/dev/null || true
+    # OMH = Close (O), Minimize (M), Maximize (H) - Orden exacto de macOS
+    run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OMH" 2>/dev/null || true
     
-    # Si el tema no carga los botones, forzar recarga del gestor de ventanas
+    # Forzar reinicio del gestor de ventanas para aplicar el cambio de iconos
     if command -v xfwm4 &> /dev/null; then
         run_as_user xfwm4 --replace &>/dev/null &
         sleep 1
     fi
-    echo -e "${GREEN}   ✓ Botones XFCE reforzados y gestor de ventanas recargado.${NC}"
+    echo -e "${GREEN}   ✓ Botones XFCE corregidos a 'Cerrar, Minimizar, Maximizar' y gestor recargado.${NC}"
 fi
 
 set -e
@@ -2058,99 +2049,99 @@ echo ""
 # PASO 15.11: INTEGRACIÓN INTELIGENTE DE APLICACIONES EN EL DOCK
 # =============================================================================
 echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
+set +e
 
 APPS_DIR="$REAL_HOME/.local/share/applications"
 mkdir -p "$APPS_DIR" 2>/dev/null || true
 
-# Array para guardar los nombres de las apps que SÍ encontramos instaladas
-FOUND_DOCK_APPS=()
-
-# --- 1. SAFARI (Firefox) ---
-if [ -f "$APPS_DIR/safari.desktop" ] || command -v firefox &> /dev/null; then
-    FOUND_DOCK_APPS+=("safari.desktop")
-    echo -e "${GREEN}   ✓ Safari (Firefox) detectado${NC}"
-fi
-
-# --- 2. OFFICE (OnlyOffice) ---
-if [ -f "$APPS_DIR/office.desktop" ] || command -v onlyoffice-desktopeditors &> /dev/null || flatpak list --columns=application 2>/dev/null | grep -q "org.onlyoffice.desktopeditors"; then
-    FOUND_DOCK_APPS+=("office.desktop")
-    echo -e "${GREEN}   ✓ Office (OnlyOffice) detectado${NC}"
-fi
-
-# --- 3. APPLE MUSIC (Zuno) ---
-if [ -f "$APPS_DIR/applemusic.desktop" ] || command -v zuno &> /dev/null; then
-    FOUND_DOCK_APPS+=("applemusic.desktop")
-    echo -e "${GREEN}   ✓ Apple Music (Zuno) detectado${NC}"
-fi
-
-# --- 4. APPLE TV (IPTVnator) ---
-if [ -f "$APPS_DIR/appletv.desktop" ] || command -v iptvnator &> /dev/null; then
-    FOUND_DOCK_APPS+=("appletv.desktop")
-    echo -e "${GREEN}   ✓ Apple TV (IPTVnator) detectado${NC}"
-fi
-
-# --- 5. LOCALSEND ---
-if [ -f "$APPS_DIR/localsend.desktop" ] || command -v localsend &> /dev/null || command -v localsend-app &> /dev/null; then
-    FOUND_DOCK_APPS+=("localsend.desktop")
-    echo -e "${GREEN}   ✓ LocalSend detectado${NC}"
-fi
-
-if [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
-    echo -e "${GREEN}   ✓ Accesos directos con nombres macOS detectados${NC}"
-else
-    echo -e "${YELLOW}   ⚠️  No se detectaron aplicaciones compatibles para el Dock.${NC}"
-fi
-
 # =============================================================================
-# ANCLAR AL DOCK DE GNOME (Dash-to-Dock)
+# DETECCIÓN DE APLICACIONES INSTALADAS
 # =============================================================================
-if [ "$IS_GNOME" = true ] && [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
-    echo -e "${BLUE}   → Configurando favoritos en GNOME Dash...${NC}"
-    
-    FAVORITES_ARRAY="["
-    for app in "${FOUND_DOCK_APPS[@]}"; do
-        FAVORITES_ARRAY+="'$app', "
-    done
-    FAVORITES_ARRAY+="'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'org.gnome.Software.desktop']"
-    
-    # Limpiar comas dobles o espacios extraños
-    FAVORITES_ARRAY=$(echo "$FAVORITES_ARRAY" | sed "s/, ]/]/g")
-    
-    run_as_user gsettings set org.gnome.shell favorite-apps "$FAVORITES_ARRAY" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Dock de GNOME configurado con las apps instaladas${NC}"
-fi
+echo -e "${BLUE}   → Detectando aplicaciones instaladas...${NC}"
 
-# =============================================================================
-# ANCLAR AL DOCK DE PLANK (XFCE / CINNAMON)
-# =============================================================================
-if ([ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]) && [ ${#FOUND_DOCK_APPS[@]} -gt 0 ]; then
-    echo -e "${BLUE}   → Configurando lanzadores en Plank...${NC}"
-    PLANK_LAUNCHERS_DIR="$REAL_HOME/.config/plank/dock1/launchers"
-    mkdir -p "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
+# Lista de apps a buscar
+declare -A APPS_MACOS=(
+    ["Safari"]="safari.desktop"
+    ["Office"]="office.desktop"
+    ["Apple Music"]="applemusic.desktop"
+    ["Apple TV"]="appletv.desktop"
+    ["LocalSend"]="localsend.desktop"
+    ["Finder"]="finder.desktop"
+)
 
-    for app_stem in "${FOUND_DOCK_APPS[@]}"; do
-        app="${app_stem%.desktop}" # Quitar .desktop para buscar el archivo base
-        
-        DESKTOP_FILE=""
-        [ -f "$APPS_DIR/${app}.desktop" ] && DESKTOP_FILE="$APPS_DIR/${app}.desktop"
-        [ -z "$DESKTOP_FILE" ] && [ -f "/usr/share/applications/${app}.desktop" ] && DESKTOP_FILE="/usr/share/applications/${app}.desktop"
-        [ -z "$DESKTOP_FILE" ] && [ -f "/var/lib/flatpak/exports/share/applications/${app}.desktop" ] && DESKTOP_FILE="/var/lib/flatpak/exports/share/applications/${app}.desktop"
-        [ -z "$DESKTOP_FILE" ] && [ -f "$REAL_HOME/.local/share/flatpak/exports/share/applications/${app}.desktop" ] && DESKTOP_FILE="$REAL_HOME/.local/share/flatpak/exports/share/applications/${app}.desktop"
-
-        if [ -n "$DESKTOP_FILE" ]; then
-            cat > "$PLANK_LAUNCHERS_DIR/${app}.dockitem" << EOF
-[PlankItemsDockItemPreferences]
-Launcher=file://${DESKTOP_FILE}
-EOF
-        fi
-    done
-    
-    if [ -n "$SUDO_USER" ]; then
-        chown -R "$SUDO_USER:$SUDO_USER" "$PLANK_LAUNCHERS_DIR" 2>/dev/null || true
+FOUND_APPS=()
+for app_name in "${!APPS_MACOS[@]}"; do
+    desktop_file="${APPS_MACOS[$app_name]}"
+    if [ -f "$APPS_DIR/$desktop_file" ]; then
+        FOUND_APPS+=("$app_name")
+        echo -e "${GREEN}   ✓ $app_name detectado${NC}"
     fi
-    echo -e "${GREEN}   ✓ Dock de Plank configurado con las apps instaladas${NC}"
+done
+
+# Añadir apps con nombres macOS detectadas
+for desktop_file in "$APPS_DIR"/*.desktop; do
+    [ -f "$desktop_file" ] || continue
+    name=$(grep -m 1 "^Name=" "$desktop_file" | cut -d'=' -f2)
+    case "$name" in
+        "Safari"|"Apple Music"|"Apple TV"|"Office"|"Finder"|"LocalSend")
+            if [[ ! " ${FOUND_APPS[*]} " =~ " $name " ]]; then
+                FOUND_APPS+=("$name")
+                echo -e "${GREEN}   ✓ $name detectado desde nombre${NC}"
+            fi
+            ;;
+    esac
+done
+
+echo -e "${GREEN}   ✓ Accesos directos con nombres macOS detectados${NC}"
+
+# =============================================================================
+# CONFIGURACIÓN DE PLANK (DOCK ESTILO macOS)
+# =============================================================================
+echo -e "${BLUE}   → Configurando lanzadores en Plank...${NC}"
+
+PLANK_DIR="$REAL_HOME/.config/plank/dock1/launchers"
+mkdir -p "$PLANK_DIR" 2>/dev/null || true
+
+# Crear lanzadores para cada app detectada
+for app_name in "${FOUND_APPS[@]}"; do
+    case "$app_name" in
+        "Safari") desktop="safari.desktop" ;;
+        "Office") desktop="office.desktop" ;;
+        "Apple Music") desktop="applemusic.desktop" ;;
+        "Apple TV") desktop="appletv.desktop" ;;
+        "LocalSend") desktop="localsend.desktop" ;;
+        "Finder") desktop="finder.desktop" ;;
+        *) continue ;;
+    esac
+    
+    if [ -f "$APPS_DIR/$desktop" ]; then
+        ln -sf "$APPS_DIR/$desktop" "$PLANK_DIR/$desktop" 2>/dev/null || true
+    fi
+done
+
+echo -e "${GREEN}   ✓ Dock de Plank configurado con las apps instaladas${NC}"
+
+# =============================================================================
+# INICIO AUTOMÁTICO DE PLANK (XFCE / CINNAMON)
+# =============================================================================
+if [ "$IS_CINNAMON" = true ] || [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Configurando inicio automático de Plank...${NC}"
+    mkdir -p "$REAL_HOME/.config/autostart" 2>/dev/null || true
+    cat > "$REAL_HOME/.config/autostart/plank.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Plank
+Exec=plank
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Comment=Iniciar Dock de Plank al inicio de sesión
+EOF
+    [ -n "$SUDO_USER" ] && chown "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/autostart/plank.desktop" 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Plank configurado para iniciar automáticamente.${NC}"
 fi
 
+set -e
 echo -e "${GREEN}✅ Integración inteligente de aplicaciones en el Dock completada.${NC}"
 echo ""
 
