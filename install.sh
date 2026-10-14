@@ -2029,6 +2029,177 @@ echo -e "${GREEN}✅ Toque final 100% macOS aplicado.${NC}"
 echo ""
 
 # =============================================================================
+# PASO 15.10B: PANTALLA DE BLOQUEO ESTILO macOS
+# =============================================================================
+echo -e "${YELLOW}🔒 [15.10B/25] Configurando pantalla de bloqueo estilo macOS...${NC}"
+
+set +e
+
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Configurando pantalla de bloqueo para GNOME...${NC}"
+    
+    # Configurar el fondo del salvapantallas para que coincida con el wallpaper
+    if [ -f "$WALLPAPER_PATH" ]; then
+        run_as_user gsettings set org.gnome.desktop.screensaver picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.desktop.screensaver picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.desktop.screensaver picture-options 'zoom' 2>/dev/null || true
+    fi
+    
+    # Asegurar que el salvapantallas no sea negro
+    run_as_user gsettings set org.gnome.desktop.screensaver color-shading-type 'solid' 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.screensaver primary-color '#000000' 2>/dev/null || true
+    
+    # Mostrar reloj grande en la pantalla de bloqueo (comportamiento macOS)
+    run_as_user gsettings set org.gnome.desktop.screensaver show-clock true 2>/dev/null || true
+    run_as_user gsettings set org.gnome.desktop.screensaver show-full-name-in-top-bar false 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ Pantalla de bloqueo GNOME configurada con wallpaper dinámico${NC}"
+    
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${BLUE}   → Configurando pantalla de bloqueo para Cinnamon...${NC}"
+    
+    # Cinnamon usa su propio sistema de screensaver
+    if [ -f "$WALLPAPER_PATH" ]; then
+        run_as_user gsettings set org.cinnamon.desktop.screensaver picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.screensaver picture-options 'zoom' 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}   ✓ Pantalla de bloqueo Cinnamon configurada${NC}"
+    
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Instalando light-locker para XFCE...${NC}"
+    
+    # Instalar light-locker si no está presente
+    if ! command -v light-locker &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y -qq light-locker 2>/dev/null || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q light-locker 2>/dev/null || true
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm --needed light-locker 2>/dev/null || true
+        fi
+    fi
+    
+    # Configurar light-locker para usar el wallpaper
+    if [ -f "$WALLPAPER_PATH" ]; then
+        mkdir -p "$REAL_HOME/.config/light-locker" 2>/dev/null || true
+        cat > "$REAL_HOME/.config/light-locker/light-locker.conf" << EOF
+[light-locker]
+lock-on-suspend=true
+lock-on-lid=false
+idle-activation-enabled=true
+EOF
+        if [ -n "$SUDO_USER" ]; then
+            chown -R "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/light-locker" 2>/dev/null || true
+        fi
+    fi
+    
+    # Asegurar que xfce4-screensaver esté desactivado para evitar conflictos
+    run_as_user xfconf-query -c xfce4-session -p /general/lock_command -s "light-locker-command -l" 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ light-locker instalado y configurado para XFCE${NC}"
+fi
+
+set -e
+echo -e "${GREEN}✅ Pantalla de bloqueo estilo macOS configurada.${NC}"
+echo ""
+
+# =============================================================================
+# PASO 15.10C: INDICADORES OSD DE VOLUMEN Y BRILLO (BARRA FLOTANTE)
+# =============================================================================
+echo -e "${YELLOW} [15.10C/25] Configurando indicadores OSD de volumen y brillo...${NC}"
+
+set +e
+
+if [ "$IS_GNOME" = true ]; then
+    echo -e "${BLUE}   → Instalando extensión OSD estilo macOS para GNOME...${NC}"
+    
+    # Intentar instalar la extensión "Avatar" que proporciona OSD minimalista
+    EXTENSION_UUID="avatar@nathanpierce.com"
+    
+    if ! run_as_user gnome-extensions list 2>/dev/null | grep -q "$EXTENSION_UUID"; then
+        echo -e "${BLUE}      → Descargando extensión Avatar...${NC}"
+        
+        # Obtener versión de GNOME Shell
+        GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1)
+        
+        if [ -n "$GNOME_VERSION" ]; then
+            # Intentar descargar desde extensions.gnome.org
+            EXTENSION_URL="https://extensions.gnome.org/extension-data/avatar@nathanpierce.com.v68.shell-extension.zip"
+            
+            TEMP_EXT=$(mktemp -d)
+            if curl -sL "$EXTENSION_URL" -o "$TEMP_EXT/avatar.zip" 2>/dev/null && [ -f "$TEMP_EXT/avatar.zip" ]; then
+                mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+                unzip -q "$TEMP_EXT/avatar.zip" -d "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null
+                
+                # Actualizar metadata.json para compatibilidad con la versión de GNOME
+                if [ -f "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json" ]; then
+                    python3 -c "
+import json
+with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'r') as f:
+    data = json.load(f)
+if '$GNOME_VERSION' not in data.get('shell-version', []):
+    data.setdefault('shell-version', []).append('$GNOME_VERSION')
+with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'w') as f:
+    json.dump(data, f, indent=2)
+" 2>/dev/null || true
+                fi
+                
+                run_as_user gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
+                echo -e "${GREEN}      ✓ Extensión Avatar instalada y activada${NC}"
+            else
+                echo -e "${YELLOW}      ️  No se pudo descargar la extensión. Puedes instalarla manualmente desde extensions.gnome.org${NC}"
+            fi
+            rm -rf "$TEMP_EXT"
+        else
+            echo -e "${YELLOW}      ⚠️  No se pudo detectar la versión de GNOME${NC}"
+        fi
+    else
+        echo -e "${GREEN}      ✓ Extensión Avatar ya está instalada${NC}"
+    fi
+    
+    echo -e "${GREEN}   ✓ OSD de volumen y brillo configurado para GNOME${NC}"
+    
+elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${BLUE}   → Configurando OSD para Cinnamon...${NC}"
+    
+    # Cinnamon ya tiene OSD integrado, solo aseguramos que esté habilitado
+    run_as_user gsettings set org.cinnamon.desktop.sound volume-sound-enabled true 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ OSD de Cinnamon verificado${NC}"
+    
+elif [[ "$DESKTOP_ENV" == *"xfce"* ]]; then
+    echo -e "${BLUE}   → Configurando OSD para XFCE...${NC}"
+    
+    # Instalar xfce4-volumed-pulse para mejor control de volumen
+    if ! command -v xfce4-volumed-pulse &> /dev/null; then
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get install -y -qq xfce4-volumed-pulse 2>/dev/null || true
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y -q xfce4-volumed-pulse 2>/dev/null || true
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm --needed xfce4-volumed-pulse 2>/dev/null || true
+        fi
+    fi
+    
+    # Asegurar que xfce4-notifyd use el tema MacTahoe-Dark para notificaciones de volumen
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
+    
+    # Configurar notificaciones en esquina superior derecha (estilo macOS)
+    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -s 2 2>/dev/null || true
+    
+    # Reducir tiempo de desvanecimiento para notificaciones
+    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -s 500 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✓ OSD de XFCE configurado con tema macOS${NC}"
+fi
+
+set -e
+echo -e "${GREEN}✅ Indicadores OSD de volumen y brillo configurados.${NC}"
+echo ""
+
+# =============================================================================
 # PASO 15.11: INTEGRACIÓN INTELIGENTE DE APLICACIONES EN EL DOCK
 # =============================================================================
 echo -e "${YELLOW}🚀 [15.11/25] Integrando aplicaciones en el Dock (detectando apps instaladas)...${NC}"
@@ -2327,7 +2498,7 @@ echo ""
 # =============================================================================
 # PASO 22: GESTOS MULTITÁCTILES ESTILO MACOS (FUSUMA) + ARRASTRE 3 DEDOS
 # =============================================================================
-echo -e "${YELLOW}👆 [22/25] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
+echo -e "${YELLOW} [22/25] Instalando Gestos Multitáctiles y Arrastre con 3 dedos...${NC}"
 
 set +e
 
@@ -2339,7 +2510,11 @@ if command -v gem &> /dev/null; then
 fi
 
 mkdir -p "$REAL_HOME/.config/fusuma" 2>/dev/null || true
-cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
+
+# Configurar gestos estilo macOS (3 dedos para espacios, 4 dedos para Mission Control)
+if [ "$IS_GNOME" = true ]; then
+    # GNOME: Super+s para Actividades/Mission Control, Super+d para mostrar escritorio
+    cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
 plugin:
   inputs:
     libinput_command_input:
@@ -2351,14 +2526,18 @@ swipe:
     right:
       command: 'xdotool key ctrl+alt+Left'
     up:
-      command: 'xdotool key super'
+      command: 'xdotool key super+d'
     down:
-      command: 'xdotool key super'
+      command: 'xdotool key super+d'
   4:
     left:
       command: 'xdotool key alt+Left'
     right:
       command: 'xdotool key alt+Right'
+    up:
+      command: 'xdotool key super+s'
+    down:
+      command: 'xdotool key super+s'
 pinch:
   2:
     in:
@@ -2372,6 +2551,85 @@ hold:
     end:
       command: 'xdotool mouseup 1'
 EOF
+elif [ "$IS_CINNAMON" = true ]; then
+    # Cinnamon: Super+d para mostrar escritorio
+    cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
+plugin:
+  inputs:
+    libinput_command_input:
+      enable-tap: true
+swipe:
+  3:
+    left:
+      command: 'xdotool key ctrl+alt+Right'
+    right:
+      command: 'xdotool key ctrl+alt+Left'
+    up:
+      command: 'xdotool key super+d'
+    down:
+      command: 'xdotool key super+d'
+  4:
+    left:
+      command: 'xdotool key alt+Left'
+    right:
+      command: 'xdotool key alt+Right'
+    up:
+      command: 'xdotool key super+s'
+    down:
+      command: 'xdotool key super+s'
+pinch:
+  2:
+    in:
+      command: 'xdotool keydown ctrl click 4 keyup ctrl'
+    out:
+      command: 'xdotool keydown ctrl click 5 keyup ctrl'
+hold:
+  3:
+    begin:
+      command: 'xdotool mousedown 1'
+    end:
+      command: 'xdotool mouseup 1'
+EOF
+else
+    # XFCE: Super+d para mostrar escritorio
+    cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
+plugin:
+  inputs:
+    libinput_command_input:
+      enable-tap: true
+swipe:
+  3:
+    left:
+      command: 'xdotool key ctrl+alt+Right'
+    right:
+      command: 'xdotool key ctrl+alt+Left'
+    up:
+      command: 'xdotool key super+d'
+    down:
+      command: 'xdotool key super+d'
+  4:
+    left:
+      command: 'xdotool key alt+Left'
+    right:
+      command: 'xdotool key alt+Right'
+    up:
+      command: 'xdotool key super+s'
+    down:
+      command: 'xdotool key super+s'
+pinch:
+  2:
+    in:
+      command: 'xdotool keydown ctrl click 4 keyup ctrl'
+    out:
+      command: 'xdotool keydown ctrl click 5 keyup ctrl'
+hold:
+  3:
+    begin:
+      command: 'xdotool mousedown 1'
+    end:
+      command: 'xdotool mouseup 1'
+EOF
+fi
 
 mkdir -p "$REAL_HOME/.config/systemd/user" 2>/dev/null || true
 cat > "$REAL_HOME/.config/systemd/user/fusuma.service" << 'EOF' 2>/dev/null || true
@@ -2398,7 +2656,7 @@ run_as_user systemctl --user daemon-reload 2>/dev/null || true
 run_as_user systemctl --user enable --now fusuma.service 2>/dev/null || true
 
 set -e
-echo -e "${GREEN}✅ Fusuma y Arrastre con 3 dedos configurados.${NC}"
+echo -e "${GREEN}✅ Fusuma configurado con gestos estilo Mission Control.${NC}"
 echo ""
 
 # =============================================================================
