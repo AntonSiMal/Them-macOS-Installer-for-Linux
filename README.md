@@ -5,14 +5,15 @@
 ### Transforma tu escritorio Linux en una experiencia macOS auténtica e inteligente
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Modular](https://img.shields.io/badge/Arquitectura-Modular-purple.svg)](https://github.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux)
 [![GNOME](https://img.shields.io/badge/GNOME-46%20%E2%80%93%2051-green.svg)](https://www.gnome.org/)
 [![Cinnamon](https://img.shields.io/badge/Cinnamon-5.4%20%2B-orange.svg)](https://linuxmint.com/)
 [![XFCE](https://img.shields.io/badge/XFCE-4.18%20%2B-blue.svg)](https://www.xfce.org/)
 [![Bash](https://img.shields.io/badge/Bash-4.0%2B-black.svg)](https://www.gnu.org/software/bash/)
 
-**Instalación 100% automatizada · Actualización inteligente · Compatible con GNOME, Cinnamon y XFCE**
+**Instalación 100% automatizada · Arquitectura Modular Inteligente · Compatible con GNOME, Cinnamon y XFCE**
 
-[Instalación rápida](#-instalación-rápida) · [Actualización](#-actualización) · [Características](#-características) · [Atajos](#-atajos-de-teclado) · [Desinstalación](#-desinstalación)
+[Instalación rápida](#-instalación-rápida) · [Actualización](#-actualización) · [Características](#-qué-hace-este-script) · [Atajos](#-atajos-de-teclado) · [Desinstalación](#-desinstalación)
 
 </div>
 
@@ -29,39 +30,40 @@
 
 ## ✨ ¿Qué hace este script?
 
-Este script **automatiza por completo** la transformación de tu escritorio Linux en una experiencia macOS auténtica. Ejecuta **25+ pasos inteligentes** de instalación, configuración y verificación sin que tengas que hacer nada manualmente:
+Este script **automatiza por completo** la transformación de tu escritorio Linux. Gracias a su nueva **arquitectura modular**, detecta tu entorno de escritorio y descarga/ejecuta *solo* los componentes necesarios, optimizando el tiempo de instalación y evitando conflictos. Ejecuta pasos inteligentes de configuración sin intervención manual:
 
 | # | Componente | Descripción |
 |---|------------|-------------|
-| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas y codecs necesarios |
-| 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0) |
-| 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME) |
-| 🌅 | **Dynamic Wallpaper** | Fondos dinámicos Mojave/Sonoma que cambian con la hora real |
-| 🎨 | **Tema MacTahoe GTK** | Tema visual estilo macOS con ventanas redondeadas |
-| 🖼️ | **Iconos MacTahoe** | Iconos oficiales estilo macOS (versión bold automática para 4K) |
-| 🔊 | **Sonidos macOS Big Sur** | 44 eventos de sonido, incluyendo el *Startup Chime* al iniciar sesión |
-| 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda global de archivos y web |
-| 🚀 | **Temas de Plank** | Dock estilo macOS inferior con ocultamiento inteligente |
-| 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple |
-| 🦊 | **Navegador Safari** | Firefox personalizado con el nombre e icono oficial de Safari |
-| 🎵 | **Apple Music (Zuno)** | Cliente nativo de YouTube Music con codecs GStreamer y parches de estabilidad preconfigurados |
-| 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall para descubrimiento de dispositivos |
-| 📺 | **Apple TV (IPTVnator)** | Reproductor IPTV con lista de canales en español y guía EPG preconfigurada, optimizado para Wayland/X11 |
-| 📝 | **Suite Office** | ONLYOFFICE Desktop Editors instalado vía Flatpak y renombrado visualmente como "Office" con su icono oficial |
-| 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS |
-| 🪟 | **Gestión avanzada de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra |
-| ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente |
-| ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para SF Pro nítida y perfecta |
-| 💻 | **Terminal estilo macOS** | Perfil con SF Mono, colores auténticos y cursor I-Beam |
-| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar ventanas (GNOME y Cinnamon) |
-| 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden perfectamente con el tema |
-| 👁️ | **Quick Look** | Vista previa de archivos con la barra espaciadora |
-| 📜 | **Scroll Natural y Trackpad** | Desplazamiento invertido y "tap-to-click" activados |
-| 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y arrastre |
-| 🍏 | **Acerca de este Mac** | Ventana real con specs del sistema y botón de *Actualización* funcional |
-| 💻 | **Identidad del Equipo** | Cambia el hostname a "MacBook-Pro", "MacBook-Air" o "MacBook-Neo" |
-| 🌙 | **Modo Oscuro Automático** | Cambia entre tema claro y oscuro según la hora del día (6:00 - 18:00) |
-| 📁 | **Sidebar estilo Finder** | Carpetas Desktop, Downloads, Documents, etc., en el explorador |
+| 🧠 | **Arquitectura Modular** | Detecta tu DE y ejecuta solo `gnome.sh`, `xfce.sh` o `cinnamon.sh`, evitando basura del sistema. |
+| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas y codecs necesarios. |
+| 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0). |
+| 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME). |
+| 🌅 | **Dynamic Wallpaper** | Fondos dinámicos Mojave/Sonoma que cambian con la hora real del sistema. |
+| 🎨 | **Tema MacTahoe GTK** | Tema visual estilo macOS con ventanas redondeadas y modo oscuro/claro. |
+| 🖼️ | **Iconos MacTahoe** | Iconos oficiales estilo macOS (versión bold automática para pantallas 4K). |
+| 🔊 | **Sonidos macOS Big Sur** | 44 eventos de sonido, incluyendo el *Startup Chime* al iniciar sesión. |
+| 🔍 | **Rofi Spotlight** | Lanzador estilo macOS con búsqueda global de archivos y web. |
+| 🚀 | **Temas de Plank** | Dock estilo macOS inferior con ocultamiento inteligente (XFCE/Cinnamon). |
+| 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple. |
+| 🦊 | **Navegador Safari** | Firefox personalizado con el nombre e icono oficial de Safari. |
+| 🎵 | **Apple Music (Zuno)** | Cliente nativo de YouTube Music con codecs GStreamer preconfigurados. |
+| 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall. |
+| 📺 | **Apple TV (IPTVnator)** | Reproductor IPTV con lista de canales en español y guía EPG preconfigurada. |
+| 📝 | **Suite Office** | ONLYOFFICE Desktop Editors (Flatpak) renombrado visualmente como "Office". |
+| 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS. |
+| 🪟 | **Gestión de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra. |
+| ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente. |
+| ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para que SF Pro se vea nítida y perfecta. |
+| 💻 | **Terminal estilo macOS** | Perfil con SF Mono, colores auténticos y cursor I-Beam. |
+| 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar ventanas (GNOME y Cinnamon). |
+| 🎭 | **Tematización Qt** | VLC, OBS y apps Qt coinciden perfectamente con el tema GTK. |
+| 👁️ | **Quick Look** | Vista previa de archivos con la barra espaciadora (Sushi/Gloobus). |
+| 📜 | **Scroll Natural** | Desplazamiento invertido y "tap-to-click" activados a nivel de sistema. |
+| 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y arrastre. |
+| 🍏 | **Acerca de este Mac** | Ventana real con specs del sistema y botón de *Actualización* funcional. |
+| 💻 | **Identidad del Equipo** | Cambia el hostname a "MacBook-Pro", "MacBook-Air" o "MacBook-Neo". |
+| 🌙 | **Modo Oscuro Automático** | Cambia entre tema claro y oscuro según la hora del día (6:00 - 18:00). |
+| 📁 | **Sidebar estilo Finder** | Carpetas Desktop, Downloads, Documents, etc., en el explorador. |
 
 ---
 
@@ -74,9 +76,8 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | **Fedora** (GNOME) | ✅ | Soporte completo |
 | **Linux Mint** (Cinnamon) | ✅ | Soporte completo |
 | **Linux Mint** (XFCE) | ✅ | Soporte completo |
-| **Debian** (GNOME/Cinnamon) | ✅ | Soporte completo |
-| **Arch Linux** | ✅ | Soporte completo |
-| **Manjaro** | ✅ | Soporte completo |
+| **Debian** (GNOME/Cinnamon/XFCE) | ✅ | Soporte completo |
+| **Arch Linux / Manjaro** | ✅ | Soporte completo |
 | **Pop!_OS** | ✅ | Soporte completo |
 | **openSUSE** | ⚠️ | Requiere ajustes menores |
 | **KDE Plasma** | ❌ | No soportado (usa su propio sistema de temas) |
@@ -123,7 +124,7 @@ sudo ./install.sh
 | **GNOME (Wayland)** | Cierra sesión y vuelve a entrar para activar extensiones y sonidos |
 | **GNOME (X11)** | El script reinicia GNOME Shell automáticamente |
 | **Cinnamon** | El script reinicia Cinnamon automáticamente |
-| **XFCE** | Cierra sesión y vuelve a entrar para aplicar el cursor y atajos |
+| **XFCE** | Cierra sesión y vuelve a entrar para aplicar el cursor, panel y atajos |
 
 ---
 
@@ -146,7 +147,7 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 |-------|--------|
 | `Ctrl + Espacio` | Abrir **Spotlight** (búsqueda global de archivos y web) |
 | `Súper + I` | Abrir **"Acerca de este Mac"** (incluye botón de Actualización real) |
-| `Súper + E` | Abrir Explorador de Archivos |
+| `Súper + E` | Abrir Explorador de Archivos (Finder) |
 | `Súper + A` | Abrir Configuración del Sistema |
 | `Ctrl + Alt + T` | Abrir Terminal |
 
@@ -155,9 +156,8 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 |-------|--------|
 | `Súper + Q` | Cerrar aplicación activa |
 | `Súper + M` | Minimizar ventana (con efecto Magic Lamp) |
-| `Súper + X` | Maximizar / Restaurar |
+| `Súper + Flecha Arriba` | Maximizar / Restaurar |
 | `Súper + C` | Centrar ventana en la pantalla |
-| `Súper + F` | Fijar ventana siempre al frente |
 | `Súper + O` | Disminuir opacidad de la ventana |
 | `Súper + Ctrl + O` | Aumentar opacidad de la ventana |
 | `Ctrl + Q` | Cerrar app completamente (incluyendo procesos en segundo plano) |
@@ -170,7 +170,7 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Ctrl + Alt + ←/→` | Cambiar entre áreas de trabajo |
 | `Súper + D` | Mostrar / Ocultar escritorio |
 | `Súper + L` | Bloquear pantalla |
-| `Alt + Ctrl + Esc` | Forzar cierre de app congelada (xkill) |
+| `Ctrl + Alt + Esc` | Forzar cierre de app congelada (xkill) |
 
 ---
 
