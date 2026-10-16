@@ -171,7 +171,8 @@ if [ "$IS_GNOME" = true ]; then
 elif [ "$IS_XFCE" = true ]; then
     SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 elif [ "$IS_CINNAMON" = true ]; then
-    SPECIFIC_PKGS=(cinnamon-tweaks dconf-cli plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
+    # CORREGIDO: Se eliminó 'cinnamon-tweaks' porque no existe en los repositorios
+    SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 else
     SPECIFIC_PKGS=(plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 fi
@@ -265,7 +266,7 @@ rm -f "$ZIP_FILE" 2>/dev/null; rm -rf "$EXTRACT_DIR" 2>/dev/null
 echo ""
 
 # =============================================================================
-# PASOS 9 a 12: APLICACIONES Y HERRAMIENTAS (Resumidos por brevedad pero funcionales)
+# PASOS 9 a 12: APLICACIONES Y HERRAMIENTAS
 # =============================================================================
 echo -e "${YELLOW}🔍 [9/24] Configurando Rofi Spotlight...${NC}"
 ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
@@ -326,7 +327,6 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
 set +e
-# Condición estricta: Solo GNOME, NO XFCE, NO CINNAMON
 if [ "$IS_GNOME" = true ] && [ "$IS_XFCE" = false ] && [ "$IS_CINNAMON" = false ] && [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
     echo -e "${BLUE}   → Aplicando tema a GDM...${NC}"
     sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1 || echo -e "${YELLOW}   ⚠️  GDM omitido por políticas del sistema.${NC}"
@@ -337,7 +337,7 @@ set -e
 echo ""
 
 # =============================================================================
-# PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS (100% COMPLETO Y CERRADO)
+# PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS
 # =============================================================================
 echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
 ADVANCED_WM_SCRIPT="$REAL_HOME/.local/bin/macos-wm-actions"
@@ -438,7 +438,6 @@ echo -e "${GREEN}   ✓ Nombre del equipo: $NEW_HOSTNAME${NC}\n"
 echo ""
 
 [ "$IS_GNOME" = true ] && gnome_step_15_10
-
 [ "$IS_GNOME" = true ] && gnome_step_15_10b
 [ "$IS_CINNAMON" = true ] && cinnamon_step_15_10b
 [ "$IS_XFCE" = true ] && xfce_step_15_10b
@@ -500,8 +499,7 @@ EOF
 
 if [ "$IS_GNOME" = true ]; then
     sudo apt-get install -y -qq gnome-sushi 2>/dev/null || true
-elif [ "$IS_XFCE" = true ] || [ "$IS_CINNAMON" = true ]; then
-    sudo apt-get install -y -qq gloobus-preview 2>/dev/null || true
+# CORREGIDO: Se eliminó la instalación de gloobus-preview (obsoleto en repos modernos)
 fi
 set -e
 echo -e "${GREEN}✅ Qt y Quick Look configurados.${NC}\n"
