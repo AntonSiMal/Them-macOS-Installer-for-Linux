@@ -69,12 +69,13 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
     
     CUSTOM_IDS=()
+    # CORREGIDO: Se cambió 'local PATH' por 'local GSETTINGS_PATH' para no sobrescribir la variable de entorno del sistema
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
-        local PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
-        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH name "$name" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH command "$command" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.keybindings.custom-keybinding:$PATH binding "$binding" 2>/dev/null || true
+        local GSETTINGS_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" name "$name" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" command "$command" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" binding "$binding" 2>/dev/null || true
         CUSTOM_IDS+=("'${id}'")
     }
     
@@ -144,7 +145,6 @@ cinnamon_step_15_7() {
 #  Paso 15.8: Modo oscuro automático (Específico Cinnamon)
 # =============================================================================
 cinnamon_step_15_8() {
-    # El hostname se gestiona en el script principal, aquí aplicamos el refuerzo de tema
     if command -v gsettings &> /dev/null; then
         gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
     fi
@@ -228,8 +228,9 @@ cinnamon_step_19() {
     fi
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null || true
+        # CORREGIDO: Se usó el esquema correcto 'org.cinnamon' en lugar de 'org.cinnamon.desktop.effects'
+        run_as_user gsettings set org.cinnamon desktop-effects-minimize-effect "'none'" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon desktop-effects-unminimize-effect "'none'" 2>/dev/null || true
         echo -e "${GREEN}   ✓ Magic Lamp para Cinnamon instalada y activada${NC}"
     fi
 }
@@ -238,22 +239,14 @@ cinnamon_step_19() {
 #  Paso 20: Quick Look (Vista Previa)
 # =============================================================================
 cinnamon_step_20() {
-    echo -e "${BLUE}   → Instalando Quick Look (gloobus-preview)...${NC}"
-    if command -v apt-get &> /dev/null; then
-        sudo apt-get install -y -qq gloobus-preview 2>/dev/null || true
-    elif command -v dnf &> /dev/null; then
-        sudo dnf install -y -q gloobus-preview 2>/dev/null || true
-    elif command -v pacman &> /dev/null; then
-        sudo pacman -S --noconfirm --needed gloobus-preview 2>/dev/null || true
-    fi
-    echo -e "${GREEN}   ✓ Quick Look instalado${NC}"
+    echo -e "${BLUE}   → Nota: Quick Look nativo de Nemo está habilitado.${NC}"
+    echo -e "${BLUE}   → (gloobus-preview fue omitido por estar obsoleto en repositorios modernos)${NC}"
 }
 
 # =============================================================================
 #  Paso 21: Scroll natural universal
 # =============================================================================
 cinnamon_step_21() {
-    # Cinnamon a veces usa schemas de GNOME subyacentes, configuramos ambos por seguridad
     run_as_user gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
@@ -264,6 +257,7 @@ cinnamon_step_21() {
 #  Paso 22: Gestos multitáctiles estilo macOS (Fusuma)
 # =============================================================================
 cinnamon_step_22() {
+    mkdir -p "$REAL_HOME/.config/fusuma" 2>/dev/null || true
     cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
 plugin:
   inputs:
