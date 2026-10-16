@@ -39,7 +39,7 @@ run_as_user() {
 }
 
 # =============================================================================
-# VARIABLES DE CONFIGURACIÓN (Exportadas para los módulos)
+# VARIABLES DE CONFIGURACIÓN (Exportadas para que los módulos las puedan usar)
 # =============================================================================
 export MACOS_VERSION="Tahoe"
 export GTK_THEME="MacTahoe-Dark"
@@ -52,7 +52,7 @@ export MONO_FONT="SF Mono Regular 11"
 export SERIF_FONT="New York Medium 11"
 export PLANK_THEME="MacOS-BigSur-Dark"
 
-# Variables adicionales requeridas por los módulos
+# Variables adicionales requeridas por los módulos para evitar errores de variables no definidas
 export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg"
 export ABOUT_SCRIPT="$WORKDIR/about_this_mac.sh"
 export SOUND_INSTALLED="false"
@@ -147,12 +147,14 @@ curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Install
 
 chmod +x "$MODULES_DIR/"*.sh
 
+# Verificar que se descargaron
 if [ ! -f "$MODULES_DIR/gnome.sh" ] || [ ! -f "$MODULES_DIR/xfce.sh" ] || [ ! -f "$MODULES_DIR/cinnamon.sh" ]; then
     echo -e "${RED}❌ Error crítico: No se pudieron descargar los módulos de escritorio.${NC}"
     exit 1
 fi
 echo -e "${GREEN}✅ Módulos descargados y listos.${NC}"
 
+# Cargar las funciones de los módulos en el entorno actual
 source "$MODULES_DIR/gnome.sh"
 source "$MODULES_DIR/xfce.sh"
 source "$MODULES_DIR/cinnamon.sh"
@@ -161,7 +163,7 @@ echo -e "${BLUE}📋 Entorno detectado: $DESKTOP_ENV${NC}"
 echo ""
 
 # =============================================================================
-# FUNCIÓN DE INSTALACIÓN SEGURA DE PAQUETES
+# FUNCIÓN DE INSTALACIÓN SEGURA DE PAQUETES (NUEVO)
 # =============================================================================
 install_packages_safely() {
     local pkgs=("$@")
@@ -277,7 +279,7 @@ if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FI
         if [ -d "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/index.theme" ]; then
             cp -r "$SOURCE_DIR" "$SOUNDS_DIR/" 2>/dev/null
             if [ -d "$SOUNDS_DIR/bigsur" ]; then
-                export SOUND_INSTALLED="true" # ✅ EXPORTADO PARA QUE XFCE.SH LO LEA
+                export SOUND_INSTALLED="true"
                 [ -n "$SUDO_USER" ] && chown -R "$REAL_UID:$REAL_GID" "$SOUNDS_DIR/bigsur" 2>/dev/null || true
                 echo -e "${GREEN}   ✅ Sonidos instalados correctamente.${NC}"
             fi
@@ -492,17 +494,10 @@ cat > "$CONFIG_DIR/store.json" << 'EOF'
   "settings": { "player": "html5", "theme": "dark", "epgUrl": "https://iptv-org.github.io/epg/guides/es/movistarplus.es.xml" }
 }
 EOF
-echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}\n"
 
-# =============================================================================
-# 12.8: NAUTILUS/NEMO/THUNAR -> FINDER
-# =============================================================================
+# 12.8: NAUTILUS/NEMO/THUNAR -> FINDER (VERSIÓN COMPLETA)
 echo -e "${BLUE}   → [12.8] Transformando gestor de archivos en Finder...${NC}"
-
-wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" \
-    "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || \
-wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" \
-    "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/apple.svg" 2>/dev/null || true
+wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || wget -q --user-agent="Mozilla/5.0" -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/apple.svg" 2>/dev/null || true
 
 if [ "$IS_GNOME" = true ]; then
     NAUTILUS_DESKTOP=""
@@ -541,6 +536,8 @@ fi
 
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 run_as_user gtk-update-icon-cache -f -t "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
+set -e
+echo -e "${GREEN}✅ Paso 12 completado exitosamente.${NC}\n"
 
 # =============================================================================
 # PASO 13: GDM (PANTALLA DE LOGIN)
