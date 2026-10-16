@@ -84,6 +84,37 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 
 ---
 
+## 📊 Comparativa por Entorno de Escritorio
+
+Este script adapta inteligentemente la instalación según tu entorno. Aquí tienes un desglose de qué componentes y comportamientos específicos se aplican a cada uno:
+
+| Categoría / Característica | 🟠 GNOME (incl. Zorin) | 🟢 Cinnamon (Linux Mint) | 🔵 XFCE |
+| :--- | :--- | :--- | :--- |
+| **Gestor de Ventanas y Efectos** | Mutter. Animaciones suaves y centrado nativo. | Muffin. Efectos personalizados aplicados. | xfwm4. Composición (`use_compositing`) forzada. |
+| **Efecto "Magic Lamp"** | ✅ Sí (Extensión *Compiz Alike*). | ✅ Sí (Extensión *Cinnamon Magic Lamp*). | ❌ No (Limitaciones técnicas de xfwm4). |
+| **Efecto "Liquid Glass" (Blur)** | ✅ Sí (Extensión *Liquid Glass*). | ❌ No. | ❌ No. |
+| **Panel / Dock Principal** | **Dash to Dock** (abajo, auto-ocultable, opacidad dinámica). | **Panel Superior Nativo** (reconfigurado a 28px, applets específicos). | **Panel Superior Reconstruido** (28px, Whisker Menu, reloj macOS). |
+| **Menú de Inicio** | Botón "Mostrar aplicaciones" de Dash to Dock. | Applet de menú nativo con icono `distributor-logo`. | **Whisker Menu** (se instala si falta) con icono de Apple. |
+| **Explorador de Archivos** | **Nautilus**. CSS personalizado para emular sidebar de Finder. | **Nemo**. Vista de iconos, archivos ocultos desactivados. | **Thunar**. Doble clic para abrir, archivos ocultos desactivados. |
+| **Terminal** | **GNOME Terminal**. Perfil nuevo "macOS Tahoe" (SF Mono, colores). | Configuración genérica de fuentes GTK. | **XFCE Terminal**. `terminalrc` sobrescrito con SF Mono y colores. |
+| **Pantalla de Bloqueo** | Nativa de GNOME (wallpaper dinámico, reloj grande). | Nativa de Cinnamon (wallpaper y zoom). | Instala y configura **`light-locker`** (más ligero y estable). |
+| **Indicadores OSD** | Extensión **Avatar** (OSD minimalista estilo macOS). | OSD nativo de Cinnamon habilitado. | **`xfce4-volumed-pulse`** + `xfce4-notifyd` (esquina superior derecha). |
+| **Fondo Dinámico** | **Mojave Solar/Timed** (nativo vía `gsettings` y XML). | **Cinnamon Dynamic Wallpaper** (extensión). | Fondo estático **Sonoma Dark** (sin soporte XML nativo sencillo). |
+| **Gestor de Portapapeles** | Extensión **Clipboard Indicator**. | **Clipit** (se sugiere iniciar desde el menú). | **xfce4-clipman-plugin** (pre-instalado, añadir al panel). |
+| **Night Shift / Luz Nocturna** | ✅ Sí (Automático, 2700K). | ❌ No configurado explícitamente. | ❌ No configurado explícitamente. |
+
+### 🌍 Componentes Universales (Se instalan en los 3 entornos)
+- **Fuentes:** SF Pro, SF Compact, New York y SF Mono (con optimización `fontconfig`).
+- **Temas Visuales:** MacTahoe-Dark (GTK), Iconos y Cursores a 32px.
+- **Sonidos:** Tema "Big Sur" completo (incluye *Startup Chime* en autostart).
+- **Transformación de Apps:** Firefox → "Safari", Zuno → "Apple Music", IPTVnator → "Apple TV", ONLYOFFICE → "Office", Gestor de archivos → "Finder", LocalSend (con regla UFW).
+- **Scripts de Utilidad:** `macos-wm-actions` (centrar, forzar cierre), `about-this-mac.sh` (specs reales + botón de actualización), `auto-dark-mode.sh` (cambio claro/oscuro vía systemd).
+- **Gestos Multitáctiles:** **Fusuma** (gestos de 3 y 4 dedos) + adición automática al grupo `input`.
+- **Pantalla de Arranque:** Tema **Plymouth** "Apple Mac".
+- **Aplicaciones Qt:** Configuración de `qt5ct` para que apps como VLC u OBS usen el tema GTK.
+
+---
+
 ## 📋 Requisitos
 
 - **Sistema operativo:** Linux con GNOME 46+, Cinnamon 5.4+ o XFCE 4.18+
@@ -223,6 +254,7 @@ Asegúrate de tener instalado <code>zenity</code> (el script lo instala). Abrir�
 </details>
 
 ---
+
 ## 🙏 Créditos
 
 Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos de la comunidad Linux de código abierto:
@@ -249,7 +281,6 @@ Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos
 | [IPTVnator](https://github.com/4gray/iptvnator) | 4gray | Reproductor de IPTV, adaptado visualmente como "Apple TV" con listas preconfiguradas. | MIT |
 | [ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors) | ONLYOFFICE | Suite ofimática de código abierto, integrada visualmente como "Office". | AGPL v3 / MPL v2 |
 
----
 ---
 
 ## ⚖️ Licencia y Aviso Legal
