@@ -2,16 +2,16 @@
 
 # 🍎 macOS Tahoe Installer for Linux
 
-### Transforma tu escritorio Linux en una experiencia macOS auténtica e inteligente
+### Transforma tu escritorio Linux en una experiencia macOS auténtica, robusta e inteligente
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Modular](https://img.shields.io/badge/Arquitectura-Modular-purple.svg)](https://github.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux)
-[![GNOME](https://img.shields.io/badge/GNOME-46%20%E2%80%93%2051-green.svg)](https://www.gnome.org/)
-[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.4%20%2B-orange.svg)](https://linuxmint.com/)
+[![Safe Rollback](https://img.shields.io/badge/Safety-Auto_Rollback-green.svg)](https://github.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux)
+[![GNOME](https://img.shields.io/badge/GNOME-46%20%E2%80%93%2051-orange.svg)](https://www.gnome.org/)
+[![Cinnamon](https://img.shields.io/badge/Cinnamon-5.4%20%2B-green.svg)](https://linuxmint.com/)
 [![XFCE](https://img.shields.io/badge/XFCE-4.18%20%2B-blue.svg)](https://www.xfce.org/)
-[![Bash](https://img.shields.io/badge/Bash-4.0%2B-black.svg)](https://www.gnu.org/software/bash/)
+[![Bash](https://img.shields.io/badge/Bash-Strict_Mode-black.svg)](https://www.gnu.org/software/bash/)
 
-**Instalación 100% automatizada · Arquitectura Modular Inteligente · Compatible con GNOME, Cinnamon y XFCE**
+**Instalación 100% automatizada · Detección inteligente de entorno · Compatible con GNOME, Cinnamon y XFCE**
 
 [Instalación rápida](#-instalación-rápida) · [Actualización](#-actualización) · [Características](#-qué-hace-este-script) · [Atajos](#-atajos-de-teclado) · [Desinstalación](#-desinstalación)
 
@@ -30,12 +30,12 @@
 
 ## ✨ ¿Qué hace este script?
 
-Este script **automatiza por completo** la transformación de tu escritorio Linux. Gracias a su nueva **arquitectura modular**, detecta tu entorno de escritorio y descarga/ejecuta *solo* los componentes necesarios, optimizando el tiempo de instalación y evitando conflictos. Ejecuta pasos inteligentes de configuración sin intervención manual:
+Este script **automatiza por completo** la transformación de tu escritorio Linux. Gracias a su arquitectura robusta, detecta tu entorno de escritorio y aplica *solo* las configuraciones necesarias, optimizando el tiempo y evitando conflictos. Incluye un **mecanismo de rollback automático** que protege tu sistema en caso de errores.
 
 | # | Componente | Descripción |
 |---|------------|-------------|
-| 🧠 | **Arquitectura Modular** | Detecta tu DE y ejecuta solo `gnome.sh`, `xfce.sh` o `cinnamon.sh`, evitando basura del sistema. |
-| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas y codecs necesarios. |
+| 🛡️ | **Rollback Automático** | Si la instalación falla, el sistema se restaura automáticamente a su estado original. |
+| 📦 | **Dependencias del sistema** | Instala automáticamente todas las herramientas, codecs y librerías necesarios. |
 | 🔤 | **Fuentes Apple oficiales** | SF Pro, SF Compact, SF Mono, New York (WWDC26 v27.0). |
 | 🧩 | **Liquid Glass** | Extensión GNOME para efecto cristal líquido (solo GNOME). |
 | 🌅 | **Dynamic Wallpaper** | Fondos dinámicos Mojave/Sonoma que cambian con la hora real del sistema. |
@@ -47,12 +47,12 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | 🖥️ | **Plymouth** | Pantalla de arranque con logo Apple. |
 | 🦊 | **Navegador Safari** | Firefox personalizado con el nombre e icono oficial de Safari. |
 | 🎵 | **Apple Music (Zuno)** | Cliente nativo de YouTube Music con codecs GStreamer preconfigurados. |
-| 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall. |
+| 📡 | **LocalSend** | Alternativa open-source a AirDrop, con configuración automática del firewall (UFW). |
 | 📺 | **Apple TV (IPTVnator)** | Reproductor IPTV con lista de canales en español y guía EPG preconfigurada. |
 | 📝 | **Suite Office** | ONLYOFFICE Desktop Editors (Flatpak) renombrado visualmente como "Office". |
 | 🔐 | **GDM (solo GNOME)** | Pantalla de login estilo macOS. |
-| 🪟 | **Gestión de ventanas** | Scripts para opacidad, centrado y redimensionado sin barra. |
-| ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente. |
+| 🪟 | **Gestión de ventanas** | Scripts nativos para opacidad, centrado y cierre forzoso de procesos. |
+| ⌨️ | **Atajos macOS** | 50+ atajos de teclado configurados automáticamente sin sobrescribir los tuyos. |
 | ✏️ | **Renderizado de fuentes** | Optimización Fontconfig para que SF Pro se vea nítida y perfecta. |
 | 💻 | **Terminal estilo macOS** | Perfil con SF Mono, colores auténticos y cursor I-Beam. |
 | 🪔 | **Magic Lamp Effect** | Efecto "Genio" al minimizar ventanas (GNOME y Cinnamon). |
@@ -62,7 +62,7 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 | 👆 | **Gestos Fusuma** | Deslizar con 3/4 dedos para espacios, zoom y arrastre. |
 | 🍏 | **Acerca de este Mac** | Ventana real con specs del sistema y botón de *Actualización* funcional. |
 | 💻 | **Identidad del Equipo** | Cambia el hostname a "MacBook-Pro", "MacBook-Air" o "MacBook-Neo". |
-| 🌙 | **Modo Oscuro Automático** | Cambia entre tema claro y oscuro según la hora del día (6:00 - 18:00). |
+| 🌙 | **Modo Oscuro Automático** | Cambia entre tema claro y oscuro según la hora del día (6:00 - 18:00) vía systemd. |
 | 📁 | **Sidebar estilo Finder** | Carpetas Desktop, Downloads, Documents, etc., en el explorador. |
 
 ---
@@ -87,9 +87,9 @@ Este script **automatiza por completo** la transformación de tu escritorio Linu
 ## 📋 Requisitos
 
 - **Sistema operativo:** Linux con GNOME 46+, Cinnamon 5.4+ o XFCE 4.18+
-- **Conexión a internet:** Para descargar los repositorios, dependencias y aplicaciones (incluyendo Flatpak)
-- **Espacio en disco:** ~4 GB (incluyendo entorno Flatpak, ONLYOFFICE, wallpapers, fuentes, sonidos y apps adicionales)
-- **Permisos de `sudo`:** Para instalar dependencias del sistema, configurar el firewall y Plymouth/GDM
+- **Conexión a internet:** Para descargar repositorios, dependencias y aplicaciones (incluyendo Flatpak)
+- **Espacio en disco:** ~4 GB (incluyendo entorno Flatpak, ONLYOFFICE, wallpapers, fuentes, sonidos y apps)
+- **Permisos de `sudo`:** Para instalar dependencias, configurar el firewall y Plymouth/GDM
 
 ---
 
@@ -125,12 +125,13 @@ sudo ./install.sh
 | **GNOME (X11)** | El script reinicia GNOME Shell automáticamente |
 | **Cinnamon** | El script reinicia Cinnamon automáticamente |
 | **XFCE** | Cierra sesión y vuelve a entrar para aplicar el cursor, panel y atajos |
+| **Todos** | **REINICIO OBLIGATORIO** para activar los permisos del grupo `input` (Gestos Fusuma) y Plymouth. |
 
 ---
 
 ## 🔄 Actualización
 
-¿Ya instalaste el tema y quieres obtener las últimas mejoras? No necesitas reinstalar todo. El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos. Además, **verifica y repara automáticamente** las personalizaciones de Safari, Apple Music, LocalSend, Apple TV y Office por si una actualización del sistema las hubiera sobrescrito.
+¿Ya instalaste el tema y quieres obtener las últimas mejoras? El script de actualización inteligente detecta qué componentes han cambiado en GitHub y solo actualiza esos. Además, **verifica y repara automáticamente** las personalizaciones de Safari, Apple Music, LocalSend, Apple TV y Office por si una actualización del sistema las hubiera sobrescrito.
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/update.sh -o /tmp/mac-updater.sh && chmod +x /tmp/mac-updater.sh && sudo /tmp/mac-updater.sh
@@ -148,20 +149,16 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Ctrl + Espacio` | Abrir **Spotlight** (búsqueda global de archivos y web) |
 | `Súper + I` | Abrir **"Acerca de este Mac"** (incluye botón de Actualización real) |
 | `Súper + E` | Abrir Explorador de Archivos (Finder) |
-| `Súper + A` | Abrir Configuración del Sistema |
 | `Ctrl + Alt + T` | Abrir Terminal |
 
 ### 🪟 Gestión de ventanas
 | Atajo | Acción |
 |-------|--------|
-| `Súper + Q` | Cerrar aplicación activa |
-| `Súper + M` | Minimizar ventana (con efecto Magic Lamp) |
+| `Súper + Q` | Cerrar aplicación activa **y sus procesos en segundo plano** |
+| `Súper + M` | Minimizar ventana (con efecto Magic Lamp si está disponible) |
 | `Súper + Flecha Arriba` | Maximizar / Restaurar |
 | `Súper + C` | Centrar ventana en la pantalla |
-| `Súper + O` | Disminuir opacidad de la ventana |
-| `Súper + Ctrl + O` | Aumentar opacidad de la ventana |
-| `Ctrl + Q` | Cerrar app completamente (incluyendo procesos en segundo plano) |
-| `Súper + ←/→/↑/↓` | Acoplar (snap) ventana a los bordes |
+| `Ctrl + Alt + Esc` | Forzar cierre de app congelada (xkill) |
 
 ### 🏢 Áreas de trabajo y Sistema
 | Atajo | Acción |
@@ -170,7 +167,6 @@ El script configura **50+ atajos de teclado** estilo macOS. Aquí los principale
 | `Ctrl + Alt + ←/→` | Cambiar entre áreas de trabajo |
 | `Súper + D` | Mostrar / Ocultar escritorio |
 | `Súper + L` | Bloquear pantalla |
-| `Ctrl + Alt + Esc` | Forzar cierre de app congelada (xkill) |
 
 ---
 
@@ -189,79 +185,71 @@ curl -sSL https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installe
 ## 🐛 Solución de problemas
 
 <details>
+<summary><strong>Los gestos multitáctiles (Fusuma) no funcionan</strong></summary>
+El script añade automáticamente tu usuario al grupo <code>input</code> para leer el touchpad. Este cambio <strong>requiere un reinicio completo del sistema</strong> (no solo cerrar sesión) para surtir efecto. Verifica con: <code>groups $USER</code>
+</details>
+
+<details>
 <summary><strong>El wallpaper dinámico no cambia</strong></summary>
 Verifica que el reloj del sistema esté sincronizado con la red:
-```bash
-timedatectl
-sudo timedatectl set-ntp true
-```
+<code>sudo timedatectl set-ntp true</code>
 </details>
 
 <details>
 <summary><strong>Liquid Glass o Magic Lamp no se activan en Wayland</strong></summary>
 En Wayland, las extensiones de GNOME Shell requieren cerrar sesión y volver a entrar para cargarse correctamente:
-```bash
-gnome-session-quit --logout
-```
+<code>gnome-session-quit --logout</code>
 </details>
 
 <details>
 <summary><strong>Las fuentes Apple no se ven nítidas o no se aplican</strong></summary>
 Actualiza la caché de fuentes del sistema y verifica que estén instaladas:
-```bash
-fc-cache -fv
-fc-list | grep -i "SF Pro"
-```
+<code>fc-cache -fv && fc-list | grep -i "SF Pro"</code>
 </details>
 
 <details>
 <summary><strong>LocalSend no descubre dispositivos en la red</strong></summary>
-El script configura el firewall automáticamente, pero si usas un firewall de terceros o una red pública, asegúrate de que el puerto <strong>53317 (TCP/UDP)</strong> esté abierto y que la "Aislación AP" (AP Isolation) esté desactivada en tu router.
+El script configura UFW automáticamente. Si usas un firewall de terceros o una red pública, asegúrate de que el puerto <strong>53317 (TCP/UDP)</strong> esté abierto y que la "Aislación AP" (AP Isolation) esté desactivada en tu router.
 </details>
 
 <details>
 <summary><strong>Apple TV (IPTVnator) muestra pantalla gris o no reproduce</strong></summary>
-El script aplica parches automáticos (`--no-sandbox` y `--ozone-platform=x11`) e instala <code>mpv</code>. Si el problema persiste en Wayland con Nvidia, asegúrate de que Xwayland esté instalado en tu sistema.
-</details>
-
-<details>
-<summary><strong>Office (ONLYOFFICE) tarda en abrir la primera vez</strong></summary>
-Es normal. Al ser una aplicación Flatpak, la primera ejecución extrae y configura el entorno de ejecución (runtime). Las siguientes aperturas serán instantáneas.
+El script aplica parches automáticos (<code>--no-sandbox</code> y <code>--ozone-platform=x11</code>) e instala <code>mpv</code>. Si el problema persiste en Wayland con Nvidia, asegúrate de que Xwayland esté instalado en tu sistema.
 </details>
 
 <details>
 <summary><strong>El botón "Actualización de software" no hace nada</strong></summary>
-Asegúrate de tener instalado <code>zenity</code> o <code>yad</code>. El script abrirá una terminal para ejecutar <code>apt/dnf/pacman upgrade</code> y luego el script de actualización del tema. Necesitarás ingresar tu contraseña de sudo en esa terminal.
+Asegúrate de tener instalado <code>zenity</code> (el script lo instala). Abrirá una terminal para ejecutar <code>apt/dnf/pacman upgrade</code>. Necesitarás ingresar tu contraseña de sudo en esa terminal.
 </details>
 
 ---
-
 ## 🙏 Créditos
 
 Este proyecto es posible gracias al trabajo de muchos desarrolladores talentosos de la comunidad Linux de código abierto:
 
-| Proyecto | Autor | Licencia |
-|----------|-------|----------|
-| [MacTahoe GTK Theme](https://github.com/vinceliuice/MacTahoe-gtk-theme) | vinceliuice | MIT |
-| [MacTahoe Icon Theme](https://github.com/vinceliuice/MacTahoe-icon-theme) | vinceliuice | MIT |
-| [SFWindows (Fuentes Apple)](https://github.com/bradleyhodges/SFWindows) | bradleyhodges | MIT |
-| [Liquid Glass](https://github.com/ryohsuke1231/liquid-glass) | ryohsuke1231 | MIT |
-| [Compiz Alike Magic Lamp (GNOME)](https://github.com/hermes83/compiz-alike-magic-lamp-effect) | hermes83 | GPL-3.0 |
-| [Cinnamon Magic Lamp](https://github.com/klangman/CinnamonMagicLamp) | klangman | GPL-3.0 |
-| [WhiteSur Wallpapers](https://github.com/vinceliuice/WhiteSur-wallpapers) | vinceliuice | MIT |
-| [Mojave Dynamic Wallpaper](https://github.com/japamax/gnome-kde-dynamic-wallpaper-mojave) | japamax | - |
-| [macOS Big Sur Sound Theme](https://github.com/gxanshu/macos-bigsur-sound-theme-linux) | gxanshu | MIT |
-| [Rofi Spotlight](https://github.com/eromatiya/rofi-spotlight) | eromatiya | MIT |
-| [Plank Themes](https://github.com/Macintosh98/MacOS-Mojave-Plank-themes) | Macintosh98 | - |
-| [Apple Mac Plymouth](https://github.com/navisjayaseelan/apple-mac-plymouth) | navisjayaseelan | - |
-| [Cinnamon Dynamic Wallpaper](https://github.com/TobiZog/cinnamon-dynamic-wallpaper) | TobiZog | GPL-3.0 |
-| [Fusuma (Gestos Multitáctiles)](https://github.com/iberianpig/fusuma) | iberianpig | MIT |
-| [Sushi / Gloobus Preview (Quick Look)](https://github.com/GNOME/sushi) | GNOME Project | GPL-2.0+ |
-| [Zuno (YouTube Music Client)](https://github.com/noFAYZ/zuno) | noFAYZ | MIT |
-| [LocalSend](https://github.com/localsend/localsend) | localsend | MIT |
-| [IPTVnator](https://github.com/4gray/iptvnator) | 4gray | MIT |
-| [ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors) | ONLYOFFICE | AGPL v3 / MPL v2 |
+| Proyecto | Autor | Aporte al Proyecto | Licencia |
+|----------|-------|--------------------|----------|
+| [MacTahoe GTK Theme](https://github.com/vinceliuice/MacTahoe-gtk-theme) | vinceliuice | Tema visual principal para aplicaciones GTK (ventanas, controles, modo oscuro/claro). | MIT |
+| [MacTahoe Icon Theme](https://github.com/vinceliuice/MacTahoe-icon-theme) | vinceliuice | Iconografía del sistema, carpetas y aplicaciones estilo macOS. | MIT |
+| [SFWindows (Fuentes Apple)](https://github.com/bradleyhodges/SFWindows) | bradleyhodges | Fuentes tipográficas oficiales de Apple (SF Pro, SF Mono, New York). | MIT |
+| [Liquid Glass](https://github.com/ryohsuke1231/liquid-glass) | ryohsuke1231 | Efecto de desenfoque y transparencia (blur) en la interfaz de GNOME. | MIT |
+| [Compiz Alike Magic Lamp (GNOME)](https://github.com/hermes83/compiz-alike-magic-lamp-effect) | hermes83 | Animación "Lámpara Mágica" (Magic Lamp) al minimizar ventanas en GNOME. | GPL-3.0 |
+| [Cinnamon Magic Lamp](https://github.com/klangman/CinnamonMagicLamp) | klangman | Animación "Lámpara Mágica" al minimizar ventanas en Cinnamon. | GPL-3.0 |
+| [WhiteSur Wallpapers](https://github.com/vinceliuice/WhiteSur-wallpapers) | vinceliuice | Colección de fondos de pantalla oficiales de macOS (Sonoma, Monterey, etc.). | MIT |
+| [Mojave Dynamic Wallpaper](https://github.com/japamax/gnome-kde-dynamic-wallpaper-mojave) | japamax | Fondo de pantalla dinámico que cambia automáticamente según la hora del día. | - |
+| [macOS Big Sur Sound Theme](https://github.com/gxanshu/macos-bigsur-sound-theme-linux) | gxanshu | Paquete de sonidos del sistema (incluye el icónico "Startup Chime" de arranque). | MIT |
+| [Rofi Spotlight](https://github.com/eromatiya/rofi-spotlight) | eromatiya | Lanzador de aplicaciones y búsqueda global de archivos estilo Spotlight. | MIT |
+| [Plank Themes](https://github.com/Macintosh98/MacOS-Mojave-Plank-themes) | Macintosh98 | Temas visuales para emular el Dock inferior de macOS usando Plank. | - |
+| [Apple Mac Plymouth](https://github.com/navisjayaseelan/apple-mac-plymouth) | navisjayaseelan | Animación y logo de Apple durante la pantalla de arranque del sistema (Plymouth). | - |
+| [Cinnamon Dynamic Wallpaper](https://github.com/TobiZog/cinnamon-dynamic-wallpaper) | TobiZog | Extensión para fondos de pantalla dinámicos por hora en Cinnamon. | GPL-3.0 |
+| [Fusuma (Gestos Multitáctiles)](https://github.com/iberianpig/fusuma) | iberianpig | Motor de reconocimiento de gestos multitáctiles (deslizar con 3/4 dedos) en el trackpad. | MIT |
+| [Sushi / Gloobus Preview (Quick Look)](https://github.com/GNOME/sushi) | GNOME Project | Vista previa rápida de archivos al presionar la barra espaciadora (Quick Look). | GPL-2.0+ |
+| [Zuno (YouTube Music Client)](https://github.com/noFAYZ/zuno) | noFAYZ | Cliente nativo de YouTube Music, adaptado visualmente como "Apple Music". | MIT |
+| [LocalSend](https://github.com/localsend/localsend) | localsend | Herramienta de transferencia de archivos en red local (alternativa open-source a AirDrop). | MIT |
+| [IPTVnator](https://github.com/4gray/iptvnator) | 4gray | Reproductor de IPTV, adaptado visualmente como "Apple TV" con listas preconfiguradas. | MIT |
+| [ONLYOFFICE Desktop Editors](https://github.com/ONLYOFFICE/DesktopEditors) | ONLYOFFICE | Suite ofimática de código abierto, integrada visualmente como "Office". | AGPL v3 / MPL v2 |
 
+---
 ---
 
 ## ⚖️ Licencia y Aviso Legal
