@@ -15,7 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # =============================================================================
-# DETECCIÓN DEL USUARIO REAL
+# DETECCIÓN DEL USUARIO REAL Y ENTORNO GRÁFICO
 # =============================================================================
 if [ -n "$SUDO_USER" ]; then
     REAL_USER="$SUDO_USER"
@@ -29,11 +29,17 @@ else
     REAL_GID=$(id -g)
 fi
 
+# CORRECCIÓN 1: Forzar variables de entorno gráficas para D-Bus y dconf
+export XDG_RUNTIME_DIR="/run/user/$REAL_UID"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+
 run_as_user() {
+    local cmd=("$@")
     if [ -n "$SUDO_USER" ]; then
-        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" "$@" 2>/dev/null || true
+        # CORRECCIÓN 6: Usar 'env' para inyectar limpiamente las variables en el entorno sudo
+        sudo -u "$SUDO_USER" env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XDG_DATA_DIRS="$XDG_DATA_DIRS" "${cmd[@]}" 2>/dev/null || true
     else
-        "$@" 2>/dev/null || true
+        "${cmd[@]}" 2>/dev/null || true
     fi
 }
 
@@ -118,23 +124,23 @@ else
 fi
 
 # =============================================================================
-# PASO 0.5: DESCARGA DE MÓDULOS
+# PASO 0.5: DESCARGA DE MÓDULOS (VALIDACIÓN ROBUSTA)
 # =============================================================================
 echo -e "${BLUE}📦 [0.5/24] Descargando módulos de entornos de escritorio...${NC}"
 MODULES_DIR="$WORKDIR/modules"
 mkdir -p "$MODULES_DIR"
 
-curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/gnome.sh" -o "$MODULES_DIR/gnome.sh"
-curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/xfce.sh" -o "$MODULES_DIR/xfce.sh"
-curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/cinnamon.sh" -o "$MODULES_DIR/cinnamon.sh"
+# CORRECCIÓN 2: Validar que el archivo no esté vacío ([ ! -s ... ])
+for mod in gnome xfce cinnamon; do
+    if ! curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/${mod}.sh" -o "$MODULES_DIR/${mod}.sh" || [ ! -s "$MODULES_DIR/${mod}.sh" ]; then
+        echo -e "${RED}❌ Error crítico: No se pudo descargar o el módulo ${mod}.sh está vacío.${NC}"
+        exit 1
+    fi
+done
 
 chmod +x "$MODULES_DIR/"*.sh
 
-if [ ! -f "$MODULES_DIR/gnome.sh" ] || [ ! -f "$MODULES_DIR/xfce.sh" ] || [ ! -f "$MODULES_DIR/cinnamon.sh" ]; then
-    echo -e "${RED}❌ Error crítico: No se pudieron descargar los módulos.${NC}"
-    exit 1
-fi
-
+# CORRECCIÓN 3: Proteger llamadas condicionales a funciones
 source "$MODULES_DIR/gnome.sh"
 source "$MODULES_DIR/xfce.sh"
 source "$MODULES_DIR/cinnamon.sh"
@@ -159,7 +165,7 @@ install_packages_safely() {
 }
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (SEPARADAS POR ENTORNO)
+# PASO 1: DEPENDENCIAS DEL SISTEMA
 # =============================================================================
 echo -e "${YELLOW}📦 [1/24] Preparando dependencias del sistema...${NC}"
 export DEBIAN_FRONTEND=noninteractive
@@ -171,7 +177,7 @@ if [ "$IS_GNOME" = true ]; then
 elif [ "$IS_XFCE" = true ]; then
     SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 elif [ "$IS_CINNAMON" = true ]; then
-    # CORREGIDO: Se eliminó 'cinnamon-tweaks' porque no existe en los repositorios
+    # CORRECCIÓN: Eliminado 'cinnamon-tweaks' (no existe en repositorios)
     SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 else
     SPECIFIC_PKGS=(plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
@@ -206,8 +212,8 @@ echo -e "${GREEN}✅ Fuentes instaladas.${NC}\n"
 # =============================================================================
 # PASOS 3 a 6: TEMAS Y CONFIGURACIONES ESPECÍFICAS
 # =============================================================================
-[ "$IS_GNOME" = true ] && gnome_step_3
-[ "$IS_CINNAMON" = true ] && cinnamon_step_4
+[ "$IS_GNOME" = true ] && type gnome_step_3 &>/dev/null && gnome_step_3
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_4 &>/dev/null && cinnamon_step_4
 
 echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...${NC}"
 [ ! -d "$WORKDIR/MacTahoe-gtk-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q
@@ -215,11 +221,11 @@ echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...$
 
 INSTALL_FLAGS="-c dark --silent-mode --round --darker"
 [ "$IS_GNOME" = true ] && INSTALL_FLAGS="$INSTALL_FLAGS -l"
-( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 )
-[ -n "$ICON_BOLD_FLAG" ] && ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 ) || ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 )
+( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 ) || true
+[ -n "$ICON_BOLD_FLAG" ] && ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 ) || ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 ) || true
 echo -e "${GREEN}✅ Tema GTK, Iconos y Cursores instalados.${NC}\n"
 
-[ "$IS_GNOME" = true ] && gnome_step_6
+[ "$IS_GNOME" = true ] && type gnome_step_6 &>/dev/null && gnome_step_6
 
 # =============================================================================
 # PASO 7: WALLPAPERS MACOS
@@ -257,7 +263,7 @@ if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FI
     if unzip -q "$ZIP_FILE" -d "$EXTRACT_DIR" 2>/dev/null; then
         SOURCE_DIR="$EXTRACT_DIR/macos-bigsur-sound-theme-linux-main/theme/bigsur"
         if [ -d "$SOURCE_DIR" ] && [ -f "$SOURCE_DIR/index.theme" ]; then
-            cp -r "$SOURCE_DIR" "$SOUNDS_DIR/" 2>/dev/null
+            cp -r "$SOURCE_DIR" "$SOUNDS_DIR/" 2>/dev/null || true
             [ -d "$SOUNDS_DIR/bigsur" ] && export SOUND_INSTALLED="true" && [ -n "$SUDO_USER" ] && chown -R "$REAL_UID:$REAL_GID" "$SOUNDS_DIR/bigsur" 2>/dev/null || true
         fi
     fi
@@ -278,16 +284,16 @@ echo -e "${GREEN}✅ Rofi configurado.${NC}\n"
 echo -e "${YELLOW}🚀 [10/24] Instalando temas de Plank...${NC}"
 [ ! -d "$WORKDIR/MacOS-Mojave-Plank-themes" ] && git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git "$WORKDIR/MacOS-Mojave-Plank-themes" -q
 mkdir -p "$REAL_HOME/.local/share/plank/themes"
-find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do [ -d "$theme_dir" ] && cp -r "$theme_dir" "$REAL_HOME/.local/share/plank/themes/"; done
+find "$WORKDIR/MacOS-Mojave-Plank-themes" -maxdepth 1 -type d \( -name "MacOS-*" -o -name "elementary-*" \) | while read -r theme_dir; do [ -d "$theme_dir" ] && cp -r "$theme_dir" "$REAL_HOME/.local/share/plank/themes/" 2>/dev/null || true; done
 echo -e "${GREEN}✅ Plank configurado.${NC}\n"
 
 echo -e "${YELLOW}🖥️  [11/24] Instalando tema Plymouth...${NC}"
 if command -v plymouth &> /dev/null || [ -d /usr/share/plymouth/themes ]; then
     [ ! -d "$WORKDIR/apple-mac-plymouth" ] && git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git "$WORKDIR/apple-mac-plymouth" -q
-    sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null
-    sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null
+    sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null || true
+    sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null || true
     sudo update-alternatives --set default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 2>/dev/null || true
-    command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1
+    command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1 || true
     echo -e "${GREEN}✅ Plymouth configurado.${NC}"
 else
     echo -e "${YELLOW}⏭️  Plymouth no disponible.${NC}"
@@ -296,7 +302,6 @@ echo ""
 
 echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones (Safari, Finder, etc.)...${NC}"
 set +e
-# Safari (Firefox)
 if ! command -v firefox &> /dev/null; then command -v apt-get &> /dev/null && sudo apt-get install -y -qq firefox || true; fi
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
 cat > "$REAL_HOME/.local/share/applications/safari.desktop" << 'EOF'
@@ -310,12 +315,11 @@ Type=Application
 Categories=Network;WebBrowser;
 EOF
 
-# Finder (Thunar/Nautilus/Nemo)
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || true
 if [ "$IS_XFCE" = true ] && [ -f "/usr/share/applications/thunar.desktop" ]; then
-    cp "/usr/share/applications/thunar.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
-    sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
-    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/thunar.desktop"
+    cp "/usr/share/applications/thunar.desktop" "$REAL_HOME/.local/share/applications/finder.desktop" 2>/dev/null || true
+    sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop" 2>/dev/null || true
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/thunar.desktop" 2>/dev/null || true
     echo -e "${GREEN}   ✅ Thunar renombrado a 'Finder'.${NC}"
 fi
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
@@ -404,24 +408,24 @@ echo -e "${GREEN}✅ Script auxiliar de ventanas creado correctamente.${NC}\n"
 # PASOS 15 a 23: CONFIGURACIÓN DEL SISTEMA (LLAMADAS A MÓDULOS)
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/24] Configurando sistema, paneles y atajos...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_15
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15
-[ "$IS_XFCE" = true ] && xfce_step_15
+[ "$IS_GNOME" = true ] && type gnome_step_15 &>/dev/null && gnome_step_15
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15 &>/dev/null && cinnamon_step_15
+[ "$IS_XFCE" = true ] && type xfce_step_15 &>/dev/null && xfce_step_15
 echo ""
 
-[ "$IS_GNOME" = true ] && gnome_step_15_5
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_5
-[ "$IS_XFCE" = true ] && xfce_step_15_5
+[ "$IS_GNOME" = true ] && type gnome_step_15_5 &>/dev/null && gnome_step_15_5
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_5 &>/dev/null && cinnamon_step_15_5
+[ "$IS_XFCE" = true ] && type xfce_step_15_5 &>/dev/null && xfce_step_15_5
 echo ""
 
-[ "$IS_GNOME" = true ] && gnome_step_15_6
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_6
-[ "$IS_XFCE" = true ] && xfce_step_15_6
+[ "$IS_GNOME" = true ] && type gnome_step_15_6 &>/dev/null && gnome_step_15_6
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_6 &>/dev/null && cinnamon_step_15_6
+[ "$IS_XFCE" = true ] && type xfce_step_15_6 &>/dev/null && xfce_step_15_6
 echo ""
 
-[ "$IS_GNOME" = true ] && gnome_step_15_7
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_7
-[ "$IS_XFCE" = true ] && xfce_step_15_7
+[ "$IS_GNOME" = true ] && type gnome_step_15_7 &>/dev/null && gnome_step_15_7
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_7 &>/dev/null && cinnamon_step_15_7
+[ "$IS_XFCE" = true ] && type xfce_step_15_7 &>/dev/null && xfce_step_15_7
 echo ""
 
 echo -e "${YELLOW}💻 [15.8/24] Configurando identidad del equipo...${NC}"
@@ -432,20 +436,20 @@ else NEW_HOSTNAME="MacBook"; fi
 sudo hostnamectl set-hostname "$NEW_HOSTNAME" 2>/dev/null || true
 echo -e "${GREEN}   ✓ Nombre del equipo: $NEW_HOSTNAME${NC}\n"
 
-[ "$IS_GNOME" = true ] && gnome_step_15_9
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_9
-[ "$IS_XFCE" = true ] && xfce_step_15_9
+[ "$IS_GNOME" = true ] && type gnome_step_15_9 &>/dev/null && gnome_step_15_9
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_9 &>/dev/null && cinnamon_step_15_9
+[ "$IS_XFCE" = true ] && type xfce_step_15_9 &>/dev/null && xfce_step_15_9
 echo ""
 
-[ "$IS_GNOME" = true ] && gnome_step_15_10
-[ "$IS_GNOME" = true ] && gnome_step_15_10b
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_10b
-[ "$IS_XFCE" = true ] && xfce_step_15_10b
+[ "$IS_GNOME" = true ] && type gnome_step_15_10 &>/dev/null && gnome_step_15_10
+[ "$IS_GNOME" = true ] && type gnome_step_15_10b &>/dev/null && gnome_step_15_10b
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_10b &>/dev/null && cinnamon_step_15_10b
+[ "$IS_XFCE" = true ] && type xfce_step_15_10b &>/dev/null && xfce_step_15_10b
 echo ""
 
-[ "$IS_GNOME" = true ] && gnome_step_15_10c
-[ "$IS_CINNAMON" = true ] && cinnamon_step_15_10c
-[ "$IS_XFCE" = true ] && xfce_step_15_10c
+[ "$IS_GNOME" = true ] && type gnome_step_15_10c &>/dev/null && gnome_step_15_10c
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_10c &>/dev/null && cinnamon_step_15_10c
+[ "$IS_XFCE" = true ] && type xfce_step_15_10c &>/dev/null && xfce_step_15_10c
 echo ""
 
 echo -e "${YELLOW}🔤 [16/24] Optimizando renderizado de fuentes...${NC}"
@@ -470,18 +474,18 @@ set -e
 echo -e "${GREEN}✅ Renderizado de fuentes optimizado.${NC}\n"
 
 echo -e "${YELLOW}💻 [17/24] Configurando terminal...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_17
-[ "$IS_XFCE" = true ] && xfce_step_17
+[ "$IS_GNOME" = true ] && type gnome_step_17 &>/dev/null && gnome_step_17
+[ "$IS_XFCE" = true ] && type xfce_step_17 &>/dev/null && xfce_step_17
 echo ""
 
 echo -e "${YELLOW} [18/24] Configurando animaciones suaves...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_18
-[ "$IS_XFCE" = true ] && xfce_step_18
+[ "$IS_GNOME" = true ] && type gnome_step_18 &>/dev/null && gnome_step_18
+[ "$IS_XFCE" = true ] && type xfce_step_18 &>/dev/null && xfce_step_18
 echo ""
 
 echo -e "${YELLOW} [19/24] Instalando efecto Magic Lamp...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_19
-[ "$IS_CINNAMON" = true ] && cinnamon_step_19
+[ "$IS_GNOME" = true ] && type gnome_step_19 &>/dev/null && gnome_step_19
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_19 &>/dev/null && cinnamon_step_19
 echo ""
 
 echo -e "${YELLOW} [20/24] Tematizando aplicaciones Qt y Quick Look...${NC}"
@@ -499,26 +503,25 @@ EOF
 
 if [ "$IS_GNOME" = true ]; then
     sudo apt-get install -y -qq gnome-sushi 2>/dev/null || true
-# CORREGIDO: Se eliminó la instalación de gloobus-preview (obsoleto en repos modernos)
 fi
 set -e
 echo -e "${GREEN}✅ Qt y Quick Look configurados.${NC}\n"
 
 echo -e "${YELLOW}📜 [21/24] Activando Scroll Natural...${NC}"
-[ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ] && gnome_cinnamon_step_21
-[ "$IS_XFCE" = true ] && xfce_step_21
+[ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ] && type gnome_cinnamon_step_21 &>/dev/null && gnome_cinnamon_step_21
+[ "$IS_XFCE" = true ] && type xfce_step_21 &>/dev/null && xfce_step_21
 echo ""
 
 echo -e "${YELLOW} [22/24] Instalando Gestos Multitáctiles (Fusuma)...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_22
-[ "$IS_CINNAMON" = true ] && cinnamon_step_22
-[ "$IS_XFCE" = true ] && xfce_step_22
+[ "$IS_GNOME" = true ] && type gnome_step_22 &>/dev/null && gnome_step_22
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_22 &>/dev/null && cinnamon_step_22
+[ "$IS_XFCE" = true ] && type xfce_step_22 &>/dev/null && xfce_step_22
 echo ""
 
 echo -e "${YELLOW}📋 [23/24] Configurando Gestor de Portapapeles...${NC}"
-[ "$IS_GNOME" = true ] && gnome_step_23
-[ "$IS_CINNAMON" = true ] && cinnamon_step_23
-[ "$IS_XFCE" = true ] && xfce_step_23
+[ "$IS_GNOME" = true ] && type gnome_step_23 &>/dev/null && gnome_step_23
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_23 &>/dev/null && cinnamon_step_23
+[ "$IS_XFCE" = true ] && type xfce_step_23 &>/dev/null && xfce_step_23
 echo ""
 
 # =============================================================================
@@ -526,7 +529,7 @@ echo ""
 # =============================================================================
 echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
 if [ "$IS_XFCE" = true ]; then
-    verify_xfce_critical_deps
+    type verify_xfce_critical_deps &>/dev/null && verify_xfce_critical_deps
 fi
 
 echo -e "${CYAN}══════════════════════════════════════════════════════════╗${NC}"
