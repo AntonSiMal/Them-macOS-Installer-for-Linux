@@ -163,7 +163,7 @@ echo -e "${BLUE}📋 Entorno detectado: $DESKTOP_ENV${NC}"
 echo ""
 
 # =============================================================================
-# FUNCIÓN DE INSTALACIÓN SEGURA DE PAQUETES (NUEVO)
+# FUNCIÓN DE INSTALACIÓN SEGURA DE PAQUETES
 # =============================================================================
 install_packages_safely() {
     local pkgs=("$@")
@@ -248,17 +248,40 @@ echo -e "${GREEN}✅ Tema GTK, Iconos y Cursores instalados.${NC}\n"
 if [ "$IS_GNOME" = true ]; then gnome_step_6; fi
 
 # =============================================================================
-# PASO 7: WALLPAPERS SONOMA
+# PASO 7: WALLPAPERS MACOS (REEMPLAZO DE /usr/share/backgrounds/)
 # =============================================================================
-echo -e "${YELLOW}🖼️  [7/24] Instalando wallpapers macOS Sonoma...${NC}"
-[ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q
+echo -e "${YELLOW}🖼️  [7/24] Instalando colección completa de Wallpapers macOS...${NC}"
 
-if [ "$IS_GNOME" = true ]; then
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
-else
-    ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark -s "$SCREEN_VARIANT" > /dev/null 2>&1 )
+WP_DIR="$WORKDIR/macOS-Wallpapers"
+if [ ! -d "$WP_DIR" ]; then
+    echo -e "${BLUE}   → Descargando colección de wallpapers desde GitHub...${NC}"
+    git clone --depth=1 https://github.com/acer51-doctom/macOS-Wallpapers.git "$WP_DIR" -q 2>/dev/null || true
 fi
-echo -e "${GREEN}✅ Wallpapers macOS Sonoma instalados.${NC}\n"
+
+if [ -d "$WP_DIR/Wallpapers/All Combined" ]; then
+    echo -e "${BLUE}   → Copiando wallpapers a /usr/share/backgrounds/macOS...${NC}"
+    sudo mkdir -p /usr/share/backgrounds/macOS
+    
+    # Copiar todos los archivos de imagen (manejando espacios en el nombre de la carpeta)
+    sudo cp -r "$WP_DIR/Wallpapers/All Combined/"* /usr/share/backgrounds/macOS/ 2>/dev/null || true
+    
+    # Ajustar permisos para que todos los usuarios del sistema puedan leerlos
+    sudo chmod -R 755 /usr/share/backgrounds/macOS 2>/dev/null || true
+    sudo chown -R root:root /usr/share/backgrounds/macOS 2>/dev/null || true
+    
+    echo -e "${GREEN}   ✅ Colección de Wallpapers macOS instalada en /usr/share/backgrounds/macOS${NC}"
+else
+    echo -e "${YELLOW}   ⚠️  No se encontró la carpeta 'All Combined'. Intentando fallback...${NC}"
+    if [ -d "$WP_DIR/Wallpapers" ]; then
+        sudo mkdir -p /usr/share/backgrounds/macOS
+        sudo cp -r "$WP_DIR/Wallpapers/"* /usr/share/backgrounds/macOS/ 2>/dev/null || true
+        sudo chmod -R 755 /usr/share/backgrounds/macOS 2>/dev/null || true
+        echo -e "${GREEN}   ✅ Wallpapers macOS instalados (estructura alternativa).${NC}"
+    else
+        echo -e "${RED}   ❌ No se pudieron descargar los wallpapers.${NC}"
+    fi
+fi
+echo ""
 
 # =============================================================================
 # PASO 8: SONIDOS DEL SISTEMA DE macOS BIG SUR
