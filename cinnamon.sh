@@ -9,17 +9,21 @@
 # =============================================================================
 cinnamon_step_4() {
     echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
-    mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/"
-    [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q
-    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null
+    mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
+    [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q 2>/dev/null || true
+    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
     
-    CINNAMON_EXTENSIONS=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null)
-    if ! echo "$CINNAMON_EXTENSIONS" | grep -q "cinnamon-dynamic-wallpaper@TobiZog"; then
-        if [ "$CINNAMON_EXTENSIONS" = "[]" ] || [ -z "$CINNAMON_EXTENSIONS" ]; then
-            run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null
+    # 🛡️ CORRECCIÓN CRÍTICA 1: Manipulación segura de arrays de gsettings SIN usar 'sed'
+    local current_exts
+    current_exts=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null || echo "[]")
+    
+    if [[ "$current_exts" != *"cinnamon-dynamic-wallpaper@TobiZog"* ]]; then
+        # Eliminar el corchete de cierre final de forma segura con expansión de parámetros de Bash
+        local clean_exts="${current_exts%]}"
+        if [ "$clean_exts" = "[" ] || [ -z "$clean_exts" ]; then
+            run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
         else
-            NEW_EXTENSIONS=$(echo "$CINNAMON_EXTENSIONS" | sed "s/]$/, 'cinnamon-dynamic-wallpaper@TobiZog']/")
-            run_as_user gsettings set org.cinnamon enabled-extensions "$NEW_EXTENSIONS" 2>/dev/null
+            run_as_user gsettings set org.cinnamon enabled-extensions "${clean_exts}, 'cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
         fi
     fi
     echo -e "${GREEN}✅ Cinnamon Dynamic Wallpaper instalada.${NC}"
@@ -30,25 +34,25 @@ cinnamon_step_4() {
 # =============================================================================
 cinnamon_step_15() {
     echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
-    run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
-    run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME"
-    run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME"
-    run_as_user gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark'
+    run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
     
     if [ "$SF_INSTALLED" = true ]; then
-        run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11'
-        run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11'
-        run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11'
-        run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11'
+        run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11' 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11' 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11' 2>/dev/null || true
         echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
     fi
     
-    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:'
+    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
     # PANEL SUPERIOR ESTILO macOS
-    run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']"
-    run_as_user gsettings set org.cinnamon.panel-height 28
+    run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.enabled-applets \
     "['panel1:left:0:menu@cinnamon.org', \
     'panel1:left:1:workspace-switcher@cinnamon.org', \
@@ -68,8 +72,9 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
     
-    CUSTOM_IDS=()
-    # CORREGIDO: Se cambió 'local PATH' por 'local GSETTINGS_PATH' para no sobrescribir la variable de entorno del sistema
+    local CUSTOM_IDS=()
+    
+    # 🛡️ CORRECCIÓN: Se usa 'GSETTINGS_PATH' en lugar de 'PATH' para no sobrescribir la variable de entorno del sistema
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
         local GSETTINGS_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
@@ -84,18 +89,25 @@ cinnamon_step_15() {
     cinnamon_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" "custom-center"
     cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "custom-forcekill"
     
-    run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$(IFS=,; echo "[${CUSTOM_IDS[*]}]")" 2>/dev/null || true
+    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list (evita cadenas malformadas "[,]")
+    if [ ${#CUSTOM_IDS[@]} -gt 0 ]; then
+        local custom_list_str=$(printf ", '%s'" "${CUSTOM_IDS[@]}")
+        custom_list_str="[${custom_list_str#, }]"
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$custom_list_str" 2>/dev/null || true
+    else
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "[]" 2>/dev/null || true
+    fi
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
     if [ -f "$WALLPAPER_PATH" ]; then
-        run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH"
-        run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH"
+        run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
     fi
     
     if [ "$SOUND_INSTALLED" = true ]; then
-        run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME"
-        run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true
-        run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true
+        run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
     fi
     
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences enable-hot-corners true 2>/dev/null || true
@@ -117,17 +129,14 @@ cinnamon_step_15_5() {
 # =============================================================================
 cinnamon_step_15_6() {
     echo -e "${BLUE}   → Ajustando Cinnamon (Nemo, Trackpad, Notificaciones)...${NC}"
-    # 📁 Administrador de Archivos (Nemo estilo Finder)
     run_as_user gsettings set org.nemo.preferences default-folder-viewer 'icon-view' 2>/dev/null || true
     run_as_user gsettings set org.nemo.preferences show-hidden-files false 2>/dev/null || true
     run_as_user gsettings set org.nemo.preferences show-hidden-backups false 2>/dev/null || true
     
-    # 🖱️ Trackpad y Mouse (Nivel Avanzado)
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad tap-to-click true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.mouse acceleration-profile 'adaptive' 2>/dev/null || true
     
-    # 🔔 Centro de Notificaciones (Estilo macOS)
     run_as_user gsettings set org.cinnamon.desktop.notifications show-banners true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.notifications show-notifications-on-lock-screen false 2>/dev/null || true
     echo -e "${GREEN}   ✓ Ajustes finos de Cinnamon aplicados${NC}"
@@ -154,11 +163,11 @@ cinnamon_step_15_8() {
 #  Paso 15.9: Perfeccionamiento de experiencia macOS (Reloj, Sonidos, Botones)
 # =============================================================================
 cinnamon_step_15_9() {
-    # Reloj
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-date true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-weekday true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-seconds false 2>/dev/null || true
     
+    local CALENDAR_APPLET
     CALENDAR_APPLET=$(run_as_user gsettings get org.cinnamon enabled-applets 2>/dev/null | grep -o "calendar@cinnamon.org" | head -1)
     if [ -n "$CALENDAR_APPLET" ]; then
         run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org use-custom-format true 2>/dev/null || true
@@ -166,12 +175,10 @@ cinnamon_step_15_9() {
     fi
     echo -e "${GREEN}   ✓ Reloj Cinnamon configurado con formato macOS${NC}"
 
-    # Sonidos de teclado
     run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
     echo -e "${GREEN}   ✓ Sonidos de teclado activados en Cinnamon${NC}"
 
-    # Botones de ventana
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones Cinnamon reforzados${NC}"
 }
@@ -203,7 +210,7 @@ cinnamon_step_15_10c() {
 cinnamon_step_15_11() {
     echo -e "${BLUE}   → Configurando inicio automático de Plank...${NC}"
     mkdir -p "$REAL_HOME/.config/autostart" 2>/dev/null || true
-    cat > "$REAL_HOME/.config/autostart/plank.desktop" << EOF
+    cat > "$REAL_HOME/.config/autostart/plank.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
 Name=Plank
@@ -228,7 +235,7 @@ cinnamon_step_19() {
     fi
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        # CORREGIDO: Se usó el esquema correcto 'org.cinnamon' en lugar de 'org.cinnamon.desktop.effects'
+        # 🛡️ CORRECCIÓN: Esquema corregido a 'org.cinnamon' (no 'org.cinnamon.desktop.effects')
         run_as_user gsettings set org.cinnamon desktop-effects-minimize-effect "'none'" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon desktop-effects-unminimize-effect "'none'" 2>/dev/null || true
         echo -e "${GREEN}   ✓ Magic Lamp para Cinnamon instalada y activada${NC}"
