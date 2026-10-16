@@ -74,14 +74,17 @@ cinnamon_step_15() {
     
     local CUSTOM_IDS=()
     
-    # 🛡️ CORRECCIÓN: Se usa 'GSETTINGS_PATH' en lugar de 'PATH' para no sobrescribir la variable de entorno del sistema
+    # 🛡️ CORRECCIÓN FINAL: Usar 'schema_path' (ruta completa) en lugar de solo el ID, y evitar sobrescribir 'PATH'
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
-        local GSETTINGS_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" name "$name" 2>/dev/null || true
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" command "$command" 2>/dev/null || true
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:$GSETTINGS_PATH" binding "$binding" 2>/dev/null || true
-        CUSTOM_IDS+=("'${id}'")
+        local schema_path="/org/cinnamon/desktop/keybindings/custom-keybindings/${id}/"
+
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" name "$name" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" command "$command" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" binding "['$binding']" 2>/dev/null || true
+        
+        # Guardamos la ruta completa del esquema, no solo el ID
+        CUSTOM_IDS+=("$schema_path")
     }
     
     cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "custom-spotlight"
@@ -89,10 +92,19 @@ cinnamon_step_15() {
     cinnamon_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" "custom-center"
     cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "custom-forcekill"
     
-    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list (evita cadenas malformadas "[,]")
+    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list con las rutas completas y sin comillas duplicadas
     if [ ${#CUSTOM_IDS[@]} -gt 0 ]; then
-        local custom_list_str=$(printf ", '%s'" "${CUSTOM_IDS[@]}")
-        custom_list_str="[${custom_list_str#, }]"
+        local custom_list_str="["
+        local first=true
+        for path in "${CUSTOM_IDS[@]}"; do
+            if [ "$first" = true ]; then
+                custom_list_str+="'$path'"
+                first=false
+            else
+                custom_list_str+=", '$path'"
+            fi
+        done
+        custom_list_str+="]"
         run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$custom_list_str" 2>/dev/null || true
     else
         run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "[]" 2>/dev/null || true
