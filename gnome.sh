@@ -193,7 +193,7 @@ gnome_step_15_6() {
 }
 
 # =============================================================================
-#  Paso 15.7: Detalles finales (Cursor 32px y Atajo Super+I)
+#  Paso 15.7: Detalles finales (Cursor 32px y Atajo Super+I) - 🛡️ CORREGIDO
 # =============================================================================
 gnome_step_15_7() {
     # Cursor
@@ -201,15 +201,28 @@ gnome_step_15_7() {
     echo -e "${GREEN}   ✓ Cursor GNOME ajustado a 32px${NC}"
 
     # Atajo Super+I (Acerca de este Mac)
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 binding "'<Super>i'" 2>/dev/null || true
+    local KB_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/"
     
-    EXISTING=$(run_as_user gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null || echo "[]")
-    if ! echo "$EXISTING" | grep -q "custom0"; then
-        NEW_LIST=$(echo "$EXISTING" | sed "s/]$/, '\/org\/gnome\/settings-daemon\/plugins\/media-keys\/custom-keybindings\/custom0\/']/")
-        run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_LIST" 2>/dev/null || true
+    # 1. Definir las propiedades del atajo con la sintaxis de esquema correcta
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PATH name "'Acerca de este Mac'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PATH command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$KB_PATH binding "'<Super>i'" 2>/dev/null || true
+    
+    # 2. Agregar a la lista de custom-keybindings de forma segura (evita sintaxis inválida @as)
+    local existing
+    existing=$(run_as_user gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings 2>/dev/null | sed "s/@as //; s/\[//; s/\]//; s/'//g; s/ //g")
+    
+    local new_list
+    if [ -z "$existing" ]; then
+        new_list="['$KB_PATH']"
+    else
+        # Reconstruir el array correctamente separado por comas
+        local formatted_existing=$(echo "$existing" | sed "s/,/', '/g")
+        new_list="['$formatted_existing', '$KB_PATH']"
     fi
+    
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$new_list" 2>/dev/null || true
+    
     echo -e "${GREEN}   ✓ Atajo Super+I asignado correctamente en GNOME.${NC}"
 }
 
