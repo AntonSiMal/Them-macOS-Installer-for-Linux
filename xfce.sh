@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Módulo XFCE - macOS Tahoe Installer (Versión Robusta y Segura)
+# Módulo XFCE - macOS Tahoe Installer (Versión Corregida y Robusta)
 # Este archivo define funciones que son llamadas por install.sh
 # =============================================================================
 
@@ -11,6 +11,24 @@
 WALLPAPER_PATH="${WALLPAPER_PATH:-$WORKDIR/wallpapers/default.jpg}"
 ABOUT_SCRIPT="${ABOUT_SCRIPT:-$WORKDIR/about_this_mac.sh}"
 SOUND_INSTALLED="${SOUND_INSTALLED:-false}"
+
+# =============================================================================
+# FUNCIÓN AUXILIAR PARA ATAJOS DE TECLADO (SINTAXIS CORRECTA)
+# =============================================================================
+xfce_set_keybinding() {
+    local command="$1"
+    local binding="$2"
+
+    # Intentar crear la propiedad, si ya existe solo actualizarla
+    run_as_user xfconf-query \
+        -c xfce4-keyboard-shortcuts \
+        -p "/commands/custom/$binding" \
+        -n -t string -s "$command" 2>/dev/null ||
+    run_as_user xfconf-query \
+        -c xfce4-keyboard-shortcuts \
+        -p "/commands/custom/$binding" \
+        -s "$command" 2>/dev/null || true
+}
 
 # =============================================================================
 #  Paso 15: Configuración del sistema, paneles y atajos de teclado
@@ -51,55 +69,54 @@ xfce_step_15() {
     pkill xfce4-panel 2>/dev/null || true
     sleep 1
     
+    # Limpiar configuración anterior del panel
     run_as_user xfconf-query -c xfce4-panel -r -R /panels 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -r -R /plugins 2>/dev/null || true
 
-    # Crear panel 0
+    # Crear panel 0 con tipos correctos de xfconf
     run_as_user xfconf-query -c xfce4-panel -p /panels -n -t empty -a 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0 -n -t empty -a 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position -s "p=6;x=0;y=0" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -s 28 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/autohide -s false 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/disable-struts -s false 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -n -t bool -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -n -t uint -s 28 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/autohide -n -t bool -s false 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/disable-struts -n -t bool -s false 2>/dev/null || true
 
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t empty -a 2>/dev/null || true
+    # Crear lista de plugin-ids como array de enteros (CORREGIDO)
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a -s 1 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a -s 2 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a -s 3 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a -s 4 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n -t int -a -s 5 2>/dev/null || true
     
-    # Plugin 1: Whisker Menu
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/1 -s 1 2>/dev/null || true
+    # Plugin 1: Whisker Menu (con tipos correctos)
     run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s "whiskermenu" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/button-icon -s "distributor-logo" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/show-button-title -s false 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/button-icon -n -t string -s "distributor-logo" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/show-button-title -n -t bool -s false 2>/dev/null || true
     
-    # Plugin 2: Separador expansible
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/2 -s 2 2>/dev/null || true
+    # Plugin 2: Separador expansible (con tipos correctos)
     run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2 -n -t string -s "separator" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/expand -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/style -s 0 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/expand -n -t bool -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/style -n -t uint -s 0 2>/dev/null || true
     
-    # Plugin 3: Reloj
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/3 -s 3 2>/dev/null || true
+    # Plugin 3: Reloj (con tipos correctos)
     run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3 -n -t string -s "clock" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-layout -s 3 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-format -n -t string -s "%a %d %b, %H:%M" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3/digital-layout -n -t uint -s 3 2>/dev/null || true
     
     # Plugin 4: Notificaciones
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/4 -s 4 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-4 -n -t string -s "notification-plugin" 2>/dev/null || true
     
     # Plugin 5: Energía
-    run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids/5 -s 5 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-5 -n -t string -s "power-manager-plugin" 2>/dev/null || true
 
+    # Reiniciar panel en segundo plano
     run_as_user xfce4-panel &>/dev/null &
+    sleep 2
     echo -e "${GREEN}   ✓ Panel de XFCE reconstruido en la parte superior.${NC}"
 
-    # ATAJO DE TECLADO ESTILO macOS (XFCE)
-    local xfce_set_keybinding() {
-        local command="$1" binding="$2"
-        run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -n -t string -s "$command" 2>/dev/null || \
-        run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/$binding" -s "$command" 2>/dev/null || true
-    }
+    # ATAJO DE TECLADO ESTILO macOS (XFCE) - Usando función auxiliar corregida
     xfce_set_keybinding "rofi -show drun" "<Ctrl>space"
     xfce_set_keybinding "xfce4-session-logout" "<Super>q"
     xfce_set_keybinding "xfce4-terminal" "<Ctrl><Alt>t"
@@ -111,9 +128,9 @@ xfce_step_15() {
     
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
 
-    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -n -t string -s "MacTahoe-Dark" 2>/dev/null || true
     if [ "$SOUND_INSTALLED" = true ]; then
-        run_as_user xfconf-query -c xsettings -p /Net/SoundThemeName -s "${SOUND_THEME:-bigsur}" 2>/dev/null || true
+        run_as_user xfconf-query -c xsettings -p /Net/SoundThemeName -n -t string -s "${SOUND_THEME:-bigsur}" 2>/dev/null || true
     fi
     echo -e "${GREEN}   ✓ Configuración XFCE aplicada al 100%${NC}"
 }
@@ -137,8 +154,8 @@ xfce_step_15_5() {
     local WHISKER_ID
     WHISKER_ID=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "whiskermenu" | head -1 | cut -d'/' -f4)
     if [ -n "$WHISKER_ID" ]; then
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -s "distributor-logo" 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -s false 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/button-icon -n -t string -s "distributor-logo" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$WHISKER_ID/show-button-title -n -t bool -s false 2>/dev/null || true
         echo -e "${GREEN}   ✓ Icono de Apple aplicado a Whisker Menu.${NC}"
     else
         echo -e "${YELLOW}   ⚠️  Whisker Menu instalado. Añádelo manualmente al panel si no aparece.${NC}"
@@ -151,8 +168,8 @@ xfce_step_15_5() {
 xfce_step_15_6() {
     echo -e "${BLUE}   → Ajustando XFCE (Thunar, Trackpad, Notificaciones)...${NC}"
     run_as_user xfconf-query -c thunar -p /misc-default-view -s "THUNAR_VIEW_ICON" 2>/dev/null || true
-    run_as_user xfconf-query -c thunar -p /misc-show-hidden -s false 2>/dev/null || true
-    run_as_user xfconf-query -c thunar -p /misc-single-click -s false 2>/dev/null || true
+    run_as_user xfconf-query -c thunar -p /misc-show-hidden -n -t bool -s false 2>/dev/null || true
+    run_as_user xfconf-query -c thunar -p /misc-single-click -n -t bool -s false 2>/dev/null || true
     
     # Trackpad (Habilitar Tap-to-Click y Scroll Natural)
     for dev in $(xinput list --id-only 'Touchpad' 'touchpad' 2>/dev/null); do
@@ -160,10 +177,10 @@ xfce_step_15_6() {
         xinput set-prop "$dev" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
     done
     
-    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -s 2 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -s 500 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -n -t string -s "MacTahoe-Dark" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -n -t uint -s 2 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -n -t bool -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -n -t uint -s 500 2>/dev/null || true
     echo -e "${GREEN}   ✓ Ajustes finos de XFCE aplicados${NC}"
 }
 
@@ -171,7 +188,7 @@ xfce_step_15_6() {
 #  Paso 15.7: Detalles finales (Cursor y Atajo "Acerca de este Mac")
 # =============================================================================
 xfce_step_15_7() {
-    run_as_user xfconf-query -c xsettings -p /Gtk/CursorThemeSize -s 32 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t uint -s 32 2>/dev/null || true
     echo -e "${GREEN}   ✓ Cursor XFCE ajustado a 32px${NC}"
 
     if [ -f "$ABOUT_SCRIPT" ]; then
@@ -197,12 +214,12 @@ xfce_step_15_9() {
     local CLOCK_PLUGIN
     CLOCK_PLUGIN=$(run_as_user xfconf-query -c xfce4-panel -l 2>/dev/null | grep "/plugins/" | grep "clock" | head -1 | cut -d'/' -f4)
     if [ -n "$CLOCK_PLUGIN" ]; then
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -s "%a %d %b, %H:%M" 2>/dev/null || true
-        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -s 3 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-format -n -t string -s "%a %d %b, %H:%M" 2>/dev/null || true
+        run_as_user xfconf-query -c xfce4-panel -p /plugins/$CLOCK_PLUGIN/digital-layout -n -t uint -s 3 2>/dev/null || true
     fi
 
-    run_as_user xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xsettings -p /Net/EnableEventSounds -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/EnableInputFeedbackSounds -n -t bool -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xsettings -p /Net/EnableEventSounds -n -t bool -s true 2>/dev/null || true
 
     run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OMH:CLOSE" 2>/dev/null || true
     if command -v xfwm4 &> /dev/null; then
@@ -236,7 +253,7 @@ idle-activation-enabled=true
 EOF
     [ -n "$SUDO_USER" ] && chown -R "$REAL_UID:$REAL_GID" "$REAL_HOME/.config/light-locker" 2>/dev/null || true
     
-    run_as_user xfconf-query -c xfce4-session -p /general/lock_command -s "light-locker-command -l" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-session -p /general/lock_command -n -t string -s "light-locker-command -l" 2>/dev/null || true
     echo -e "${GREEN}   ✓ light-locker configurado para XFCE${NC}"
 }
 
@@ -265,10 +282,10 @@ xfce_step_15_10c() {
         fi
     fi
 
-    run_as_user xfconf-query -c xfce4-notifyd -p /theme -s "MacTahoe-Dark" 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -s 2 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -s true 2>/dev/null || true
-    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -s 500 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /theme -n -t string -s "MacTahoe-Dark" 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /notify-location -n -t uint -s 2 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /do-fadeout -n -t bool -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfce4-notifyd -p /fadeout-time -n -t uint -s 500 2>/dev/null || true
     echo -e "${GREEN}   ✓ OSD de XFCE configurado correctamente.${NC}"
 }
 
@@ -297,7 +314,7 @@ TERMINALEOF
 #  Paso 18: Configuración de animaciones suaves
 # =============================================================================
 xfce_step_18() {
-    run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null || true
+    run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s true 2>/dev/null || true
     echo -e "${GREEN}   ✓ Compositing activado en XFWM4${NC}"
 }
 
@@ -372,7 +389,7 @@ xfce_step_23() {
 }
 
 # =============================================================================
-#  NUEVO: Validación de dependencias críticas de XFCE
+#  Validación de dependencias críticas de XFCE
 # =============================================================================
 verify_xfce_critical_deps() {
     echo -e "${BLUE}🔍 [Verificación] Comprobando dependencias críticas de XFCE...${NC}"
