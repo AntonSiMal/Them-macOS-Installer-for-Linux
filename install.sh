@@ -39,6 +39,13 @@ export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg" # Se sobresc
 export ABOUT_SCRIPT="$WORKDIR/about_this_mac.sh"
 export SOUND_INSTALLED="false"
 
+# 🛡️ CORRECCIÓN 3: Definir variables de tema necesarias para que los módulos de GNOME funcionen
+export GTK_THEME="MacTahoe-dark"
+export ICON_THEME="MacTahoe"
+export CURSOR_THEME="MacTahoe-cursors"
+export SOUND_THEME="bigsur"
+export ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
+
 # Forzar variables de entorno gráficas para D-Bus y dconf
 export XDG_RUNTIME_DIR="/run/user/$REAL_UID"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
@@ -89,7 +96,7 @@ cleanup_on_error() {
 trap cleanup_on_error ERR
 
 # =============================================================================
-# 🛡️ CORRECCIÓN 2: Detección de entorno explícita (sin precedencia ambigua de || y &&)
+# 🛡️ CORRECCIÓN 2: Detección de entorno explícita
 # =============================================================================
 DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-unknown}"
 DESKTOP_ENV=$(printf '%s' "$DESKTOP_ENV" | tr '[:upper:]' '[:lower:]')
@@ -111,7 +118,6 @@ elif [[ "$DESKTOP_ENV" == *xfce* ]]; then
 elif [[ "$DESKTOP_ENV" == *gnome* ]] || [[ "$DISTRO" == *zorin* ]]; then
     IS_GNOME=true
 elif [[ "$DISTRO" == *mint* ]]; then
-    # Fallback seguro para Linux Mint si XDG_CURRENT_DESKTOP falla
     IS_CINNAMON=true
 fi
 
@@ -137,7 +143,6 @@ echo -e "${BLUE}📦 [0.5/24] Descargando módulos de entornos de escritorio...$
 MODULES_DIR="$WORKDIR/modules"
 mkdir -p "$MODULES_DIR"
 
-# Validar que el archivo no esté vacío ([ ! -s ... ])
 for mod in gnome xfce cinnamon; do
     if ! curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/${mod}.sh" -o "$MODULES_DIR/${mod}.sh" || [ ! -s "$MODULES_DIR/${mod}.sh" ]; then
         echo -e "${RED}❌ Error crítico: No se pudo descargar o el módulo ${mod}.sh está vacío.${NC}"
@@ -147,7 +152,6 @@ done
 
 chmod +x "$MODULES_DIR/"*.sh
 
-# Proteger llamadas condicionales a funciones
 source "$MODULES_DIR/gnome.sh"
 source "$MODULES_DIR/xfce.sh"
 source "$MODULES_DIR/cinnamon.sh"
@@ -180,11 +184,11 @@ export DEBIAN_FRONTEND=noninteractive
 COMMON_PKGS=(git sassc fontconfig curl unzip wget jq ffmpeg sox rofi fd-find xdotool wmctrl x11-utils util-linux qt5ct qt6ct ruby libinput-tools clipit)
 
 if [ "$IS_GNOME" = true ]; then
-    SPECIFIC_PKGS=(gnome-tweaks gnome-shell-extension-manager dconf-cli gnome-sushi gnome-backgrounds plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
+    # 🛡️ CORRECCIÓN 4: Agregadas dependencias críticas para el tema GDM (libxml2-utils, libglib2.0-dev-bin)
+    SPECIFIC_PKGS=(gnome-tweaks gnome-shell-extension-manager dconf-cli gnome-sushi gnome-backgrounds plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity libxml2-utils libglib2.0-dev-bin gnome-shell-extensions)
 elif [ "$IS_XFCE" = true ]; then
     SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 elif [ "$IS_CINNAMON" = true ]; then
-    # Eliminado 'cinnamon-tweaks' (no existe en repositorios)
     SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 else
     SPECIFIC_PKGS=(plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
@@ -252,10 +256,9 @@ elif [ -d "$WP_DIR/Wallpapers" ]; then
     sudo chmod -R 755 /usr/share/backgrounds/macOS 2>/dev/null || true
 fi
 
-# 🛡️ CORRECCIÓN 6: Resolver WALLPAPER_PATH a un archivo que REALMENTE exista tras la descarga
 export WALLPAPER_PATH=$(find /usr/share/backgrounds/macOS -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) | head -n 1)
 if [ -z "$WALLPAPER_PATH" ]; then
-    export WALLPAPER_PATH="/usr/share/backgrounds/macOS/macos_tahoe_default.jpg" # Fallback
+    export WALLPAPER_PATH="/usr/share/backgrounds/macOS/macos_tahoe_default.jpg"
 fi
 echo -e "${GREEN}   ✅ Wallpapers instalados. Fondo predeterminado: $WALLPAPER_PATH${NC}\n"
 
@@ -286,10 +289,15 @@ echo ""
 # PASOS 9 a 14: APLICACIONES, HERRAMIENTAS Y GESTIÓN DE VENTANAS
 # =============================================================================
 echo -e "${YELLOW}🔍 [9/24] Configurando Rofi Spotlight...${NC}"
-ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
 mkdir -p "$ROFI_DIR" "$REAL_HOME/.local/share/rofi/themes" "$REAL_HOME/.local/bin" "$REAL_HOME/.local/share/applications"
 [ ! -d "$WORKDIR/rofi-spotlight" ] && git clone --depth=1 https://github.com/eromatiya/rofi-spotlight.git "$WORKDIR/rofi-spotlight" -q 2>/dev/null || true
-[ -d "$WORKDIR/rofi-spotlight" ] && cp -r "$WORKDIR/rofi-spotlight"/* "$ROFI_DIR/" 2>/dev/null && chmod +x "$ROFI_DIR/rofi-spotlight.sh" 2>/dev/null || true
+
+# 🛡️ CORRECCIÓN 5: Crear enlace simbólico para que el atajo de teclado funcione
+if [ -d "$WORKDIR/rofi-spotlight" ]; then
+    cp -r "$WORKDIR/rofi-spotlight"/* "$ROFI_DIR/" 2>/dev/null || true
+    chmod +x "$ROFI_DIR/rofi-spotlight.sh" 2>/dev/null || true
+    ln -sf "$ROFI_DIR/rofi-spotlight.sh" "$REAL_HOME/.local/bin/rofi-spotlight-launcher" 2>/dev/null || true
+fi
 echo -e "${GREEN}✅ Rofi configurado.${NC}\n"
 
 echo -e "${YELLOW}🚀 [10/24] Instalando temas de Plank...${NC}"
@@ -314,7 +322,11 @@ echo ""
 echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones (Safari, Finder)...${NC}"
 set +e
 if ! command -v firefox &> /dev/null; then command -v apt-get &> /dev/null && sudo apt-get install -y -qq firefox || true; fi
+
+# 🛡️ CORRECCIÓN 6: Asegurar que el directorio de iconos exista antes de descargar
+mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps" 2>/dev/null || true
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
+
 cat > "$REAL_HOME/.local/share/applications/safari.desktop" << 'EOF'
 [Desktop Entry]
 Name=Safari
@@ -436,7 +448,6 @@ echo ""
 [ "$IS_XFCE" = true ] && type xfce_step_15_10c &>/dev/null && xfce_step_15_10c
 echo ""
 
-# 🛡️ CORRECCIÓN 5: Llamar a funciones que antes estaban definidas pero nunca se ejecutaban
 [ "$IS_CINNAMON" = true ] && type cinnamon_step_15_11 &>/dev/null && cinnamon_step_15_11
 echo ""
 
