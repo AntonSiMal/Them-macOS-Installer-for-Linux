@@ -3,8 +3,7 @@
 # macOS Tahoe Auto-Installer - Versión Modular (Ultimate Edition)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
 # =============================================================================
-set -e
-set +u
+set -Eeuo pipefail # Modo estricto para detectar errores reales y evitar fallos silenciosos
 
 # Colores
 GREEN='\033[0;32m'
@@ -17,46 +16,43 @@ NC='\033[0m'
 # =============================================================================
 # DETECCIÓN DEL USUARIO REAL Y ENTORNO GRÁFICO
 # =============================================================================
-if [ -n "$SUDO_USER" ]; then
+if [ -n "${SUDO_USER:-}" ]; then
     REAL_USER="$SUDO_USER"
     REAL_HOME=$(eval echo "~$SUDO_USER")
     REAL_UID=$(id -u "$SUDO_USER")
     REAL_GID=$(id -g "$SUDO_USER")
 else
-    REAL_USER="$USER"
+    REAL_USER="${USER:-$LOGNAME}"
     REAL_HOME="$HOME"
     REAL_UID=$(id -u)
     REAL_GID=$(id -g)
 fi
 
-# 🛡️ CORRECCIÓN 1: Definir WORKDIR PRIMERO, antes de cualquier variable que dependa de él
+# 🛡️ CORRECCIÓN 1: Definir WORKDIR PRIMERO
 export WORKDIR="$REAL_HOME/.macos-theme-setup"
 export LOG_FILE="$WORKDIR/install.log"
 mkdir -p "$WORKDIR"
 
-# Ahora sí podemos definir las rutas dependientes correctamente
-export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg" # Se sobrescribirá en el Paso 7 con una ruta válida
+# Rutas dependientes y variables de tema necesarias para los módulos
+export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg"
 export ABOUT_SCRIPT="$WORKDIR/about_this_mac.sh"
 export SOUND_INSTALLED="false"
-
-# 🛡️ CORRECCIÓN 3: Definir variables de tema necesarias para que los módulos de GNOME funcionen
 export GTK_THEME="MacTahoe-dark"
 export ICON_THEME="MacTahoe"
 export CURSOR_THEME="MacTahoe-cursors"
 export SOUND_THEME="bigsur"
 export ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
 
-# Forzar variables de entorno gráficas para D-Bus y dconf
+# Variables de entorno gráficas para D-Bus y dconf
 export XDG_RUNTIME_DIR="/run/user/$REAL_UID"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
+# 🛡️ CORRECCIÓN: run_as_user limpio, sin ocultar errores ciegamente con || true
 run_as_user() {
-    local cmd=("$@")
-    if [ -n "$SUDO_USER" ]; then
-        # Usar 'env' para inyectar limpiamente las variables en el entorno sudo
-        sudo -u "$SUDO_USER" env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XDG_DATA_DIRS="$XDG_DATA_DIRS" "${cmd[@]}" 2>/dev/null || true
+    if [ -n "${SUDO_USER:-}" ]; then
+        sudo -u "$SUDO_USER" env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XDG_DATA_DIRS="${XDG_DATA_DIRS:-}" "$@"
     else
-        "${cmd[@]}" 2>/dev/null || true
+        "$@"
     fi
 }
 
@@ -68,7 +64,6 @@ echo ""
 # =============================================================================
 # 🛡️ MECANISMO DE SEGURIDAD: ROLLBACK
 # =============================================================================
-INSTALLATION_SUCCESS=false
 ROLLBACK_SCRIPT="$WORKDIR/uninstall_rollback.sh"
 UNINSTALL_URL="https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/uninstall.sh"
 
@@ -96,10 +91,15 @@ cleanup_on_error() {
 trap cleanup_on_error ERR
 
 # =============================================================================
-# 🛡️ CORRECCIÓN 2: Detección de entorno explícita
+# 🛡️ CORRECCIÓN 2: Detección de entorno robusta (revisa 3 variables)
 # =============================================================================
-DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-unknown}"
+DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-}"
+SESSION_DESKTOP="${XDG_SESSION_DESKTOP:-}"
+DESKTOP_SESSION_VAR="${DESKTOP_SESSION:-}"
+
 DESKTOP_ENV=$(printf '%s' "$DESKTOP_ENV" | tr '[:upper:]' '[:lower:]')
+SESSION_DESKTOP=$(printf '%s' "$SESSION_DESKTOP" | tr '[:upper:]' '[:lower:]')
+DESKTOP_SESSION_VAR=$(printf '%s' "$DESKTOP_SESSION_VAR" | tr '[:upper:]' '[:lower:]')
 
 DISTRO=""
 if [ -r /etc/os-release ]; then
@@ -111,14 +111,12 @@ IS_GNOME=false
 IS_CINNAMON=false
 IS_XFCE=false
 
-if [[ "$DESKTOP_ENV" == *cinnamon* ]]; then
+if [[ "$DESKTOP_ENV" == *cinnamon* ]] || [[ "$SESSION_DESKTOP" == *cinnamon* ]] || [[ "$DESKTOP_SESSION_VAR" == *cinnamon* ]]; then
     IS_CINNAMON=true
-elif [[ "$DESKTOP_ENV" == *xfce* ]]; then
+elif [[ "$DESKTOP_ENV" == *xfce* ]] || [[ "$SESSION_DESKTOP" == *xfce* ]] || [[ "$DESKTOP_SESSION_VAR" == *xfce* ]]; then
     IS_XFCE=true
-elif [[ "$DESKTOP_ENV" == *gnome* ]] || [[ "$DISTRO" == *zorin* ]]; then
+elif [[ "$DESKTOP_ENV" == *gnome* ]] || [[ "$SESSION_DESKTOP" == *gnome* ]] || [[ "$DESKTOP_SESSION_VAR" == *gnome* ]]; then
     IS_GNOME=true
-elif [[ "$DISTRO" == *mint* ]]; then
-    IS_CINNAMON=true
 fi
 
 echo -e "${BLUE}ℹ️  Sesión detectada: $DESKTOP_ENV | Distribución: $DISTRO${NC}"
@@ -151,7 +149,6 @@ for mod in gnome xfce cinnamon; do
 done
 
 chmod +x "$MODULES_DIR/"*.sh
-
 source "$MODULES_DIR/gnome.sh"
 source "$MODULES_DIR/xfce.sh"
 source "$MODULES_DIR/cinnamon.sh"
@@ -164,11 +161,11 @@ install_packages_safely() {
     local pkgs=("$@")
     echo -e "${BLUE}   → Instalando: ${pkgs[*]}${NC}"
     if command -v apt-get &> /dev/null; then
-        sudo apt-get install -y -qq "${pkgs[@]}" 2>/dev/null || return 1
+        sudo apt-get install -y -qq "${pkgs[@]}" || return 1
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y -q "${pkgs[@]}" 2>/dev/null || return 1
+        sudo dnf install -y -q "${pkgs[@]}" || return 1
     elif command -v pacman &> /dev/null; then
-        sudo pacman -S --noconfirm --needed "${pkgs[@]}" &>/dev/null || return 1
+        sudo pacman -S --noconfirm --needed "${pkgs[@]}" || return 1
     else
         return 1
     fi
@@ -184,7 +181,7 @@ export DEBIAN_FRONTEND=noninteractive
 COMMON_PKGS=(git sassc fontconfig curl unzip wget jq ffmpeg sox rofi fd-find xdotool wmctrl x11-utils util-linux qt5ct qt6ct ruby libinput-tools clipit)
 
 if [ "$IS_GNOME" = true ]; then
-    # 🛡️ CORRECCIÓN 4: Agregadas dependencias críticas para el tema GDM (libxml2-utils, libglib2.0-dev-bin)
+    # 🛡️ CORRECCIÓN 4: Agregadas dependencias críticas para el tema GDM
     SPECIFIC_PKGS=(gnome-tweaks gnome-shell-extension-manager dconf-cli gnome-sushi gnome-backgrounds plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity libxml2-utils libglib2.0-dev-bin gnome-shell-extensions)
 elif [ "$IS_XFCE" = true ]; then
     SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
@@ -232,8 +229,8 @@ echo -e "${YELLOW}🎨 [5/24] Instalando tema, iconos y cursores macOS Tahoe...$
 
 INSTALL_FLAGS="-c dark --silent-mode --round --darker"
 [ "$IS_GNOME" = true ] && INSTALL_FLAGS="$INSTALL_FLAGS -l"
-( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 ) || true
-[ -n "$ICON_BOLD_FLAG" ] && ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 ) || ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh > /dev/null 2>&1 ) || true
+( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS ) || true
+[ -n "$ICON_BOLD_FLAG" ] && ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG ) || ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh ) || true
 echo -e "${GREEN}✅ Tema GTK, Iconos y Cursores instalados.${NC}\n"
 
 [ "$IS_GNOME" = true ] && type gnome_step_6 &>/dev/null && gnome_step_6
@@ -320,7 +317,6 @@ fi
 echo ""
 
 echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones (Safari, Finder)...${NC}"
-set +e
 if ! command -v firefox &> /dev/null; then command -v apt-get &> /dev/null && sudo apt-get install -y -qq firefox || true; fi
 
 # 🛡️ CORRECCIÓN 6: Asegurar que el directorio de iconos exista antes de descargar
@@ -346,17 +342,19 @@ if [ "$IS_XFCE" = true ] && [ -f "/usr/share/applications/thunar.desktop" ]; the
     echo -e "${GREEN}   ✅ Thunar renombrado a 'Finder'.${NC}"
 fi
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-set -e
 echo ""
 
 echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
-set +e
 if [ "$IS_GNOME" = true ] && [ "$IS_XFCE" = false ] && [ "$IS_CINNAMON" = false ] && [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
-    sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1 || echo -e "${YELLOW}   ⚠️  GDM omitido por políticas del sistema.${NC}"
+    echo -e "${BLUE}   → Aplicando tema a GDM (esto puede tardar unos segundos)...${NC}"
+    if sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1; then
+        echo -e "${GREEN}   ✅ Pantalla de login configurada correctamente.${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  No se pudo configurar GDM automáticamente. Revisa /tmp/gdm-tweak.log${NC}"
+    fi
 else
     echo -e "${BLUE}   ⏭️  GDM omitido (Entorno no compatible o híbrido).${NC}"
 fi
-set -e
 echo ""
 
 echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
@@ -452,7 +450,6 @@ echo ""
 echo ""
 
 echo -e "${YELLOW}🔤 [16/24] Optimizando renderizado de fuentes...${NC}"
-set +e
 mkdir -p "$REAL_HOME/.config/fontconfig/" 2>/dev/null || true
 cat > "$REAL_HOME/.config/fontconfig/fonts.conf" << 'EOF' 2>/dev/null || true
 <?xml version="1.0"?>
@@ -469,7 +466,6 @@ cat > "$REAL_HOME/.config/fontconfig/fonts.conf" << 'EOF' 2>/dev/null || true
 EOF
 [ -n "$SUDO_USER" ] && chown -R "$REAL_UID:$REAL_GID" "$REAL_HOME/.config/fontconfig" 2>/dev/null || true
 fc-cache -f > /dev/null 2>&1 || true
-set -e
 echo -e "${GREEN}✅ Renderizado de fuentes optimizado.${NC}\n"
 
 echo -e "${YELLOW}💻 [17/24] Configurando terminal...${NC}"
@@ -488,7 +484,6 @@ echo -e "${YELLOW} [19/24] Instalando efecto Magic Lamp...${NC}"
 echo ""
 
 echo -e "${YELLOW} [20/24] Tematizando aplicaciones Qt y Quick Look...${NC}"
-set +e
 if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment 2>/dev/null; then
     echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null 2>&1 || true
 fi
@@ -500,10 +495,10 @@ icon_theme=MacTahoe-dark
 EOF
 [ -n "$SUDO_USER" ] && chown -R "$REAL_UID:$REAL_GID" "$REAL_HOME/.config/qt5ct" 2>/dev/null || true
 
+# 🛡️ CORRECCIÓN: Usar install_packages_safely en lugar de forzar apt-get
 if [ "$IS_GNOME" = true ]; then
-    sudo apt-get install -y -qq gnome-sushi 2>/dev/null || true
+    install_packages_safely gnome-sushi || true
 fi
-set -e
 echo -e "${GREEN}✅ Qt y Quick Look configurados.${NC}\n"
 
 echo -e "${YELLOW}📜 [21/24] Activando Scroll Natural...${NC}"
@@ -534,4 +529,4 @@ fi
 echo -e "${CYAN}══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║         ¡INSTALACIÓN COMPLETADA CON ÉXITO! 🎉         ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
-echo -e "${YELLOW}🔄 IMPORTANTE: Debes REINICIAR EL EQUIPO para que surtan efecto todos los cambios.${NC}"
+echo -e "${YELLOW}🔄 IMPORTANTE: Debes REINICIAR EL EQUIPO o cerrar sesión para que surtan efecto todos los cambios.${NC}"
