@@ -29,37 +29,29 @@ else
     REAL_GID=$(id -g)
 fi
 
-# CORRECCIÓN 1: Forzar variables de entorno gráficas para D-Bus y dconf
+# 🛡️ CORRECCIÓN 1: Definir WORKDIR PRIMERO, antes de cualquier variable que dependa de él
+export WORKDIR="$REAL_HOME/.macos-theme-setup"
+export LOG_FILE="$WORKDIR/install.log"
+mkdir -p "$WORKDIR"
+
+# Ahora sí podemos definir las rutas dependientes correctamente
+export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg" # Se sobrescribirá en el Paso 7 con una ruta válida
+export ABOUT_SCRIPT="$WORKDIR/about_this_mac.sh"
+export SOUND_INSTALLED="false"
+
+# Forzar variables de entorno gráficas para D-Bus y dconf
 export XDG_RUNTIME_DIR="/run/user/$REAL_UID"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 
 run_as_user() {
     local cmd=("$@")
     if [ -n "$SUDO_USER" ]; then
-        # CORRECCIÓN 6: Usar 'env' para inyectar limpiamente las variables en el entorno sudo
+        # Usar 'env' para inyectar limpiamente las variables en el entorno sudo
         sudo -u "$SUDO_USER" env DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XDG_DATA_DIRS="$XDG_DATA_DIRS" "${cmd[@]}" 2>/dev/null || true
     else
         "${cmd[@]}" 2>/dev/null || true
     fi
 }
-
-# =============================================================================
-# VARIABLES DE CONFIGURACIÓN
-# =============================================================================
-export MACOS_VERSION="Tahoe"
-export GTK_THEME="MacTahoe-Dark"
-export SHELL_THEME="MacTahoe-Dark"
-export ICON_THEME="MacTahoe-dark"
-export CURSOR_THEME="MacTahoe-dark"
-export SOUND_THEME="bigsur"
-export WALLPAPER_PATH="$WORKDIR/wallpapers/macos_tahoe_default.jpg"
-export ABOUT_SCRIPT="$WORKDIR/about_this_mac.sh"
-export SOUND_INSTALLED="false"
-
-export WORKDIR="$REAL_HOME/.macos-theme-setup"
-export LOG_FILE="$WORKDIR/install.log"
-mkdir -p "$WORKDIR"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Iniciando instalación" > "$LOG_FILE"
 
 echo -e "${CYAN}══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║   🍎 macOS Tahoe Theme Installer - Ultimate Edition     ║${NC}"
@@ -97,19 +89,34 @@ cleanup_on_error() {
 trap cleanup_on_error ERR
 
 # =============================================================================
-# DETECCIÓN DEL ENTORNO
+# 🛡️ CORRECCIÓN 2: Detección de entorno explícita (sin precedencia ambigua de || y &&)
 # =============================================================================
-export DESKTOP_ENV=$(echo "${XDG_CURRENT_DESKTOP:-unknown}" | tr '[:upper:]' '[:lower:]')
-export DISTRO=""
-[ -f /etc/os-release ] && . /etc/os-release && export DISTRO=$(echo "$NAME" | tr '[:upper:]' '[:lower:]')
+DESKTOP_ENV="${XDG_CURRENT_DESKTOP:-unknown}"
+DESKTOP_ENV=$(printf '%s' "$DESKTOP_ENV" | tr '[:upper:]' '[:lower:]')
 
-export IS_GNOME=false
-export IS_CINNAMON=false
-export IS_XFCE=false
+DISTRO=""
+if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    DISTRO=$(printf '%s' "${NAME:-}" | tr '[:upper:]' '[:lower:]')
+fi
 
-[[ "$DESKTOP_ENV" == *"gnome"* ]] || [[ "$DISTRO" == *"zorin"* ]] && export IS_GNOME=true
-[[ "$DESKTOP_ENV" == *"cinnamon"* ]] || [[ "$DISTRO" == *"mint"* && "$DESKTOP_ENV" != *"xfce"* ]] && export IS_CINNAMON=true
-[[ "$DESKTOP_ENV" == *"xfce"* ]] && export IS_XFCE=true
+IS_GNOME=false
+IS_CINNAMON=false
+IS_XFCE=false
+
+if [[ "$DESKTOP_ENV" == *cinnamon* ]]; then
+    IS_CINNAMON=true
+elif [[ "$DESKTOP_ENV" == *xfce* ]]; then
+    IS_XFCE=true
+elif [[ "$DESKTOP_ENV" == *gnome* ]] || [[ "$DISTRO" == *zorin* ]]; then
+    IS_GNOME=true
+elif [[ "$DISTRO" == *mint* ]]; then
+    # Fallback seguro para Linux Mint si XDG_CURRENT_DESKTOP falla
+    IS_CINNAMON=true
+fi
+
+echo -e "${BLUE}ℹ️  Sesión detectada: $DESKTOP_ENV | Distribución: $DISTRO${NC}"
+echo -e "${BLUE}ℹ️  Cinnamon=$IS_CINNAMON | GNOME=$IS_GNOME | XFCE=$IS_XFCE${NC}"
 
 # Resolución para iconos
 if command -v xrandr &> /dev/null; then
@@ -130,7 +137,7 @@ echo -e "${BLUE}📦 [0.5/24] Descargando módulos de entornos de escritorio...$
 MODULES_DIR="$WORKDIR/modules"
 mkdir -p "$MODULES_DIR"
 
-# CORRECCIÓN 2: Validar que el archivo no esté vacío ([ ! -s ... ])
+# Validar que el archivo no esté vacío ([ ! -s ... ])
 for mod in gnome xfce cinnamon; do
     if ! curl -sSL "https://raw.githubusercontent.com/AntonSiMal/Them-macOS-Tahoe-Installer-for-Linux/main/${mod}.sh" -o "$MODULES_DIR/${mod}.sh" || [ ! -s "$MODULES_DIR/${mod}.sh" ]; then
         echo -e "${RED}❌ Error crítico: No se pudo descargar o el módulo ${mod}.sh está vacío.${NC}"
@@ -140,11 +147,11 @@ done
 
 chmod +x "$MODULES_DIR/"*.sh
 
-# CORRECCIÓN 3: Proteger llamadas condicionales a funciones
+# Proteger llamadas condicionales a funciones
 source "$MODULES_DIR/gnome.sh"
 source "$MODULES_DIR/xfce.sh"
 source "$MODULES_DIR/cinnamon.sh"
-echo -e "${GREEN}✅ Módulos cargados. Entorno detectado: $DESKTOP_ENV${NC}\n"
+echo -e "${GREEN}✅ Módulos cargados correctamente.${NC}\n"
 
 # =============================================================================
 # FUNCIÓN DE INSTALACIÓN SEGURA DE PAQUETES
@@ -177,7 +184,7 @@ if [ "$IS_GNOME" = true ]; then
 elif [ "$IS_XFCE" = true ]; then
     SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 elif [ "$IS_CINNAMON" = true ]; then
-    # CORRECCIÓN: Eliminado 'cinnamon-tweaks' (no existe en repositorios)
+    # Eliminado 'cinnamon-tweaks' (no existe en repositorios)
     SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
 else
     SPECIFIC_PKGS=(plymouth-themes firefox plank x11-xserver-utils python3-pil python3-requests zenity)
@@ -239,14 +246,18 @@ if [ -d "$WP_DIR/Wallpapers/All Combined" ]; then
     sudo cp -r "$WP_DIR/Wallpapers/All Combined/"* /usr/share/backgrounds/macOS/ 2>/dev/null || true
     sudo chmod -R 755 /usr/share/backgrounds/macOS 2>/dev/null || true
     sudo chown -R root:root /usr/share/backgrounds/macOS 2>/dev/null || true
-    echo -e "${GREEN}   ✅ Wallpapers instalados en /usr/share/backgrounds/macOS${NC}"
 elif [ -d "$WP_DIR/Wallpapers" ]; then
     sudo mkdir -p /usr/share/backgrounds/macOS
     sudo cp -r "$WP_DIR/Wallpapers/"* /usr/share/backgrounds/macOS/ 2>/dev/null || true
     sudo chmod -R 755 /usr/share/backgrounds/macOS 2>/dev/null || true
-    echo -e "${GREEN}   ✅ Wallpapers instalados (estructura alternativa).${NC}"
 fi
-echo ""
+
+# 🛡️ CORRECCIÓN 6: Resolver WALLPAPER_PATH a un archivo que REALMENTE exista tras la descarga
+export WALLPAPER_PATH=$(find /usr/share/backgrounds/macOS -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) | head -n 1)
+if [ -z "$WALLPAPER_PATH" ]; then
+    export WALLPAPER_PATH="/usr/share/backgrounds/macOS/macos_tahoe_default.jpg" # Fallback
+fi
+echo -e "${GREEN}   ✅ Wallpapers instalados. Fondo predeterminado: $WALLPAPER_PATH${NC}\n"
 
 # =============================================================================
 # PASO 8: SONIDOS
@@ -272,7 +283,7 @@ rm -f "$ZIP_FILE" 2>/dev/null; rm -rf "$EXTRACT_DIR" 2>/dev/null
 echo ""
 
 # =============================================================================
-# PASOS 9 a 12: APLICACIONES Y HERRAMIENTAS
+# PASOS 9 a 14: APLICACIONES, HERRAMIENTAS Y GESTIÓN DE VENTANAS
 # =============================================================================
 echo -e "${YELLOW}🔍 [9/24] Configurando Rofi Spotlight...${NC}"
 ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
@@ -300,7 +311,7 @@ else
 fi
 echo ""
 
-echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones (Safari, Finder, etc.)...${NC}"
+echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones (Safari, Finder)...${NC}"
 set +e
 if ! command -v firefox &> /dev/null; then command -v apt-get &> /dev/null && sudo apt-get install -y -qq firefox || true; fi
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/safari.svg" "https://upload.wikimedia.org/wikipedia/commons/5/52/Safari_browser_logo.svg" 2>/dev/null || true
@@ -326,13 +337,9 @@ run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/de
 set -e
 echo ""
 
-# =============================================================================
-# PASO 13: GDM (SOLO GNOME PURO)
-# =============================================================================
 echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login...${NC}"
 set +e
 if [ "$IS_GNOME" = true ] && [ "$IS_XFCE" = false ] && [ "$IS_CINNAMON" = false ] && [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
-    echo -e "${BLUE}   → Aplicando tema a GDM...${NC}"
     sudo "$WORKDIR/MacTahoe-gtk-theme/tweaks.sh" -g -b default > /tmp/gdm-tweak.log 2>&1 || echo -e "${YELLOW}   ⚠️  GDM omitido por políticas del sistema.${NC}"
 else
     echo -e "${BLUE}   ⏭️  GDM omitido (Entorno no compatible o híbrido).${NC}"
@@ -340,9 +347,6 @@ fi
 set -e
 echo ""
 
-# =============================================================================
-# PASO 14: SCRIPT AUXILIAR PARA VENTANAS AVANZADAS
-# =============================================================================
 echo -e "${YELLOW}🪟 [14/24] Instalando script auxiliar de gestión de ventanas...${NC}"
 ADVANCED_WM_SCRIPT="$REAL_HOME/.local/bin/macos-wm-actions"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -360,30 +364,10 @@ case "$ACTION" in
             SCREEN_H=$(xdpyinfo | grep dimensions | awk '{print $2}' | cut -dx -f2)
             xdotool windowmove "$WIN_ID" $(( (SCREEN_W - WIN_W) / 2 )) $(( (SCREEN_H - WIN_H) / 2 ))
         fi ;;
-    "toggle-maximize")
-        command -v xdotool &> /dev/null && xdotool getactivewindow windowtogglemaximize 2>/dev/null || wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz 2>/dev/null ;;
-    "toggle-fullscreen")
-        command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,fullscreen 2>/dev/null ;;
-    "toggle-always-on-top")
-        command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,above 2>/dev/null ;;
-    "opacity-decrease")
-        if command -v xprop &> /dev/null; then
-            CURRENT=$(xprop -id $(xdotool getactivewindow) _NET_WM_WINDOW_OPACITY 2>/dev/null | awk '{print $3}')
-            CURRENT=${CURRENT:-0xffffffff}; CURRENT=$((CURRENT)); NEW=$((CURRENT - 427819008))
-            [ "$NEW" -lt 858993459 ] && NEW=858993459
-            xprop -id $(xdotool getactivewindow) -f _NET_WM_WINDOW_OPACITY 32c -set _NET_WM_WINDOW_OPACITY "$NEW" 2>/dev/null
-        fi ;;
-    "opacity-increase")
-        if command -v xprop &> /dev/null; then
-            CURRENT=$(xprop -id $(xdotool getactivewindow) _NET_WM_WINDOW_OPACITY 2>/dev/null | awk '{print $3}')
-            CURRENT=${CURRENT:-0xffffffff}; CURRENT=$((CURRENT)); NEW=$((CURRENT + 427819008))
-            [ "$NEW" -gt 4294967295 ] && NEW=4294967295
-            xprop -id $(xdotool getactivewindow) -f _NET_WM_WINDOW_OPACITY 32c -set _NET_WM_WINDOW_OPACITY "$NEW" 2>/dev/null
-        fi ;;
-    "opacity-reset")
-        command -v xprop &> /dev/null && xprop -id $(xdotool getactivewindow) -remove _NET_WM_WINDOW_OPACITY 2>/dev/null ;;
-    "force-kill")
-        command -v xkill &> /dev/null && xkill || notify-send "Error" "xkill no está instalado" -i dialog-error ;;
+    "toggle-maximize") command -v xdotool &> /dev/null && xdotool getactivewindow windowtogglemaximize 2>/dev/null || wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz 2>/dev/null ;;
+    "toggle-fullscreen") command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,fullscreen 2>/dev/null ;;
+    "toggle-always-on-top") command -v wmctrl &> /dev/null && wmctrl -r :ACTIVE: -b toggle,above 2>/dev/null ;;
+    "force-kill") command -v xkill &> /dev/null && xkill || notify-send "Error" "xkill no está instalado" -i dialog-error ;;
     "close-app-completely")
         if command -v xdotool &> /dev/null; then
             WIN_ID=$(xdotool getactivewindow); PID=$(xdotool getwindowpid "$WIN_ID" 2>/dev/null)
@@ -402,7 +386,7 @@ WMEOF
 
 chmod +x "$ADVANCED_WM_SCRIPT"
 [ -n "$SUDO_USER" ] && chown "$REAL_UID:$REAL_GID" "$ADVANCED_WM_SCRIPT" 2>/dev/null || true
-echo -e "${GREEN}✅ Script auxiliar de ventanas creado correctamente.${NC}\n"
+echo -e "${GREEN}✅ Script auxiliar de ventanas creado.${NC}\n"
 
 # =============================================================================
 # PASOS 15 a 23: CONFIGURACIÓN DEL SISTEMA (LLAMADAS A MÓDULOS)
@@ -450,6 +434,10 @@ echo ""
 [ "$IS_GNOME" = true ] && type gnome_step_15_10c &>/dev/null && gnome_step_15_10c
 [ "$IS_CINNAMON" = true ] && type cinnamon_step_15_10c &>/dev/null && cinnamon_step_15_10c
 [ "$IS_XFCE" = true ] && type xfce_step_15_10c &>/dev/null && xfce_step_15_10c
+echo ""
+
+# 🛡️ CORRECCIÓN 5: Llamar a funciones que antes estaban definidas pero nunca se ejecutaban
+[ "$IS_CINNAMON" = true ] && type cinnamon_step_15_11 &>/dev/null && cinnamon_step_15_11
 echo ""
 
 echo -e "${YELLOW}🔤 [16/24] Optimizando renderizado de fuentes...${NC}"
