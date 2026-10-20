@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - Corregida)
+# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - Fusión Total)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
 # =============================================================================
 set -Eeuo pipefail # Modo estricto para detectar errores reales
@@ -28,7 +28,7 @@ else
     REAL_GID=$(id -g)
 fi
 
-# 🛡️ FUNCIÓN CORREGIDA: Incluye DISPLAY y WAYLAND_DISPLAY para comandos gráficos (xinput, xdotool)
+# 🛡️ FUNCIÓN CORREGIDA: Incluye DISPLAY y WAYLAND_DISPLAY para comandos gráficos
 run_as_user() {
     if [ -n "${SUDO_USER:-}" ]; then
         sudo -u "$SUDO_USER" env \
@@ -117,12 +117,12 @@ echo -e "${BLUE}ℹ️  GNOME=$IS_GNOME | Cinnamon=$IS_CINNAMON | XFCE=$IS_XFCE$
 echo -e "${YELLOW}📦 [1/24] Instalando dependencias del sistema...${NC}"
 export DEBIAN_FRONTEND=noninteractive
 
-COMMON_PKGS=(git sassc fontconfig curl unzip wget jq ffmpeg sox rofi fd-find xdotool wmctrl x11-utils util-linux qt5ct qt6ct ruby libinput-tools clipit zenity)
+COMMON_PKGS=(git sassc fontconfig curl unzip wget jq ffmpeg sox rofi fd-find xdotool wmctrl x11-utils util-linux qt5ct qt6ct ruby libinput-tools clipit zenity python3 flatpak)
 
 if [ "$IS_GNOME" = true ]; then
     SPECIFIC_PKGS=(gnome-tweaks gnome-shell-extension-manager dconf-cli gnome-sushi gnome-backgrounds plymouth-themes firefox plank python3-pil python3-requests libxml2-utils libglib2.0-dev-bin)
 elif [ "$IS_XFCE" = true ]; then
-    SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin thunar plymouth-themes firefox plank python3-pil python3-requests)
+    SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin xfce4-volumed-pulse thunar plymouth-themes firefox plank python3-pil python3-requests)
 elif [ "$IS_CINNAMON" = true ]; then
     SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank python3-pil python3-requests)
 else
@@ -144,7 +144,7 @@ unset DEBIAN_FRONTEND
 echo -e "${GREEN}✅ Dependencias listas.${NC}\n"
 
 # =============================================================================
-# PASO 1.5: DETECCIÓN DE RESOLUCIÓN (Ahora seguro, x11-utils ya está instalado)
+# PASO 1.5: DETECCIÓN DE RESOLUCIÓN
 # =============================================================================
 SCREEN_VARIANT="1080p"
 ICON_BOLD_FLAG=""
@@ -186,11 +186,27 @@ fi
 # =============================================================================
 echo -e "${YELLOW}🎨 [3-8/24] Instalando temas, extensiones y recursos...${NC}"
 
-# Liquid Glass (GNOME)
+# Liquid Glass (GNOME) + Parcheo de metadata.json
 if [ "$IS_GNOME" = true ]; then
     mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/"
     [ ! -d "$WORKDIR/liquid-glass" ] && git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git "$WORKDIR/liquid-glass" -q 2>/dev/null || true
-    [ -d "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" ] && cp -r "$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null || true
+    EXT_DIR="$WORKDIR/liquid-glass/liquid-glass@thinkingcoding1231.gmail.com"
+    if [ -d "$EXT_DIR" ]; then
+        cp -r "$EXT_DIR" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null || true
+        GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1 || true)
+        TARGET_EXT="$REAL_HOME/.local/share/gnome-shell/extensions/liquid-glass@thinkingcoding1231.gmail.com"
+        if [ -n "$GNOME_VERSION" ] && [ -f "$TARGET_EXT/metadata.json" ]; then
+            python3 -c "
+import json
+try:
+    with open('$TARGET_EXT/metadata.json', 'r') as f: data = json.load(f)
+    if '$GNOME_VERSION' not in data.get('shell-version', []):
+        data.setdefault('shell-version', []).append('$GNOME_VERSION')
+    with open('$TARGET_EXT/metadata.json', 'w') as f: json.dump(data, f, indent=2)
+except Exception: pass
+" 2>/dev/null || true
+        fi
+    fi
 fi
 
 # Cinnamon Dynamic Wallpaper
@@ -242,7 +258,8 @@ if curl -sL "$ZIP_URL" --max-time 60 -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FI
         export SOUND_INSTALLED="true"
     fi
 fi
-rm -f "$ZIP_FILE" "$EXTRACT_DIR" -rf 2>/dev/null || true
+rm -f "$ZIP_FILE" 2>/dev/null || true
+rm -rf "$EXTRACT_DIR" 2>/dev/null || true
 echo -e "${GREEN}✅ Temas, recursos y sonidos instalados.${NC}\n"
 
 # =============================================================================
@@ -268,7 +285,11 @@ if command -v plymouth &> /dev/null || [ -d /usr/share/plymouth/themes ]; then
     sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null || true
     sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null || true
     sudo update-alternatives --set default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 2>/dev/null || true
-    command -v update-initramfs &> /dev/null && sudo update-initramfs -u > /dev/null 2>&1 || true
+    if command -v update-initramfs &> /dev/null; then 
+        sudo update-initramfs -u > /dev/null 2>&1 || true
+    elif command -v dracut &> /dev/null; then
+        sudo dracut --force > /dev/null 2>&1 || true
+    fi
 fi
 echo -e "${GREEN}✅ Lanzadores y Plymouth configurados.${NC}\n"
 
@@ -291,26 +312,39 @@ Type=Application
 Categories=Network;WebBrowser;
 EOF
 
-# 12.2 Gestor de Archivos -> Finder
+# 12.2 Gestor de Archivos -> Finder (Ocultando el original)
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || true
 if [ "$IS_GNOME" = true ] && [ -f "/usr/share/applications/org.gnome.Nautilus.desktop" ]; then
     cp "/usr/share/applications/org.gnome.Nautilus.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
     sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/org.gnome.Nautilus.desktop" 2>/dev/null || true
+elif [ "$IS_CINNAMON" = true ] && [ -f "/usr/share/applications/nemo.desktop" ]; then
+    cp "/usr/share/applications/nemo.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
+    sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
+    echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/nemo.desktop" 2>/dev/null || true
 elif [ "$IS_XFCE" = true ] && [ -f "/usr/share/applications/thunar.desktop" ]; then
     cp "/usr/share/applications/thunar.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
     sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=finder/g' "$REAL_HOME/.local/share/applications/finder.desktop"
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/thunar.desktop" 2>/dev/null || true
 fi
 
-# 12.3 LocalSend (AirDrop)
+# 12.3 LocalSend (AirDrop) - Con API de GitHub y Fallback
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1 || true
     sudo ufw allow 53317/udp >/dev/null 2>&1 || true
 fi
-wget -q -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null || true
-chmod +x "$REAL_HOME/.local/bin/localsend" 2>/dev/null || true
-cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
+LS_INSTALLED=false
+if command -v apt-get &> /dev/null && command -v jq &> /dev/null; then
+    LATEST_RELEASE_LS=$(curl -sSL "https://api.github.com/repos/localsend/localsend/releases/latest" 2>/dev/null || true)
+    DEB_URL=$(echo "$LATEST_RELEASE_LS" | jq -r '.assets[] | select(.name | test("amd64.deb"; "i")) | .browser_download_url' 2>/dev/null | head -n 1 || true)
+    if [ -n "$DEB_URL" ] && [ "$DEB_URL" != "null" ]; then
+        wget -q --user-agent="Mozilla/5.0" -O /tmp/localsend.deb "$DEB_URL" 2>/dev/null && sudo apt-get install -y -qq /tmp/localsend.deb 2>/dev/null && LS_INSTALLED=true
+    fi
+fi
+if [ "$LS_INSTALLED" = false ]; then
+    wget -q -O "$REAL_HOME/.local/bin/localsend" "https://github.com/localsend/localsend/releases/download/v1.15.3/LocalSend-1.15.3-linux-x86_64.AppImage" 2>/dev/null || true
+    chmod +x "$REAL_HOME/.local/bin/localsend" 2>/dev/null || true
+    cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
 [Desktop Entry]
 Name=LocalSend
 Exec=$REAL_HOME/.local/bin/localsend %U
@@ -318,7 +352,14 @@ Icon=localsend
 Type=Application
 Categories=Network;FileTransfer;
 EOF
+fi
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/localsend.svg" "https://raw.githubusercontent.com/localsend/localsend/main/app/assets/icon/512.png" 2>/dev/null || true
+
+# 12.4 ONLYOFFICE -> Office (Flatpak)
+if command -v flatpak &> /dev/null; then
+    run_as_user flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+    run_as_user flatpak install -y flathub org.onlyoffice.desktopeditors 2>/dev/null || true
+fi
 
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
 echo -e "${GREEN}✅ Aplicaciones transformadas.${NC}\n"
@@ -371,8 +412,18 @@ chmod +x "$ADVANCED_WM_SCRIPT"
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/24] Configurando sistema, paneles y atajos...${NC}"
 
-WALLPAPER_PATH=$(find /usr/share/backgrounds/macOS -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) 2>/dev/null | head -n 1)
-[ -z "$WALLPAPER_PATH" ] && WALLPAPER_PATH="$REAL_HOME/.local/share/backgrounds/Sonoma-dark.jpg"
+# 🛡️ CORRECCIÓN CRÍTICA: Búsqueda de wallpaper a prueba de fallos (pipefail)
+WALLPAPER_PATH=""
+if [ -d "/usr/share/backgrounds/macOS" ]; then
+    WALLPAPER_PATH=$(find /usr/share/backgrounds/macOS -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) 2>/dev/null | head -n 1 || true)
+fi
+if [ -z "$WALLPAPER_PATH" ]; then
+    if [ -f "$REAL_HOME/.local/share/backgrounds/Sonoma/Sonoma-dark.jpg" ]; then
+        WALLPAPER_PATH="$REAL_HOME/.local/share/backgrounds/Sonoma/Sonoma-dark.jpg"
+    elif [ -f "/usr/share/backgrounds/macOS/mojave-timed.xml" ]; then
+        WALLPAPER_PATH="/usr/share/backgrounds/macOS/mojave-timed.xml"
+    fi
+fi
 
 if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME"
@@ -381,7 +432,7 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     [ "$SF_INSTALLED" = true ] && run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11'
     
-    # 🛡️ CORRECCIÓN: SCHEMA_PATH en lugar de PATH para evitar sobrescribir variable de entorno
+    # 🛡️ CORRECCIÓN: SCHEMA_PATH en lugar de PATH
     CUSTOM_PATHS=()
     gnome_set_keybinding() {
         local name="$1" command="$2" binding="$3" idx="$4"
@@ -395,6 +446,29 @@ if [ "$IS_GNOME" = true ]; then
     gnome_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" 1
     gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" 2
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[$(IFS=,; echo "${CUSTOM_PATHS[*]}")]" 2>/dev/null || true
+
+    # Avatar Extension (OSD)
+    EXTENSION_UUID="avatar@nathanpierce.com"
+    GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1 || true)
+    if [ -n "$GNOME_VERSION" ]; then
+        EXTENSION_URL="https://extensions.gnome.org/extension-data/avatar@nathanpierce.com.v68.shell-extension.zip"
+        TEMP_EXT=$(mktemp -d)
+        if curl -sL "$EXTENSION_URL" -o "$TEMP_EXT/avatar.zip" 2>/dev/null && [ -f "$TEMP_EXT/avatar.zip" ]; then
+            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+            unzip -q "$TEMP_EXT/avatar.zip" -d "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null || true
+            python3 -c "
+import json
+try:
+    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'r') as f: data = json.load(f)
+    if '$GNOME_VERSION' not in data.get('shell-version', []):
+        data.setdefault('shell-version', []).append('$GNOME_VERSION')
+    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'w') as f: json.dump(data, f, indent=2)
+except Exception: pass
+" 2>/dev/null || true
+            run_as_user gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
+        fi
+        rm -rf "$TEMP_EXT" 2>/dev/null || true
+    fi
 
 elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
@@ -420,7 +494,6 @@ elif [ "$IS_XFCE" = true ]; then
     run_as_user xfconf-query -c xsettings -p /Net/IconThemeName -s "$ICON_THEME" 2>/dev/null || true
     run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "OMH" 2>/dev/null || true
     
-    # Reconstrucción limpia del panel
     run_as_user xfce4-panel --quit 2>/dev/null || true; pkill xfce4-panel 2>/dev/null || true; sleep 1
     run_as_user xfconf-query -c xfce4-panel -r -R /panels 2>/dev/null || true
     run_as_user xfconf-query -c xfce4-panel -r -R /plugins 2>/dev/null || true
@@ -445,6 +518,18 @@ elif [ "$IS_XFCE" = true ]; then
     xfce_set_keybinding "rofi-spotlight-launcher" "<Ctrl>space"
     xfce_set_keybinding "macos-wm-actions close-app-completely" "<Super>q"
 fi
+
+# Aplicar Wallpaper si se encontró
+if [ -n "$WALLPAPER_PATH" ] && [ -f "$WALLPAPER_PATH" ]; then
+    if [ "$IS_GNOME" = true ]; then
+        run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
+    elif [ "$IS_CINNAMON" = true ]; then
+        run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
+    fi
+fi
+
 echo -e "${GREEN}✅ Configuración base del entorno aplicada.${NC}\n"
 
 # =============================================================================
@@ -469,13 +554,12 @@ ABOUTEOF
 chmod +x "$ABOUT_SCRIPT"
 [ -n "$SUDO_USER" ] && chown "$REAL_UID:$REAL_GID" "$ABOUT_SCRIPT" 2>/dev/null || true
 
-# Asignar atajo Super+I
 if [ "$IS_XFCE" = true ]; then
     run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -n -t string -s "$ABOUT_SCRIPT" 2>/dev/null || true
 elif [ "$IS_GNOME" = true ]; then
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 name "'Acerca de este Mac'" 2>/dev/null || true
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
-    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom0 binding "'<Super>i'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom3 name "'Acerca de este Mac'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom3 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+    run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom3 binding "'<Super>i'" 2>/dev/null || true
 fi
 
 # =============================================================================
@@ -558,6 +642,22 @@ fi
 if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment 2>/dev/null; then
     echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment > /dev/null 2>&1 || true
 fi
+
+# Magic Lamp
+if [ "$IS_GNOME" = true ]; then
+    [ ! -d "$WORKDIR/compiz-alike-magic-lamp-effect" ] && git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git "$WORKDIR/compiz-alike-magic-lamp-effect" -q 2>/dev/null || true
+    EXT_MAGIC_LAMP=$(find "$WORKDIR/compiz-alike-magic-lamp-effect" -maxdepth 1 -type d -name "*magic-lamp*" 2>/dev/null | head -1 || true)
+    if [ -n "$EXT_MAGIC_LAMP" ]; then
+        cp -r "$EXT_MAGIC_LAMP" "$REAL_HOME/.local/share/gnome-shell/extensions/" 2>/dev/null || true
+        run_as_user gnome-extensions enable "$(basename "$EXT_MAGIC_LAMP")" 2>/dev/null || true
+    fi
+elif [ "$IS_CINNAMON" = true ]; then
+    [ ! -d "$WORKDIR/CinnamonMagicLamp" ] && git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null || true
+    if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
+        ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon desktop-effects-minimize-effect "'none'" 2>/dev/null || true
+    fi
+fi
 echo -e "${GREEN}✅ Optimizaciones aplicadas.${NC}\n"
 
 # =============================================================================
@@ -568,7 +668,6 @@ if [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null || true
 elif [ "$IS_XFCE" = true ]; then
-    # 🛡️ CORRECCIÓN: Detección robusta de touchpads
     for dev in $(xinput list 2>/dev/null | grep -i "touchpad" | grep -o 'id=[0-9]*' | cut -d= -f2); do
         xinput set-prop "$dev" "libinput Tapping Enabled" 1 2>/dev/null || true
         xinput set-prop "$dev" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
@@ -580,7 +679,6 @@ echo -e "${GREEN}✅ Scroll natural activado.${NC}\n"
 # PASO 22: GESTOS MULTITÁCTILES (FUSUMA)
 # =============================================================================
 echo -e "${YELLOW} [22/24] Instalando Gestos Multitáctiles (Fusuma)...${NC}"
-# 🛡️ CORRECCIÓN: Aplicar a TODOS los entornos, no solo XFCE
 if ! groups "$REAL_USER" | grep -q '\binput\b'; then
     echo -e "${YELLOW}   → Añadiendo usuario al grupo 'input'...${NC}"
     sudo usermod -aG input "$REAL_USER" 2>/dev/null || true
@@ -630,14 +728,12 @@ echo -e "${GREEN}✅ Fusuma configurado.${NC}\n"
 echo -e "${YELLOW}🔍 [24/24] Verificando instalación completa...${NC}"
 CRITICAL_ERRORS=0
 
-# Verificar fuentes
 if sudo -u "$REAL_USER" fc-list 2>/dev/null | grep -qi "SF Pro" || find "$REAL_HOME/.local/share/fonts" -name "SF-Pro*" 2>/dev/null | grep -q "SF-Pro"; then
     echo -e "   ${GREEN}✓ Fuentes Apple instaladas${NC}"
 else
     echo -e "   ${RED}✗ CRÍTICO: Fuentes Apple no encontradas${NC}"; CRITICAL_ERRORS=$((CRITICAL_ERRORS + 1))
 fi
 
-# Verificar tema
 if [ -d "$REAL_HOME/.themes/MacTahoe-Dark" ] || [ -d "$REAL_HOME/.local/share/themes/MacTahoe-Dark" ] || [ -d "/usr/share/themes/MacTahoe-Dark" ]; then
     echo -e "   ${GREEN}✓ Tema GTK instalado${NC}"
 else
