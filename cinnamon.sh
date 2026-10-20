@@ -18,7 +18,6 @@ cinnamon_step_4() {
     current_exts=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null || echo "[]")
     
     if [[ "$current_exts" != *"cinnamon-dynamic-wallpaper@TobiZog"* ]]; then
-        # Eliminar el corchete de cierre final de forma segura con expansión de parámetros de Bash
         local clean_exts="${current_exts%]}"
         if [ "$clean_exts" = "[" ] || [ -z "$clean_exts" ]; then
             run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
@@ -39,12 +38,20 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
     
-    if [ "$SF_INSTALLED" = true ]; then
-        run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11' 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11' 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11' 2>/dev/null || true
-        echo -e "${GREEN}   ✓ Fuentes Apple aplicadas${NC}"
+    # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
+    if [ "${SF_INSTALLED:-false}" = true ]; then
+        # Refrescar caché por si acaso el sistema no la indexó a tiempo
+        fc-cache -f "$REAL_HOME/.local/share/fonts" > /dev/null 2>&1 || true
+        
+        if fc-list 2>/dev/null | grep -qi "SF Pro"; then
+            run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11' 2>/dev/null || true
+            echo -e "${GREEN}   ✓ Fuentes Apple aplicadas correctamente${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Fuentes copiadas, pero el sistema aún no las indexa. Se omitirá la aplicación.${NC}"
+        fi
     fi
     
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
@@ -53,7 +60,7 @@ cinnamon_step_15() {
     # PANEL SUPERIOR ESTILO macOS
     run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.enabled-applets \
+    run_as_user gsettings set org.cinnamon enabled-applets \
     "['panel1:left:0:menu@cinnamon.org', \
     'panel1:left:1:workspace-switcher@cinnamon.org', \
     'panel1:right:2:notifications@cinnamon.org', \
@@ -74,7 +81,7 @@ cinnamon_step_15() {
     
     local CUSTOM_IDS=()
     
-    # 🛡️ CORRECCIÓN FINAL: Usar 'schema_path' (ruta completa) en lugar de solo el ID, y evitar sobrescribir 'PATH'
+    # 🛡️ CORRECCIÓN FINAL: Usar 'schema_path' (ruta completa) en lugar de solo el ID
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
         local schema_path="/org/cinnamon/desktop/keybindings/custom-keybindings/${id}/"
@@ -83,7 +90,6 @@ cinnamon_step_15() {
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" command "$command" 2>/dev/null || true
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" binding "['$binding']" 2>/dev/null || true
         
-        # Guardamos la ruta completa del esquema, no solo el ID
         CUSTOM_IDS+=("$schema_path")
     }
     
@@ -92,7 +98,7 @@ cinnamon_step_15() {
     cinnamon_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" "custom-center"
     cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "custom-forcekill"
     
-    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list con las rutas completas y sin comillas duplicadas
+    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list
     if [ ${#CUSTOM_IDS[@]} -gt 0 ]; then
         local custom_list_str="["
         local first=true
@@ -111,12 +117,12 @@ cinnamon_step_15() {
     fi
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
     
-    if [ -f "$WALLPAPER_PATH" ]; then
+    if [ -n "${WALLPAPER_PATH:-}" ] && [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
     fi
     
-    if [ "$SOUND_INSTALLED" = true ]; then
+    if [ "${SOUND_INSTALLED:-false}" = true ]; then
         run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
@@ -200,7 +206,7 @@ cinnamon_step_15_9() {
 # =============================================================================
 cinnamon_step_15_10b() {
     echo -e "${BLUE}   → Configurando pantalla de bloqueo para Cinnamon...${NC}"
-    if [ -f "$WALLPAPER_PATH" ]; then
+    if [ -n "${WALLPAPER_PATH:-}" ] && [ -f "$WALLPAPER_PATH" ]; then
         run_as_user gsettings set org.cinnamon.desktop.screensaver picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.screensaver picture-options 'zoom' 2>/dev/null || true
     fi
@@ -247,9 +253,9 @@ cinnamon_step_19() {
     fi
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        # 🛡️ CORRECCIÓN: Esquema corregido a 'org.cinnamon' (no 'org.cinnamon.desktop.effects')
-        run_as_user gsettings set org.cinnamon desktop-effects-minimize-effect "'none'" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon desktop-effects-unminimize-effect "'none'" 2>/dev/null || true
+        # 🛡️ CORRECCIÓN: El esquema correcto en Cinnamon es 'org.cinnamon.desktop.effects'
+        run_as_user gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null || true
         echo -e "${GREEN}   ✓ Magic Lamp para Cinnamon instalada y activada${NC}"
     fi
 }
@@ -266,10 +272,10 @@ cinnamon_step_20() {
 #  Paso 21: Scroll natural universal
 # =============================================================================
 cinnamon_step_21() {
-    run_as_user gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
-    run_as_user gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true 2>/dev/null || true
+    # 🛡️ CORRECCIÓN: Eliminadas las llamadas redundantes a 'org.gnome' en el módulo de Cinnamon
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.mouse natural-scroll true 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Scroll natural aplicado a Cinnamon${NC}"
 }
 
 # =============================================================================
