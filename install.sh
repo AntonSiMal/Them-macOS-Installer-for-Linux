@@ -144,12 +144,12 @@ unset DEBIAN_FRONTEND
 echo -e "${GREEN}✅ Dependencias listas.${NC}\n"
 
 # =============================================================================
-# PASO 1.5: DETECCIÓN DE RESOLUCIÓN
+# PASO 1.5: DETECCIÓN DE RESOLUCIÓN (Blindado contra pipefail)
 # =============================================================================
 SCREEN_VARIANT="1080p"
 ICON_BOLD_FLAG=""
 if command -v xrandr &> /dev/null; then
-    SCREEN_WIDTH=$(xrandr --current 2>/dev/null | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1)
+    SCREEN_WIDTH=$(xrandr --current 2>/dev/null | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1 || true)
     if [ -n "$SCREEN_WIDTH" ]; then
         if [ "$SCREEN_WIDTH" -ge 3840 ]; then 
             SCREEN_VARIANT="4k"; ICON_BOLD_FLAG="-b"
@@ -432,7 +432,7 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     [ "$SF_INSTALLED" = true ] && run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11'
     
-    # 🛡️ CORRECCIÓN: SCHEMA_PATH en lugar de PATH
+    # 🛡️ CORRECCIÓN: SCHEMA_PATH en lugar de PATH para evitar sobrescribir variable de entorno
     CUSTOM_PATHS=()
     gnome_set_keybinding() {
         local name="$1" command="$2" binding="$3" idx="$4"
@@ -446,29 +446,6 @@ if [ "$IS_GNOME" = true ]; then
     gnome_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" 1
     gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" 2
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[$(IFS=,; echo "${CUSTOM_PATHS[*]}")]" 2>/dev/null || true
-
-    # Avatar Extension (OSD)
-    EXTENSION_UUID="avatar@nathanpierce.com"
-    GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1 || true)
-    if [ -n "$GNOME_VERSION" ]; then
-        EXTENSION_URL="https://extensions.gnome.org/extension-data/avatar@nathanpierce.com.v68.shell-extension.zip"
-        TEMP_EXT=$(mktemp -d)
-        if curl -sL "$EXTENSION_URL" -o "$TEMP_EXT/avatar.zip" 2>/dev/null && [ -f "$TEMP_EXT/avatar.zip" ]; then
-            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
-            unzip -q "$TEMP_EXT/avatar.zip" -d "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null || true
-            python3 -c "
-import json
-try:
-    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'r') as f: data = json.load(f)
-    if '$GNOME_VERSION' not in data.get('shell-version', []):
-        data.setdefault('shell-version', []).append('$GNOME_VERSION')
-    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'w') as f: json.dump(data, f, indent=2)
-except Exception: pass
-" 2>/dev/null || true
-            run_as_user gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
-        fi
-        rm -rf "$TEMP_EXT" 2>/dev/null || true
-    fi
 
 elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
