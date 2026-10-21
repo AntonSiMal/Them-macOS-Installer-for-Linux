@@ -4,27 +4,17 @@
 # Este archivo define funciones que son llamadas por install.sh
 # =============================================================================
 
-# =============================================================================
-#  Paso 4: Extensión Cinnamon Dynamic Wallpaper
-# =============================================================================
 cinnamon_step_4() {
     echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
     mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q 2>/dev/null || true
-    
     if [ -d "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ]; then
         cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
-        
-        # 🛡️ SEGURO: Solo instalamos la extensión. No manipulamos 'enabled-extensions' 
-        # para evitar corromper el inicio de Cinnamon. El usuario puede activarla manualmente.
         echo -e "${GREEN}   ✅ Extensión Dynamic Wallpaper instalada.${NC}"
-        echo -e "${BLUE}   ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
+        echo -e "${BLUE}   ℹ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
     fi
 }
 
-# =============================================================================
-#  Paso 15: Configuración del sistema, paneles y atajos de teclado
-# =============================================================================
 cinnamon_step_15() {
     echo -e "${BLUE}   → Configurando Cinnamon (Modo Seguro)...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
@@ -32,7 +22,6 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface color-scheme 'prefer-dark' 2>/dev/null || true
     
-    # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
     if [ "${SF_INSTALLED:-false}" = true ]; then
         fc-cache -f "$REAL_HOME/.local/share/fonts" > /dev/null 2>&1 || true
         if fc-list 2>/dev/null | grep -qi "SF Pro"; then
@@ -41,17 +30,13 @@ cinnamon_step_15() {
             run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11' 2>/dev/null || true
             run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11' 2>/dev/null || true
             echo -e "${GREEN}   ✓ Fuentes Apple aplicadas correctamente${NC}"
-        else
-            echo -e "${YELLOW}   ⚠️  Fuentes copiadas, pero el sistema aún no las indexa. Se omitirá la aplicación.${NC}"
         fi
     fi
-    
+
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # 🛡️ REFINAMIENTO CRÍTICO: NO reescribir 'panels-enabled' ni 'enabled-applets'.
-    # Hacerlo rompe el panel nativo de Mint si los applets no coinciden exactamente.
-    # Solo ajustamos la altura del panel para que sea más fino (estilo macOS).
+    # 🛡️ SEGURO: Solo ajustamos la altura, NO reescribimos enabled-applets
     run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
     echo -e "${GREEN}   ✓ Altura del panel ajustada (28px)${NC}"
     
@@ -59,135 +44,62 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm minimize "['<Super>m']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm maximize "['<Super>Up']" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-1 "['<Super>1']" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-2 "['<Super>2']" 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm switch-to-workspace-3 "['<Super>3']" 2>/dev/null || true
     
-    local CUSTOM_IDS=()
-    
-    # 🛡️ CORRECCIÓN FINAL: Usar 'schema_path' (ruta completa) en lugar de solo el ID
+    CUSTOM_IDS=()
     cinnamon_set_keybinding() {
         local name="$1" command="$2" binding="$3" id="$4"
-        local schema_path="/org/cinnamon/desktop/keybindings/custom-keybindings/${id}/"
-
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" name "$name" 2>/dev/null || true
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" command "$command" 2>/dev/null || true
-        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" binding "['$binding']" 2>/dev/null || true
-        
-        CUSTOM_IDS+=("'$schema_path'")
+        local SCHEMA_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/$id/"
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${SCHEMA_PATH}" name "$name" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${SCHEMA_PATH}" command "$command" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${SCHEMA_PATH}" binding "['$binding']" 2>/dev/null || true
+        CUSTOM_IDS+=("'$SCHEMA_PATH'")
     }
-    
     cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "custom-spotlight"
     cinnamon_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" "custom-close"
-    cinnamon_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" "custom-center"
-    cinnamon_set_keybinding "Forzar Cierre" "macos-wm-actions force-kill" "<Ctrl><Alt>Escape" "custom-forcekill"
     
-    # 🛡️ CORRECCIÓN CRÍTICA 2: Generación segura del array custom-list
     if [ ${#CUSTOM_IDS[@]} -gt 0 ]; then
-        local custom_list_str="["
-        local first=true
-        for path in "${CUSTOM_IDS[@]}"; do
-            if [ "$first" = true ]; then
-                custom_list_str+="$path"
-                first=false
-            else
-                custom_list_str+=", $path"
-            fi
-        done
-        custom_list_str+="]"
-        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$custom_list_str" 2>/dev/null || true
-    else
-        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "[]" 2>/dev/null || true
+        CURRENT_LIST=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
+        if [ "$CURRENT_LIST" = "[]" ]; then
+            NEW_LIST="[$(IFS=,; echo "${CUSTOM_IDS[*]}")]"
+        else
+            CLEAN_LIST="${CURRENT_LIST%]}"
+            NEW_LIST="${CLEAN_LIST}, $(IFS=,; echo "${CUSTOM_IDS[*]}")]"
+        fi
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$NEW_LIST" 2>/dev/null || true
     fi
     echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
-    
-    if [ -n "${WALLPAPER_PATH:-}" ] && [ -f "$WALLPAPER_PATH" ]; then
-        run_as_user gsettings set org.cinnamon.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.background picture-uri-dark "file://$WALLPAPER_PATH" 2>/dev/null || true
-    fi
-    
-    if [ "${SOUND_INSTALLED:-false}" = true ]; then
-        run_as_user gsettings set org.cinnamon.desktop.sound theme-name "$SOUND_THEME" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
-    fi
-    
-    run_as_user gsettings set org.cinnamon.desktop.wm.preferences enable-hot-corners true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada de forma segura${NC}"
 }
 
-# =============================================================================
-#  Paso 15.5: Botón de menú con icono de Apple
-# =============================================================================
 cinnamon_step_15_5() {
     echo -e "${BLUE}   → Configurando icono de menú en Cinnamon...${NC}"
     run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon "distributor-logo" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.applets.menu@cinnamon.org menu-icon-size 16 2>/dev/null || true
     echo -e "${GREEN}   ✓ Icono de Apple aplicado al menú de Cinnamon${NC}"
+    echo -e "${BLUE}   ℹ️  Si no cambia al instante, haz clic derecho en el panel > 'Solucionar problemas' > 'Reiniciar Cinnamon'${NC}"
 }
 
-# =============================================================================
-#  Paso 15.6: Ajustes finos de comportamiento (Nemo, Trackpad, Notificaciones)
-# =============================================================================
 cinnamon_step_15_6() {
     echo -e "${BLUE}   → Ajustando Cinnamon (Nemo, Trackpad, Notificaciones)...${NC}"
     run_as_user gsettings set org.nemo.preferences default-folder-viewer 'icon-view' 2>/dev/null || true
     run_as_user gsettings set org.nemo.preferences show-hidden-files false 2>/dev/null || true
-    run_as_user gsettings set org.nemo.preferences show-hidden-backups false 2>/dev/null || true
-    
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad tap-to-click true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.peripherals.mouse acceleration-profile 'adaptive' 2>/dev/null || true
-    
     run_as_user gsettings set org.cinnamon.desktop.notifications show-banners true 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.notifications show-notifications-on-lock-screen false 2>/dev/null || true
     echo -e "${GREEN}   ✓ Ajustes finos de Cinnamon aplicados${NC}"
 }
 
-# =============================================================================
-#  Paso 15.7: Detalles finales (Cursor 32px)
-# =============================================================================
 cinnamon_step_15_7() {
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-size 32 2>/dev/null || true
     echo -e "${GREEN}   ✓ Cursor Cinnamon ajustado a 32px${NC}"
 }
 
-# =============================================================================
-#  Paso 15.8: Modo oscuro automático (Específico Cinnamon)
-# =============================================================================
-cinnamon_step_15_8() {
-    if command -v gsettings &> /dev/null; then
-        gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
-    fi
-}
-
-# =============================================================================
-#  Paso 15.9: Perfeccionamiento de experiencia macOS (Reloj, Sonidos, Botones)
-# =============================================================================
 cinnamon_step_15_9() {
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-date true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-weekday true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface clock-show-seconds false 2>/dev/null || true
-    
-    local CALENDAR_APPLET
-    CALENDAR_APPLET=$(run_as_user gsettings get org.cinnamon enabled-applets 2>/dev/null | grep -o "calendar@cinnamon.org" | head -1)
-    if [ -n "$CALENDAR_APPLET" ]; then
-        run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org use-custom-format true 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon.applets.calendar@cinnamon.org custom-format "%a %d %b, %H:%M" 2>/dev/null || true
-    fi
     echo -e "${GREEN}   ✓ Reloj Cinnamon configurado con formato macOS${NC}"
-
-    run_as_user gsettings set org.cinnamon.desktop.sound input-feedback-sounds true 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon.desktop.sound event-sounds true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Sonidos de teclado activados en Cinnamon${NC}"
-
-    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Botones Cinnamon reforzados${NC}"
 }
 
-# =============================================================================
-#  Paso 15.10B: Pantalla de bloqueo estilo macOS
-# =============================================================================
 cinnamon_step_15_10b() {
     echo -e "${BLUE}   → Configurando pantalla de bloqueo para Cinnamon...${NC}"
     if [ -n "${WALLPAPER_PATH:-}" ] && [ -f "$WALLPAPER_PATH" ]; then
@@ -197,18 +109,6 @@ cinnamon_step_15_10b() {
     echo -e "${GREEN}   ✓ Pantalla de bloqueo Cinnamon configurada${NC}"
 }
 
-# =============================================================================
-#  Paso 15.10C: Indicadores OSD de volumen y brillo
-# =============================================================================
-cinnamon_step_15_10c() {
-    echo -e "${BLUE}   → Configurando OSD para Cinnamon...${NC}"
-    run_as_user gsettings set org.cinnamon.desktop.sound volume-sound-enabled true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ OSD de Cinnamon verificado${NC}"
-}
-
-# =============================================================================
-#  Paso 15.11: Integración de aplicaciones en el Dock (Plank)
-# =============================================================================
 cinnamon_step_15_11() {
     echo -e "${BLUE}   → Configurando inicio automático de Plank...${NC}"
     mkdir -p "$REAL_HOME/.config/autostart" 2>/dev/null || true
@@ -222,84 +122,44 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Comment=Iniciar Dock de Plank al inicio de sesión
 EOF
-    [ -n "$SUDO_USER" ] && chown "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/autostart/plank.desktop" 2>/dev/null || true
+    [ -n "$SUDO_USER" ] && chown "$REAL_UID:$REAL_GID" "$REAL_HOME/.config/autostart/plank.desktop" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Plank configurado para iniciar automáticamente.${NC}"
 }
 
-# =============================================================================
-#  Paso 15.12: Atajo "Acerca de este Mac" (Super + I) - NUEVO
-# =============================================================================
 cinnamon_step_15_12() {
     echo -e "${BLUE}   → Configurando atajo 'Acerca de este Mac' (Super + I)...${NC}"
-    
     if [ -n "${ABOUT_SCRIPT:-}" ] && [ -f "$ABOUT_SCRIPT" ]; then
         local CUSTOM_ABOUT_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/custom-about-mac/"
-        
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" name "'Acerca de este Mac'" 2>/dev/null || true
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" command "'$ABOUT_SCRIPT'" 2>/dev/null || true
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" binding "['<Super>i']" 2>/dev/null || true
         
-        # 🛡️ Añadir de forma ADITIVA a la lista existente sin borrar otros atajos
         local CURRENT_LIST
         CURRENT_LIST=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
-        
         if [ "$CURRENT_LIST" = "[]" ] || [ -z "$CURRENT_LIST" ]; then
             run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "['$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
         else
-            # Insertar antes del corchete de cierre
             local CLEAN_LIST="${CURRENT_LIST%]}"
             run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "${CLEAN_LIST}, '$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
         fi
         echo -e "${GREEN}   ✓ Atajo Super+I asignado correctamente en Cinnamon${NC}"
-    else
-        echo -e "${YELLOW}   ⚠️  Script 'about-this-mac.sh' no encontrado, omitiendo atajo.${NC}"
     fi
 }
 
-# =============================================================================
-#  Paso 17: Terminal estilo macOS (Cinnamon usa gnome-terminal)
-# =============================================================================
 cinnamon_step_17() {
     echo -e "${BLUE}   → Configurando Terminal estilo macOS para Cinnamon...${NC}"
-    
     if command -v gnome-terminal &> /dev/null; then
-        # Generar UUID único para el perfil
-        local PROFILE_ID
-        PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "macos-tahoe-cinnamon")
-        
-        # Crear perfil "macOS Tahoe" con SF Mono y colores auténticos
+        local PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "macos-tahoe-cinnamon")
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'" 2>/dev/null || true
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'" 2>/dev/null || true
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/background-color "'rgb(30,30,30)'" 2>/dev/null || true
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/foreground-color "'rgb(230,230,230)'" 2>/dev/null || true
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-system-font false 2>/dev/null || true
-        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-colors false 2>/dev/null || true
         run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/cursor-shape "'ibeam'" 2>/dev/null || true
-        
-        # Añadir el perfil a la lista de perfiles disponibles (aditivo)
-        local EXISTING_PROFILES
-        EXISTING_PROFILES=$(run_as_user dconf read /org/gnome/terminal/legacy/profiles:/list 2>/dev/null || echo "@as []")
-        
-        if ! echo "$EXISTING_PROFILES" | grep -q "$PROFILE_ID"; then
-            if [ "$EXISTING_PROFILES" = "@as []" ] || [ -z "$EXISTING_PROFILES" ]; then
-                run_as_user dconf write /org/gnome/terminal/legacy/profiles:/list "['$PROFILE_ID']" 2>/dev/null || true
-            else
-                # Insertar antes del corchete de cierre
-                local CLEAN_PROFILES="${EXISTING_PROFILES%]}"
-                run_as_user dconf write /org/gnome/terminal/legacy/profiles:/list "${CLEAN_PROFILES}, '$PROFILE_ID']" 2>/dev/null || true
-            fi
-            run_as_user dconf write /org/gnome/terminal/legacy/profiles:/default "'$PROFILE_ID'" 2>/dev/null || true
-        fi
-        
         echo -e "${GREEN}   ✓ Terminal configurada con SF Mono y colores macOS${NC}"
-    else
-        echo -e "${YELLOW}   ⚠️  gnome-terminal no detectado, omitiendo configuración.${NC}"
     fi
 }
 
-# =============================================================================
-#  Paso 19: Efecto Magic Lamp
-# =============================================================================
 cinnamon_step_19() {
     echo -e "${BLUE}   → Instalando Magic Lamp para Cinnamon...${NC}"
     mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
@@ -308,34 +168,18 @@ cinnamon_step_19() {
     fi
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        # 🛡️ CORRECCIÓN: El esquema correcto en Cinnamon es 'org.cinnamon.desktop.effects'
         run_as_user gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null || true
         echo -e "${GREEN}   ✓ Magic Lamp para Cinnamon instalada y activada${NC}"
     fi
 }
 
-# =============================================================================
-#  Paso 20: Quick Look (Vista Previa)
-# =============================================================================
-cinnamon_step_20() {
-    echo -e "${BLUE}   → Nota: Quick Look nativo de Nemo está habilitado.${NC}"
-    echo -e "${BLUE}   → (gloobus-preview fue omitido por estar obsoleto en repositorios modernos)${NC}"
-}
-
-# =============================================================================
-#  Paso 21: Scroll natural universal
-# =============================================================================
 cinnamon_step_21() {
-    # 🛡️ CORRECCIÓN: Eliminadas las llamadas redundantes a 'org.gnome' en el módulo de Cinnamon
     run_as_user gsettings set org.cinnamon.desktop.peripherals.touchpad natural-scroll true 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.peripherals.mouse natural-scroll true 2>/dev/null || true
     echo -e "${GREEN}   ✓ Scroll natural aplicado a Cinnamon${NC}"
 }
 
-# =============================================================================
-#  Paso 22: Gestos multitáctiles estilo macOS (Fusuma)
-# =============================================================================
 cinnamon_step_22() {
     mkdir -p "$REAL_HOME/.config/fusuma" 2>/dev/null || true
     cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF' 2>/dev/null || true
@@ -345,41 +189,22 @@ plugin:
       enable-tap: true
   swipe:
     3:
-      left:
-        command: 'xdotool key ctrl+alt+Right'
-      right:
-        command: 'xdotool key ctrl+alt+Left'
-      up:
-        command: 'xdotool key super+d'
-      down:
-        command: 'xdotool key super+d'
+      left: { command: 'xdotool key ctrl+alt+Right' }
+      right: { command: 'xdotool key ctrl+alt+Left' }
+      up: { command: 'xdotool key super+d' }
+      down: { command: 'xdotool key super+d' }
     4:
-      left:
-        command: 'xdotool key alt+Left'
-      right:
-        command: 'xdotool key alt+Right'
-      up:
-        command: 'xdotool key super+s'
-      down:
-        command: 'xdotool key super+s'
+      left: { command: 'xdotool key alt+Left' }
+      right: { command: 'xdotool key alt+Right' }
+      up: { command: 'xdotool key super+s' }
+      down: { command: 'xdotool key super+s' }
   pinch:
     2:
-      in:
-        command: 'xdotool keydown ctrl click 4 keyup ctrl'
-      out:
-        command: 'xdotool keydown ctrl click 5 keyup ctrl'
-  hold:
-    3:
-      begin:
-        command: 'xdotool mousedown 1'
-      end:
-        command: 'xdotool mouseup 1'
+      in: { command: 'xdotool keydown ctrl click 4 keyup ctrl' }
+      out: { command: 'xdotool keydown ctrl click 5 keyup ctrl' }
 EOF
 }
 
-# =============================================================================
-#  Paso 23: Gestor de portapapeles minimalista
-# =============================================================================
 cinnamon_step_23() {
     echo -e "${GREEN}   ✓ Clipit instalado para Cinnamon (inícialo desde el menú)${NC}"
 }
