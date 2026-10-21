@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Safe Edition)
+# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - 100% Universal)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
 # =============================================================================
 set -Eeuo pipefail # Modo estricto para detectar errores reales
@@ -163,7 +163,7 @@ fi
 export SCREEN_VARIANT ICON_BOLD_FLAG
 
 # =============================================================================
-# PASO 2: FUENTES OFICIALES DE APPLE (Refinado con verificación real)
+# PASO 2: FUENTES OFICIALES DE APPLE (Universal)
 # =============================================================================
 echo -e "${YELLOW}🔤 [2/24] Instalando fuentes oficiales de Apple...${NC}"
 FONTS_DIR="$REAL_HOME/.local/share/fonts"
@@ -178,7 +178,6 @@ if [ -d "$SF_REPO" ]; then
     fc-cache -f "$FONTS_DIR" > /dev/null 2>&1 || true
     fc-cache -f /usr/share/fonts > /dev/null 2>&1 || true
     
-    # Verificación real: preguntar al sistema si ya reconoce "SF Pro"
     if fc-list 2>/dev/null | grep -qi "SF Pro"; then
         export SF_INSTALLED=true
         echo -e "${GREEN}✅ Fuentes instaladas y detectadas por el sistema.${NC}\n"
@@ -191,11 +190,11 @@ else
 fi
 
 # =============================================================================
-# PASOS 3 a 8: TEMAS, EXTENSIONES, WALLPAPERS Y SONIDOS
+# PASOS 3 a 8: TEMAS, EXTENSIONES, WALLPAPERS Y SONIDOS (Universal)
 # =============================================================================
 echo -e "${YELLOW}🎨 [3-8/24] Instalando temas, extensiones y recursos...${NC}"
 
-# Liquid Glass (GNOME) + Parcheo de metadata.json
+# Liquid Glass (GNOME)
 if [ "$IS_GNOME" = true ]; then
     mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/"
     [ ! -d "$WORKDIR/liquid-glass" ] && git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git "$WORKDIR/liquid-glass" -q 2>/dev/null || true
@@ -218,7 +217,7 @@ except Exception: pass
     fi
 fi
 
-# Cinnamon Dynamic Wallpaper (🛡️ SEGURO: Solo instala, no manipula arrays de gsettings)
+# Cinnamon Dynamic Wallpaper (Seguro: solo instala, no manipula arrays)
 if [ "$IS_CINNAMON" = true ]; then
     mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/"
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q 2>/dev/null || true
@@ -229,7 +228,7 @@ if [ "$IS_CINNAMON" = true ]; then
     fi
 fi
 
-# Tema GTK e Iconos
+# Tema GTK e Iconos (Universal)
 [ ! -d "$WORKDIR/MacTahoe-gtk-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q 2>/dev/null || true
 [ ! -d "$WORKDIR/MacTahoe-icon-theme" ] && git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$WORKDIR/MacTahoe-icon-theme" -q 2>/dev/null || true
 
@@ -238,7 +237,7 @@ INSTALL_FLAGS="-c dark --silent-mode --round --darker"
 ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh $INSTALL_FLAGS > /dev/null 2>&1 ) || true
 ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh $ICON_BOLD_FLAG > /dev/null 2>&1 ) || true
 
-# Wallpapers
+# Wallpapers (Universal)
 [ ! -d "$WORKDIR/WhiteSur-wallpapers" ] && git clone --depth=1 https://github.com/vinceliuice/WhiteSur-wallpapers.git "$WORKDIR/WhiteSur-wallpapers" -q 2>/dev/null || true
 if [ "$IS_GNOME" = true ]; then
     ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-gnome-backgrounds.sh -t sonoma -s "$SCREEN_VARIANT" > /dev/null 2>&1 ) || true
@@ -246,7 +245,7 @@ else
     ( cd "$WORKDIR/WhiteSur-wallpapers" && ./install-wallpapers.sh -t sonoma -c dark -s "$SCREEN_VARIANT" > /dev/null 2>&1 ) || true
 fi
 
-# Sonidos
+# Sonidos (Universal)
 SOUNDS_DIR="$REAL_HOME/.local/share/sounds"
 mkdir -p "$SOUNDS_DIR" 2>/dev/null || true
 ZIP_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/archive/refs/heads/main.zip"
@@ -266,7 +265,7 @@ rm -rf "$EXTRACT_DIR" 2>/dev/null || true
 echo -e "${GREEN}✅ Temas, recursos y sonidos instalados.${NC}\n"
 
 # =============================================================================
-# PASO 9 a 11: ROFI, PLANK Y PLYMOUTH
+# PASO 9 a 11: ROFI, PLANK Y PLYMOUTH (Universal)
 # =============================================================================
 echo -e "${YELLOW}🔍 [9-11/24] Configurando lanzadores y arranque...${NC}"
 ROFI_DIR="$REAL_HOME/.local/share/rofi-spotlight"
@@ -297,7 +296,7 @@ fi
 echo -e "${GREEN}✅ Lanzadores y Plymouth configurados.${NC}\n"
 
 # =============================================================================
-# PASO 12: TRANSFORMACIÓN DE APLICACIONES
+# PASO 12: TRANSFORMACIÓN DE APLICACIONES (Universal)
 # =============================================================================
 echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones al estilo macOS...${NC}"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
@@ -331,7 +330,7 @@ elif [ "$IS_XFCE" = true ] && [ -f "/usr/share/applications/thunar.desktop" ]; t
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/thunar.desktop" 2>/dev/null || true
 fi
 
-# 12.3 LocalSend
+# 12.3 LocalSend (con regla UFW)
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1 || true
     sudo ufw allow 53317/udp >/dev/null 2>&1 || true
@@ -368,7 +367,7 @@ run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/de
 echo -e "${GREEN}✅ Aplicaciones transformadas.${NC}\n"
 
 # =============================================================================
-# PASO 13: GDM (PANTALLA DE LOGIN)
+# PASO 13: GDM (PANTALLA DE LOGIN - Solo GNOME)
 # =============================================================================
 if [ "$IS_GNOME" = true ] && [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
     echo -e "${YELLOW}🔐 [13/24] Configurando pantalla de login (GDM)...${NC}"
@@ -377,7 +376,7 @@ if [ "$IS_GNOME" = true ] && [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
 fi
 
 # =============================================================================
-# PASO 14: SCRIPT AUXILIAR DE VENTANAS
+# PASO 14: SCRIPT AUXILIAR DE VENTANAS (Universal)
 # =============================================================================
 ADVANCED_WM_SCRIPT="$REAL_HOME/.local/bin/macos-wm-actions"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -415,7 +414,6 @@ chmod +x "$ADVANCED_WM_SCRIPT"
 # =============================================================================
 echo -e "${YELLOW}⚙️  [15/24] Configurando sistema, paneles y atajos...${NC}"
 
-# 🛡️ CORRECCIÓN CRÍTICA: Búsqueda de wallpaper a prueba de fallos (pipefail)
 WALLPAPER_PATH=""
 if [ -d "/usr/share/backgrounds/macOS" ]; then
     WALLPAPER_PATH=$(find /usr/share/backgrounds/macOS -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) 2>/dev/null | head -n 1 || true)
@@ -449,36 +447,12 @@ if [ "$IS_GNOME" = true ]; then
     gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" 2
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[$(IFS=,; echo "${CUSTOM_PATHS[*]}")]" 2>/dev/null || true
 
-    # Avatar Extension (OSD)
-    EXTENSION_UUID="avatar@nathanpierce.com"
-    GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1 || true)
-    if [ -n "$GNOME_VERSION" ]; then
-        EXTENSION_URL="https://extensions.gnome.org/extension-data/avatar@nathanpierce.com.v68.shell-extension.zip"
-        TEMP_EXT=$(mktemp -d)
-        if curl -sL "$EXTENSION_URL" -o "$TEMP_EXT/avatar.zip" 2>/dev/null && [ -f "$TEMP_EXT/avatar.zip" ]; then
-            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
-            unzip -q "$TEMP_EXT/avatar.zip" -d "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null || true
-            python3 -c "
-import json
-try:
-    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'r') as f: data = json.load(f)
-    if '$GNOME_VERSION' not in data.get('shell-version', []):
-        data.setdefault('shell-version', []).append('$GNOME_VERSION')
-    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'w') as f: json.dump(data, f, indent=2)
-except Exception: pass
-" 2>/dev/null || true
-            run_as_user gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
-        fi
-        rm -rf "$TEMP_EXT" 2>/dev/null || true
-    fi
-
 elif [ "$IS_CINNAMON" = true ]; then
     echo -e "${BLUE}   → Configurando Cinnamon (Modo Seguro)...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
     run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME"
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME"
     
-    # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
     if [ "${SF_INSTALLED:-false}" = true ]; then
         fc-cache -f "$REAL_HOME/.local/share/fonts" > /dev/null 2>&1 || true
         if fc-list 2>/dev/null | grep -qi "SF Pro"; then
@@ -495,8 +469,6 @@ elif [ "$IS_CINNAMON" = true ]; then
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # 🛡️ REFINAMIENTO CRÍTICO: NO reescribir 'panels-enabled' ni 'enabled-applets'.
-    # Solo ajustamos la altura del panel para que sea más fino (estilo macOS).
     run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
     echo -e "${GREEN}   ✓ Altura del panel ajustada (28px)${NC}"
     
@@ -559,7 +531,6 @@ elif [ "$IS_XFCE" = true ]; then
     xfce_set_keybinding "macos-wm-actions close-app-completely" "<Super>q"
 fi
 
-# Aplicar Wallpaper si se encontró
 if [ -n "$WALLPAPER_PATH" ] && [ -f "$WALLPAPER_PATH" ]; then
     if [ "$IS_GNOME" = true ]; then
         run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$WALLPAPER_PATH" 2>/dev/null || true
@@ -573,7 +544,7 @@ fi
 echo -e "${GREEN}✅ Configuración base del entorno aplicada.${NC}\n"
 
 # =============================================================================
-# PASO 15.7: ACERCA DE ESTE MAC (SCRIPT DINÁMICO)
+# PASO 15.7: ACERCA DE ESTE MAC (Universal)
 # =============================================================================
 ABOUT_SCRIPT="$REAL_HOME/.local/bin/about-this-mac.sh"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -596,6 +567,18 @@ chmod +x "$ABOUT_SCRIPT"
 
 if [ "$IS_XFCE" = true ]; then
     run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/commands/custom/<Super>i" -n -t string -s "$ABOUT_SCRIPT" 2>/dev/null || true
+elif [ "$IS_CINNAMON" = true ]; then
+    CUSTOM_ABOUT_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/custom-about-mac/"
+    run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" name "'Acerca de este Mac'" 2>/dev/null || true
+    run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+    run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" binding "['<Super>i']" 2>/dev/null || true
+    CURRENT_LIST=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
+    if [ "$CURRENT_LIST" = "[]" ]; then
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "['$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
+    else
+        CLEAN_LIST="${CURRENT_LIST%]}"
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "${CLEAN_LIST}, '$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
+    fi
 elif [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom3 name "'Acerca de este Mac'" 2>/dev/null || true
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybinding:custom3 command "'$ABOUT_SCRIPT'" 2>/dev/null || true
@@ -603,7 +586,7 @@ elif [ "$IS_GNOME" = true ]; then
 fi
 
 # =============================================================================
-# PASO 15.8: MODO OSCURO AUTOMÁTICO (SYSTEMD TIMER)
+# PASO 15.8: MODO OSCURO AUTOMÁTICO (Universal)
 # =============================================================================
 AUTO_DARK_SCRIPT="$REAL_HOME/.local/bin/auto-dark-mode.sh"
 mkdir -p "$REAL_HOME/.local/bin"
@@ -643,7 +626,7 @@ run_as_user systemctl --user daemon-reload 2>/dev/null || true
 run_as_user systemctl --user enable --now auto-dark-mode.timer 2>/dev/null || true
 
 # =============================================================================
-# PASO 16 a 20: FUENTES, TERMINAL, ANIMACIONES, MAGIC LAMP, QT
+# PASO 16 a 20: FUENTES, TERMINAL, ANIMACIONES, MAGIC LAMP, QT (Universal)
 # =============================================================================
 echo -e "${YELLOW}🔧 [16-20/24] Optimizando renderizado, terminal y efectos...${NC}"
 mkdir -p "$REAL_HOME/.config/fontconfig"
@@ -661,7 +644,8 @@ cat > "$REAL_HOME/.config/fontconfig/fonts.conf" << 'EOF'
 EOF
 fc-cache -f > /dev/null 2>&1 || true
 
-if [ "$IS_GNOME" = true ] && command -v gnome-terminal &> /dev/null; then
+# Terminal (Ahora incluye Cinnamon, que usa gnome-terminal por defecto)
+if { [ "$IS_GNOME" = true ] || [ "$IS_CINNAMON" = true ]; } && command -v gnome-terminal &> /dev/null; then
     PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "macos-tahoe")
     run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'" 2>/dev/null || true
     run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'" 2>/dev/null || true
@@ -695,7 +679,6 @@ elif [ "$IS_CINNAMON" = true ]; then
     [ ! -d "$WORKDIR/CinnamonMagicLamp" ] && git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null || true
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        # 🛡️ CORRECCIÓN: El esquema correcto en Cinnamon es 'org.cinnamon.desktop.effects'
         run_as_user gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null || true
         run_as_user gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null || true
     fi
@@ -718,7 +701,7 @@ fi
 echo -e "${GREEN}✅ Scroll natural activado.${NC}\n"
 
 # =============================================================================
-# PASO 22: GESTOS MULTITÁCTILES (FUSUMA)
+# PASO 22: GESTOS MULTITÁCTILES (FUSUMA) (Universal)
 # =============================================================================
 echo -e "${YELLOW} [22/24] Instalando Gestos Multitáctiles (Fusuma)...${NC}"
 if ! groups "$REAL_USER" | grep -q '\binput\b'; then
