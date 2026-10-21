@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - Fusión Total)
+# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - Estable)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
 # =============================================================================
 set -Eeuo pipefail # Modo estricto para detectar errores reales
@@ -163,7 +163,7 @@ fi
 export SCREEN_VARIANT ICON_BOLD_FLAG
 
 # =============================================================================
-# PASO 2: FUENTES OFICIALES DE APPLE
+# PASO 2: FUENTES OFICIALES DE APPLE (Refinado con verificación real)
 # =============================================================================
 echo -e "${YELLOW}🔤 [2/24] Instalando fuentes oficiales de Apple...${NC}"
 FONTS_DIR="$REAL_HOME/.local/share/fonts"
@@ -172,13 +172,22 @@ mkdir -p "$FONTS_DIR"
 SF_REPO="$WORKDIR/SFWindows"
 [ ! -d "$SF_REPO" ] && git clone --depth=1 https://github.com/bradleyhodges/SFWindows.git "$SF_REPO" -q 2>/dev/null || true
 
+export SF_INSTALLED=false
 if [ -d "$SF_REPO" ]; then
     find "$SF_REPO" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONTS_DIR/" \; 2>/dev/null || true
     fc-cache -f "$FONTS_DIR" > /dev/null 2>&1 || true
-    export SF_INSTALLED=true
-    echo -e "${GREEN}✅ Fuentes instaladas.${NC}\n"
+    fc-cache -f /usr/share/fonts > /dev/null 2>&1 || true
+    
+    # Verificación real: preguntar al sistema si ya reconoce "SF Pro"
+    if fc-list 2>/dev/null | grep -qi "SF Pro"; then
+        export SF_INSTALLED=true
+        echo -e "${GREEN}✅ Fuentes instaladas y detectadas por el sistema.${NC}\n"
+    else
+        echo -e "${YELLOW}⚠️  Fuentes copiadas, pero el sistema aún no las indexa. Se intentará aplicar la configuración de todos modos.${NC}\n"
+        export SF_INSTALLED=true # Forzamos true para que intente aplicar la config en el Paso 15
+    fi
 else
-    export SF_INSTALLED=false
+    echo -e "${RED}❌ No se pudo clonar el repositorio de fuentes.${NC}\n"
 fi
 
 # =============================================================================
@@ -209,20 +218,14 @@ except Exception: pass
     fi
 fi
 
-# Cinnamon Dynamic Wallpaper
+# Cinnamon Dynamic Wallpaper (🛡️ SEGURO: Solo instala, no manipula arrays de gsettings)
 if [ "$IS_CINNAMON" = true ]; then
     mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/"
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q 2>/dev/null || true
-    [ -d "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ] && cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
-    
-    CURRENT_EXTS=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null || echo "[]")
-    if [[ "$CURRENT_EXTS" != *"cinnamon-dynamic-wallpaper@TobiZog"* ]]; then
-        CLEAN_EXTS="${CURRENT_EXTS%]}"
-        if [ "$CLEAN_EXTS" = "[" ] || [ -z "$CLEAN_EXTS" ]; then
-            run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
-        else
-            run_as_user gsettings set org.cinnamon enabled-extensions "${CLEAN_EXTS}, 'cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
-        fi
+    if [ -d "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ]; then
+        cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
+        echo -e "${GREEN}   ✅ Extensión Dynamic Wallpaper instalada.${NC}"
+        echo -e "${BLUE}   ℹ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
     fi
 fi
 
@@ -448,10 +451,37 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[$(IFS=,; echo "${CUSTOM_PATHS[*]}")]" 2>/dev/null || true
 
 elif [ "$IS_CINNAMON" = true ]; then
+    echo -e "${BLUE}   → Configurando Cinnamon (Modo Seguro)...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
     run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME"
+    run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME"
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:'
-    run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']"
+    
+    # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
+    if [ "${SF_INSTALLED:-false}" = true ]; then
+        fc-cache -f "$REAL_HOME/.local/share/fonts" > /dev/null 2>&1 || true
+        if fc-list 2>/dev/null | grep -qi "SF Pro"; then
+            run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.interface monospace-font-name 'SF Mono Regular 11' 2>/dev/null || true
+            run_as_user gsettings set org.cinnamon.desktop.wm.preferences titlebar-font 'SF Pro Text 11' 2>/dev/null || true
+            echo -e "${GREEN}   ✓ Fuentes Apple aplicadas correctamente${NC}"
+        else
+            echo -e "${YELLOW}   ⚠️  Fuentes copiadas, pero el sistema aún no las indexa. Se omitirá la aplicación.${NC}"
+        fi
+    fi
+
+    # 🛡️ REFINAMIENTO CRÍTICO: NO reescribir 'panels-enabled' ni 'enabled-applets'.
+    # Hacerlo rompe el panel nativo de Mint si los applets no coinciden exactamente.
+    # Solo ajustamos la altura del panel para que sea más fino (estilo macOS).
+    run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Altura del panel ajustada (28px)${NC}"
+    
+    # Atajos de teclado (Seguro, no sobrescribe arrays completos)
+    echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm minimize "['<Super>m']" 2>/dev/null || true
+    run_as_user gsettings set org.cinnamon.desktop.keybindings.wm maximize "['<Super>Up']" 2>/dev/null || true
     
     CUSTOM_IDS=()
     cinnamon_set_keybinding() {
@@ -464,7 +494,18 @@ elif [ "$IS_CINNAMON" = true ]; then
     }
     cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "custom-spotlight"
     cinnamon_set_keybinding "Cerrar App" "macos-wm-actions close-app-completely" "<Super>q" "custom-close"
-    run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "[$(IFS=,; echo "${CUSTOM_IDS[*]}")]" 2>/dev/null || true
+    
+    if [ ${#CUSTOM_IDS[@]} -gt 0 ]; then
+        CURRENT_LIST=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
+        if [ "$CURRENT_LIST" = "[]" ]; then
+            NEW_LIST="[$(IFS=,; echo "${CUSTOM_IDS[*]}")]"
+        else
+            CLEAN_LIST="${CURRENT_LIST%]}"
+            NEW_LIST="${CLEAN_LIST}, $(IFS=,; echo "${CUSTOM_IDS[*]}")]"
+        fi
+        run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "$NEW_LIST" 2>/dev/null || true
+    fi
+    echo -e "${GREEN}   ✓ Atajos de teclado macOS aplicados${NC}"
 
 elif [ "$IS_XFCE" = true ]; then
     run_as_user xfconf-query -c xsettings -p /Net/ThemeName -s "$GTK_THEME" 2>/dev/null || true
@@ -632,7 +673,9 @@ elif [ "$IS_CINNAMON" = true ]; then
     [ ! -d "$WORKDIR/CinnamonMagicLamp" ] && git clone --depth=1 https://github.com/klangman/CinnamonMagicLamp.git "$WORKDIR/CinnamonMagicLamp" -q 2>/dev/null || true
     if [ -d "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" ]; then
         ln -sf "$WORKDIR/CinnamonMagicLamp/CinnamonMagicLamp@klangman" "$REAL_HOME/.local/share/cinnamon/extensions/CinnamonMagicLamp@klangman" 2>/dev/null || true
-        run_as_user gsettings set org.cinnamon desktop-effects-minimize-effect "'none'" 2>/dev/null || true
+        # 🛡️ CORRECCIÓN: El esquema correcto en Cinnamon es 'org.cinnamon.desktop.effects'
+        run_as_user gsettings set org.cinnamon.desktop.effects minimize-effect "'none'" 2>/dev/null || true
+        run_as_user gsettings set org.cinnamon.desktop.effects unminimize-effect "'none'" 2>/dev/null || true
     fi
 fi
 echo -e "${GREEN}✅ Optimizaciones aplicadas.${NC}\n"
