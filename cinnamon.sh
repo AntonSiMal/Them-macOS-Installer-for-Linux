@@ -18,7 +18,7 @@ cinnamon_step_4() {
         # 🛡️ SEGURO: Solo instalamos la extensión. No manipulamos 'enabled-extensions' 
         # para evitar corromper el inicio de Cinnamon. El usuario puede activarla manualmente.
         echo -e "${GREEN}   ✅ Extensión Dynamic Wallpaper instalada.${NC}"
-        echo -e "${BLUE}   ℹ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
+        echo -e "${BLUE}   ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
     fi
 }
 
@@ -224,6 +224,77 @@ Comment=Iniciar Dock de Plank al inicio de sesión
 EOF
     [ -n "$SUDO_USER" ] && chown "$SUDO_USER:$SUDO_USER" "$REAL_HOME/.config/autostart/plank.desktop" 2>/dev/null || true
     echo -e "${GREEN}   ✓ Plank configurado para iniciar automáticamente.${NC}"
+}
+
+# =============================================================================
+#  Paso 15.12: Atajo "Acerca de este Mac" (Super + I) - NUEVO
+# =============================================================================
+cinnamon_step_15_12() {
+    echo -e "${BLUE}   → Configurando atajo 'Acerca de este Mac' (Super + I)...${NC}"
+    
+    if [ -n "${ABOUT_SCRIPT:-}" ] && [ -f "$ABOUT_SCRIPT" ]; then
+        local CUSTOM_ABOUT_PATH="/org/cinnamon/desktop/keybindings/custom-keybindings/custom-about-mac/"
+        
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" name "'Acerca de este Mac'" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" command "'$ABOUT_SCRIPT'" 2>/dev/null || true
+        run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${CUSTOM_ABOUT_PATH}" binding "['<Super>i']" 2>/dev/null || true
+        
+        # 🛡️ Añadir de forma ADITIVA a la lista existente sin borrar otros atajos
+        local CURRENT_LIST
+        CURRENT_LIST=$(run_as_user gsettings get org.cinnamon.desktop.keybindings custom-list 2>/dev/null || echo "[]")
+        
+        if [ "$CURRENT_LIST" = "[]" ] || [ -z "$CURRENT_LIST" ]; then
+            run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "['$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
+        else
+            # Insertar antes del corchete de cierre
+            local CLEAN_LIST="${CURRENT_LIST%]}"
+            run_as_user gsettings set org.cinnamon.desktop.keybindings custom-list "${CLEAN_LIST}, '$CUSTOM_ABOUT_PATH']" 2>/dev/null || true
+        fi
+        echo -e "${GREEN}   ✓ Atajo Super+I asignado correctamente en Cinnamon${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  Script 'about-this-mac.sh' no encontrado, omitiendo atajo.${NC}"
+    fi
+}
+
+# =============================================================================
+#  Paso 17: Terminal estilo macOS (Cinnamon usa gnome-terminal)
+# =============================================================================
+cinnamon_step_17() {
+    echo -e "${BLUE}   → Configurando Terminal estilo macOS para Cinnamon...${NC}"
+    
+    if command -v gnome-terminal &> /dev/null; then
+        # Generar UUID único para el perfil
+        local PROFILE_ID
+        PROFILE_ID=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "macos-tahoe-cinnamon")
+        
+        # Crear perfil "macOS Tahoe" con SF Mono y colores auténticos
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/visible-name "'macOS Tahoe'" 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/font "'SF Mono 12'" 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/background-color "'rgb(30,30,30)'" 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/foreground-color "'rgb(230,230,230)'" 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-system-font false 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/use-theme-colors false 2>/dev/null || true
+        run_as_user dconf write /org/gnome/terminal/legacy/profiles:/:$PROFILE_ID/cursor-shape "'ibeam'" 2>/dev/null || true
+        
+        # Añadir el perfil a la lista de perfiles disponibles (aditivo)
+        local EXISTING_PROFILES
+        EXISTING_PROFILES=$(run_as_user dconf read /org/gnome/terminal/legacy/profiles:/list 2>/dev/null || echo "@as []")
+        
+        if ! echo "$EXISTING_PROFILES" | grep -q "$PROFILE_ID"; then
+            if [ "$EXISTING_PROFILES" = "@as []" ] || [ -z "$EXISTING_PROFILES" ]; then
+                run_as_user dconf write /org/gnome/terminal/legacy/profiles:/list "['$PROFILE_ID']" 2>/dev/null || true
+            else
+                # Insertar antes del corchete de cierre
+                local CLEAN_PROFILES="${EXISTING_PROFILES%]}"
+                run_as_user dconf write /org/gnome/terminal/legacy/profiles:/list "${CLEAN_PROFILES}, '$PROFILE_ID']" 2>/dev/null || true
+            fi
+            run_as_user dconf write /org/gnome/terminal/legacy/profiles:/default "'$PROFILE_ID'" 2>/dev/null || true
+        fi
+        
+        echo -e "${GREEN}   ✓ Terminal configurada con SF Mono y colores macOS${NC}"
+    else
+        echo -e "${YELLOW}   ⚠️  gnome-terminal no detectado, omitiendo configuración.${NC}"
+    fi
 }
 
 # =============================================================================
