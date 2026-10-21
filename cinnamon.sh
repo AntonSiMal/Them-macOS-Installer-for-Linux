@@ -11,28 +11,22 @@ cinnamon_step_4() {
     echo -e "${YELLOW}🌅 [4/24] Instalando extensión 'Cinnamon Dynamic Wallpaper'...${NC}"
     mkdir -p "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
     [ ! -d "$WORKDIR/cinnamon-dynamic-wallpaper" ] && git clone --depth=1 https://github.com/TobiZog/cinnamon-dynamic-wallpaper.git "$WORKDIR/cinnamon-dynamic-wallpaper" -q 2>/dev/null || true
-    cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
     
-    # 🛡️ CORRECCIÓN CRÍTICA 1: Manipulación segura de arrays de gsettings SIN usar 'sed'
-    local current_exts
-    current_exts=$(run_as_user gsettings get org.cinnamon enabled-extensions 2>/dev/null || echo "[]")
-    
-    if [[ "$current_exts" != *"cinnamon-dynamic-wallpaper@TobiZog"* ]]; then
-        local clean_exts="${current_exts%]}"
-        if [ "$clean_exts" = "[" ] || [ -z "$clean_exts" ]; then
-            run_as_user gsettings set org.cinnamon enabled-extensions "['cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
-        else
-            run_as_user gsettings set org.cinnamon enabled-extensions "${clean_exts}, 'cinnamon-dynamic-wallpaper@TobiZog']" 2>/dev/null || true
-        fi
+    if [ -d "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" ]; then
+        cp -r "$WORKDIR/cinnamon-dynamic-wallpaper/cinnamon-dynamic-wallpaper@TobiZog" "$REAL_HOME/.local/share/cinnamon/extensions/" 2>/dev/null || true
+        
+        # 🛡️ SEGURO: Solo instalamos la extensión. No manipulamos 'enabled-extensions' 
+        # para evitar corromper el inicio de Cinnamon. El usuario puede activarla manualmente.
+        echo -e "${GREEN}   ✅ Extensión Dynamic Wallpaper instalada.${NC}"
+        echo -e "${BLUE}   ℹ️  (Actívala manualmente desde 'Configuración > Applets' si deseas usarla)${NC}"
     fi
-    echo -e "${GREEN}✅ Cinnamon Dynamic Wallpaper instalada.${NC}"
 }
 
 # =============================================================================
 #  Paso 15: Configuración del sistema, paneles y atajos de teclado
 # =============================================================================
 cinnamon_step_15() {
-    echo -e "${BLUE}   → Configurando Cinnamon...${NC}"
+    echo -e "${BLUE}   → Configurando Cinnamon (Modo Seguro)...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME" 2>/dev/null || true
@@ -40,9 +34,7 @@ cinnamon_step_15() {
     
     # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
     if [ "${SF_INSTALLED:-false}" = true ]; then
-        # Refrescar caché por si acaso el sistema no la indexó a tiempo
         fc-cache -f "$REAL_HOME/.local/share/fonts" > /dev/null 2>&1 || true
-        
         if fc-list 2>/dev/null | grep -qi "SF Pro"; then
             run_as_user gsettings set org.cinnamon.desktop.interface font-name 'SF Pro Text 11' 2>/dev/null || true
             run_as_user gsettings set org.cinnamon.desktop.interface document-font-name 'New York Medium 11' 2>/dev/null || true
@@ -57,19 +49,11 @@ cinnamon_step_15() {
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
     echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
     
-    # PANEL SUPERIOR ESTILO macOS
-    run_as_user gsettings set org.cinnamon panels-enabled "['1:0:top']" 2>/dev/null || true
+    # 🛡️ REFINAMIENTO CRÍTICO: NO reescribir 'panels-enabled' ni 'enabled-applets'.
+    # Hacerlo rompe el panel nativo de Mint si los applets no coinciden exactamente.
+    # Solo ajustamos la altura del panel para que sea más fino (estilo macOS).
     run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
-    run_as_user gsettings set org.cinnamon enabled-applets \
-    "['panel1:left:0:menu@cinnamon.org', \
-    'panel1:left:1:workspace-switcher@cinnamon.org', \
-    'panel1:right:2:notifications@cinnamon.org', \
-    'panel1:right:3:user@cinnamon.org', \
-    'panel1:right:4:calendar@cinnamon.org', \
-    'panel1:right:5:power@cinnamon.org', \
-    'panel1:right:6:sound@cinnamon.org', \
-    'panel1:right:7:network@cinnamon.org']" 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Panel superior configurado (sin lista de ventanas)${NC}"
+    echo -e "${GREEN}   ✓ Altura del panel ajustada (28px)${NC}"
     
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
@@ -90,7 +74,7 @@ cinnamon_step_15() {
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" command "$command" 2>/dev/null || true
         run_as_user gsettings set "org.cinnamon.desktop.keybindings.custom-keybinding:${schema_path}" binding "['$binding']" 2>/dev/null || true
         
-        CUSTOM_IDS+=("$schema_path")
+        CUSTOM_IDS+=("'$schema_path'")
     }
     
     cinnamon_set_keybinding "Spotlight" "rofi-spotlight-launcher" "<Ctrl>space" "custom-spotlight"
@@ -104,10 +88,10 @@ cinnamon_step_15() {
         local first=true
         for path in "${CUSTOM_IDS[@]}"; do
             if [ "$first" = true ]; then
-                custom_list_str+="'$path'"
+                custom_list_str+="$path"
                 first=false
             else
-                custom_list_str+=", '$path'"
+                custom_list_str+=", $path"
             fi
         done
         custom_list_str+="]"
@@ -129,7 +113,7 @@ cinnamon_step_15() {
     fi
     
     run_as_user gsettings set org.cinnamon.desktop.wm.preferences enable-hot-corners true 2>/dev/null || true
-    echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada al 100%${NC}"
+    echo -e "${GREEN}   ✓ Configuración Cinnamon aplicada de forma segura${NC}"
 }
 
 # =============================================================================
