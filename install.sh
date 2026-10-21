@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Edition - Estable)
+# macOS Tahoe Auto-Installer - Versión WWDC26 (Ultimate Safe Edition)
 # Compatible con: GNOME / Zorin OS / Cinnamon / XFCE
 # =============================================================================
 set -Eeuo pipefail # Modo estricto para detectar errores reales
@@ -122,7 +122,7 @@ COMMON_PKGS=(git sassc fontconfig curl unzip wget jq ffmpeg sox rofi fd-find xdo
 if [ "$IS_GNOME" = true ]; then
     SPECIFIC_PKGS=(gnome-tweaks gnome-shell-extension-manager dconf-cli gnome-sushi gnome-backgrounds plymouth-themes firefox plank python3-pil python3-requests libxml2-utils libglib2.0-dev-bin)
 elif [ "$IS_XFCE" = true ]; then
-    SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin xfce4-volumed-pulse thunar plymouth-themes firefox plank python3-pil python3-requests)
+    SPECIFIC_PKGS=(xfce4-clipman-plugin xfce4-whiskermenu-plugin xfce4-terminal xfce4-notifyd xfce4-pulseaudio-plugin xfce4-volumed-pulse thunar plymouth-themes firefox plank python3-pil python3-requests light-locker)
 elif [ "$IS_CINNAMON" = true ]; then
     SPECIFIC_PKGS=(dconf-cli plymouth-themes firefox plank python3-pil python3-requests)
 else
@@ -184,7 +184,7 @@ if [ -d "$SF_REPO" ]; then
         echo -e "${GREEN}✅ Fuentes instaladas y detectadas por el sistema.${NC}\n"
     else
         echo -e "${YELLOW}⚠️  Fuentes copiadas, pero el sistema aún no las indexa. Se intentará aplicar la configuración de todos modos.${NC}\n"
-        export SF_INSTALLED=true # Forzamos true para que intente aplicar la config en el Paso 15
+        export SF_INSTALLED=true
     fi
 else
     echo -e "${RED}❌ No se pudo clonar el repositorio de fuentes.${NC}\n"
@@ -297,7 +297,7 @@ fi
 echo -e "${GREEN}✅ Lanzadores y Plymouth configurados.${NC}\n"
 
 # =============================================================================
-# PASO 12: TRANSFORMACIÓN DE APLICACIONES (JOYA DE LA CORONA)
+# PASO 12: TRANSFORMACIÓN DE APLICACIONES
 # =============================================================================
 echo -e "${YELLOW}🌐 [12/24] Transformando aplicaciones al estilo macOS...${NC}"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
@@ -315,7 +315,7 @@ Type=Application
 Categories=Network;WebBrowser;
 EOF
 
-# 12.2 Gestor de Archivos -> Finder (Ocultando el original)
+# 12.2 Gestor de Archivos -> Finder
 wget -q -O "$REAL_HOME/.local/share/icons/hicolor/256x256/apps/finder.svg" "https://upload.wikimedia.org/wikipedia/commons/8/89/Finder_Icon.png" 2>/dev/null || true
 if [ "$IS_GNOME" = true ] && [ -f "/usr/share/applications/org.gnome.Nautilus.desktop" ]; then
     cp "/usr/share/applications/org.gnome.Nautilus.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
@@ -331,7 +331,7 @@ elif [ "$IS_XFCE" = true ] && [ -f "/usr/share/applications/thunar.desktop" ]; t
     echo -e "[Desktop Entry]\nHidden=true" > "$REAL_HOME/.local/share/applications/thunar.desktop" 2>/dev/null || true
 fi
 
-# 12.3 LocalSend (AirDrop) - Con API de GitHub y Fallback
+# 12.3 LocalSend
 if command -v ufw &> /dev/null && sudo ufw status 2>/dev/null | grep -q "active"; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1 || true
     sudo ufw allow 53317/udp >/dev/null 2>&1 || true
@@ -435,7 +435,6 @@ if [ "$IS_GNOME" = true ]; then
     run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     [ "$SF_INSTALLED" = true ] && run_as_user gsettings set org.gnome.desktop.interface font-name 'SF Pro Text 11'
     
-    # 🛡️ CORRECCIÓN: SCHEMA_PATH en lugar de PATH para evitar sobrescribir variable de entorno
     CUSTOM_PATHS=()
     gnome_set_keybinding() {
         local name="$1" command="$2" binding="$3" idx="$4"
@@ -450,12 +449,34 @@ if [ "$IS_GNOME" = true ]; then
     gnome_set_keybinding "Centrar Ventana" "macos-wm-actions center" "<Super>c" 2
     run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "[$(IFS=,; echo "${CUSTOM_PATHS[*]}")]" 2>/dev/null || true
 
+    # Avatar Extension (OSD)
+    EXTENSION_UUID="avatar@nathanpierce.com"
+    GNOME_VERSION=$(run_as_user gnome-shell --version 2>/dev/null | grep -oP '\d+' | head -1 || true)
+    if [ -n "$GNOME_VERSION" ]; then
+        EXTENSION_URL="https://extensions.gnome.org/extension-data/avatar@nathanpierce.com.v68.shell-extension.zip"
+        TEMP_EXT=$(mktemp -d)
+        if curl -sL "$EXTENSION_URL" -o "$TEMP_EXT/avatar.zip" 2>/dev/null && [ -f "$TEMP_EXT/avatar.zip" ]; then
+            mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID"
+            unzip -q "$TEMP_EXT/avatar.zip" -d "$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID" 2>/dev/null || true
+            python3 -c "
+import json
+try:
+    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'r') as f: data = json.load(f)
+    if '$GNOME_VERSION' not in data.get('shell-version', []):
+        data.setdefault('shell-version', []).append('$GNOME_VERSION')
+    with open('$REAL_HOME/.local/share/gnome-shell/extensions/$EXTENSION_UUID/metadata.json', 'w') as f: json.dump(data, f, indent=2)
+except Exception: pass
+" 2>/dev/null || true
+            run_as_user gnome-extensions enable "$EXTENSION_UUID" 2>/dev/null || true
+        fi
+        rm -rf "$TEMP_EXT" 2>/dev/null || true
+    fi
+
 elif [ "$IS_CINNAMON" = true ]; then
     echo -e "${BLUE}   → Configurando Cinnamon (Modo Seguro)...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.interface gtk-theme "$GTK_THEME"
     run_as_user gsettings set org.cinnamon.desktop.interface icon-theme "$ICON_THEME"
     run_as_user gsettings set org.cinnamon.desktop.interface cursor-theme "$CURSOR_THEME"
-    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:'
     
     # 🛡️ APLICACIÓN DE FUENTES CON VERIFICACIÓN Y REFRESCO DE CACHÉ
     if [ "${SF_INSTALLED:-false}" = true ]; then
@@ -471,13 +492,14 @@ elif [ "$IS_CINNAMON" = true ]; then
         fi
     fi
 
+    run_as_user gsettings set org.cinnamon.desktop.wm.preferences button-layout 'close,minimize,maximize:' 2>/dev/null || true
+    echo -e "${GREEN}   ✓ Botones de ventana movidos a la izquierda${NC}"
+    
     # 🛡️ REFINAMIENTO CRÍTICO: NO reescribir 'panels-enabled' ni 'enabled-applets'.
-    # Hacerlo rompe el panel nativo de Mint si los applets no coinciden exactamente.
     # Solo ajustamos la altura del panel para que sea más fino (estilo macOS).
     run_as_user gsettings set org.cinnamon.panel-height 28 2>/dev/null || true
     echo -e "${GREEN}   ✓ Altura del panel ajustada (28px)${NC}"
     
-    # Atajos de teclado (Seguro, no sobrescribe arrays completos)
     echo -e "${BLUE}   → Aplicando atajos de teclado estilo macOS...${NC}"
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm show-desktop "['<Super>d']" 2>/dev/null || true
     run_as_user gsettings set org.cinnamon.desktop.keybindings.wm minimize "['<Super>m']" 2>/dev/null || true
