@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# MacFCE.sh - Instalador Definitivo Estilo macOS Tahoe para XFCE (Todo en uno)
-# Soporta: Linux Mint XFCE / Xubuntu / Debian XFCE
+# MacFCE.sh - Instalador Definitivo macOS Tahoe para XFCE (Monolítico Real)
+# Corrige: Sesión D-Bus/xfconfd, Tema GTK, Iconos, Cursores, Sonidos y Apps
 # =============================================================================
 
 GREEN='\033[0;32m'
@@ -11,6 +11,7 @@ CYAN='\033[0;36m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# 1. Detectar el usuario real (incluso si se ejecuta con sudo)
 if [ -n "${SUDO_USER:-}" ]; then
     REAL_USER="$SUDO_USER"
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
@@ -26,39 +27,51 @@ fi
 WORKDIR="$REAL_HOME/.macos-theme-setup"
 mkdir -p "$WORKDIR"
 
+# 2. Capturar el DBUS_SESSION_BUS_ADDRESS y DISPLAY reales de la sesión XFCE activa
+XFCE_PID=$(pgrep -u "$REAL_USER" -n "xfce4-session|xfsettingsd|xfce4-panel" 2>/dev/null | head -n 1 || true)
+if [ -n "$XFCE_PID" ] && [ -r "/proc/$XFCE_PID/environ" ]; then
+    REAL_DBUS=$(tr '\0' '\n' < "/proc/$XFCE_PID/environ" | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2- || true)
+    REAL_DISPLAY=$(tr '\0' '\n' < "/proc/$XFCE_PID/environ" | grep '^DISPLAY=' | cut -d= -f2- || true)
+fi
+REAL_DBUS="${REAL_DBUS:-unix:path=/run/user/$REAL_UID/bus}"
+REAL_DISPLAY="${REAL_DISPLAY:-${DISPLAY:-:0}}"
+
+# Función infalible para ejecutar xfconf-query, gsettings y dconf como el usuario real
 run_as_user() {
     if [ "$(id -u)" -eq 0 ]; then
-        sudo -u "$REAL_USER" env DISPLAY="${DISPLAY:-:0}" \
-            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$REAL_UID/bus" \
-            XDG_RUNTIME_DIR="/run/user/$REAL_UID" "$@" 2>/dev/null || true
+        sudo -u "$REAL_USER" env \
+            HOME="$REAL_HOME" \
+            USER="$REAL_USER" \
+            DISPLAY="$REAL_DISPLAY" \
+            DBUS_SESSION_BUS_ADDRESS="$REAL_DBUS" \
+            XDG_RUNTIME_DIR="/run/user/$REAL_UID" \
+            "$@"
     else
-        "$@" 2>/dev/null || true
+        "$@"
     fi
 }
 
-xfce_set_keybinding() {
-    local command="$1"
-    local binding="$2"
-
-    run_as_user xfconf-query \
-        -c xfce4-keyboard-shortcuts \
-        -p "/commands/custom/$binding" \
-        -n -t string -s "$command" 2>/dev/null ||
-    run_as_user xfconf-query \
-        -c xfce4-keyboard-shortcuts \
-        -p "/commands/custom/$binding" \
-        -s "$command" 2>/dev/null || true
+# Función segura para crear o actualizar cualquier propiedad en xfconf
+xfconf_set() {
+    local channel="$1"
+    local prop="$2"
+    local type="$3"
+    local val="$4"
+    run_as_user xfconf-query -c "$channel" -p "$prop" -s "$val" 2>/dev/null || \
+    run_as_user xfconf-query -c "$channel" -p "$prop" -n -t "$type" -s "$val" 2>/dev/null || true
 }
 
 clear
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║         🍏 Instalador Definitivo macOS Tahoe para XFCE           ║${NC}"
+echo -e "${CYAN}║       🍏 Instalador Definitivo macOS Tahoe para XFCE (v2)        ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${BLUE}   👤 Usuario detectado: $REAL_USER (UID: $REAL_UID)${NC}"
+echo -e "${BLUE}   🔌 Bus de sesión XFCE: $REAL_DBUS${NC}"
 
 # =============================================================================
-# PASO 0: CORREGIR PERMISOS Y ESTRUCTURA DE DIRECTORIOS
+# PASO 0: ESTRUCTURA DE DIRECTORIOS Y PERMISOS
 # =============================================================================
-echo -e "\n${YELLOW}🔐 [0/12] Preparando estructura de directorios y permisos...${NC}"
+echo -e "\n${YELLOW}🔐 [0/12] Preparando directorios de usuario y del sistema...${NC}"
 
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
@@ -74,61 +87,56 @@ mkdir -p "$REAL_HOME/.config/autostart"
 mkdir -p "$REAL_HOME/.config/systemd/user"
 mkdir -p "$REAL_HOME/.config/gtk-3.0"
 mkdir -p "$REAL_HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
+sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$WORKDIR" 2>/dev/null || true
-chmod -R u+rwX "$REAL_HOME/.local/share/applications/" "$REAL_HOME/.local/share/icons/" 2>/dev/null || true
+sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$WORKDIR" 2>/dev/null || true
 
-echo -e "${GREEN}   ✓ Estructura y permisos listos${NC}"
+echo -e "${GREEN}   ✓ Directorios listos${NC}"
 
 # =============================================================================
-# PASO 1: DEPENDENCIAS DEL SISTEMA (INSTALACIÓN SEGURA + SOPORTE APPIMAGE)
+# PASO 1: DEPENDENCIAS DEL SISTEMA Y HERRAMIENTAS DE COMPILACIÓN DE TEMAS
 # =============================================================================
-echo -e "\n${YELLOW}📦 [1/12] Instalando dependencias del sistema, Plank, Flatpak y codecs...${NC}"
+echo -e "\n${YELLOW}📦 [1/12] Instalando dependencias necesarias (compiladores GTK, audio, Plank)...${NC}"
 
 sudo apt-get update -qq 2>/dev/null || true
 
-# Paquetes críticos separados para evitar que un paquete ausente cancele todo el bloque
-CORE_PKGS=(
+PKGS=(
     wget curl git unzip sassc libglib2.0-dev-bin libxml2-utils
+    gtk2-engines-murrine gtk2-engines-pixbuf libgdk-pixbuf2.0-dev
     wmctrl xdotool x11-utils xinput libinput-tools ruby
     rofi plank qt5ct dconf-cli plymouth plymouth-themes ufw flatpak
     python3 python3-gi gir1.2-gtk-3.0 libnotify-bin
-    alsa-utils pulseaudio-utils
+    alsa-utils pulseaudio-utils sox libcanberra-gtk-module libcanberra-gtk3-module
     xfce4-whiskermenu-plugin xfce4-pulseaudio-plugin xfce4-notifyd light-locker xfce4-terminal
 )
 
-for pkg in "${CORE_PKGS[@]}"; do
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" 2>/dev/null || true
+for pkg in "${PKGS[@]}"; do
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" >/dev/null 2>&1 || true
 done
 
-# Soporte FUSE indispensable para ejecutar LocalSend, Zuno e IPTVnator (.AppImage)
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2 2>/dev/null || \
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2t64 2>/dev/null || true
-
-# Codecs GStreamer y plugins opcionales de XFCE
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-    xfce4-appmenu-plugin xfce4-docklike-plugin 2>/dev/null || true
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2 >/dev/null 2>&1 || \
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2t64 >/dev/null 2>&1 || true
 
 sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
-echo -e "${GREEN}   ✓ Dependencias base, Plank y soporte AppImage instalados${NC}"
+echo -e "${GREEN}   ✓ Dependencias instaladas correctamente${NC}"
 
 # =============================================================================
 # PASO 2: FUENTES APPLE (SF PRO, SF MONO, NEW YORK) Y FONTCONFIG
 # =============================================================================
-echo -e "\n${YELLOW}🔤 [2/12] Instalando fuentes Apple y optimización Fontconfig...${NC}"
+echo -e "\n${YELLOW}🔤 [2/12] Descargando e instalando fuentes Apple...${NC}"
 
-FONT_DIR="$REAL_HOME/.local/share/fonts"
-SF_REPO="$WORKDIR/SFWindows"
+FONT_DIR="/usr/share/fonts/truetype/apple-fonts"
+sudo mkdir -p "$FONT_DIR"
 
-if [ ! -d "$SF_REPO" ]; then
-    git clone --depth=1 https://github.com/bradleyhodges/SFWindows.git "$SF_REPO" -q 2>/dev/null || \
-    git clone --depth=1 https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts.git "$SF_REPO" -q 2>/dev/null || true
-fi
-
-if [ -d "$SF_REPO" ]; then
-    find "$SF_REPO" -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONT_DIR/" \; 2>/dev/null || true
+if [ -z "$(ls -A "$FONT_DIR" 2>/dev/null)" ]; then
+    rm -rf /tmp/sf-fonts
+    git clone --depth=1 https://github.com/bradleyhodges/SFWindows.git /tmp/sf-fonts 2>/dev/null || \
+    git clone --depth=1 https://github.com/sahibjotsaggu/San-Francisco-Pro-Fonts.git /tmp/sf-fonts 2>/dev/null || true
+    if [ -d "/tmp/sf-fonts" ]; then
+        sudo find /tmp/sf-fonts -type f \( -iname "*.ttf" -o -iname "*.otf" \) -exec cp {} "$FONT_DIR/" \; 2>/dev/null || true
+        sudo cp "$FONT_DIR"/* "$REAL_HOME/.local/share/fonts/" 2>/dev/null || true
+        rm -rf /tmp/sf-fonts
+    fi
 fi
 
 mkdir -p "$REAL_HOME/.config/fontconfig"
@@ -146,77 +154,182 @@ cat > "$REAL_HOME/.config/fontconfig/fonts.conf" << 'EOF'
 </fontconfig>
 EOF
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$FONT_DIR" "$REAL_HOME/.config/fontconfig" 2>/dev/null || true
-fc-cache -f "$FONT_DIR" >/dev/null 2>&1 || true
+sudo fc-cache -f >/dev/null 2>&1 || true
 
-run_as_user xfconf-query -c xsettings -p /Gtk/FontName -n -t string -s "SF Pro Text 11" 2>/dev/null || \
-run_as_user xfconf-query -c xsettings -p /Gtk/FontName -s "SF Pro Text 11" 2>/dev/null || true
-run_as_user xfconf-query -c xsettings -p /Gtk/MonospaceFontName -n -t string -s "SF Mono Regular 11" 2>/dev/null || \
-run_as_user xfconf-query -c xsettings -p /Gtk/MonospaceFontName -s "SF Mono Regular 11" 2>/dev/null || true
-run_as_user xfconf-query -c xfwm4 -p /general/title_font -n -t string -s "SF Pro Text Bold 11" 2>/dev/null || \
-run_as_user xfconf-query -c xfwm4 -p /general/title_font -s "SF Pro Text Bold 11" 2>/dev/null || true
+xfconf_set "xsettings" "/Gtk/FontName" "string" "SF Pro Text 10"
+xfconf_set "xsettings" "/Gtk/MonospaceFontName" "string" "SF Mono Regular 11"
+xfconf_set "xfwm4" "/general/title_font" "string" "SF Pro Text Bold 10"
 
-echo -e "${GREEN}   ✓ Fuentes Apple instaladas y aplicadas en XFCE${NC}"
+echo -e "${GREEN}   ✓ Fuentes Apple instaladas y activadas${NC}"
 
 # =============================================================================
-# PASO 3: TEMA MACTAHOE GTK, ICONOS, BOTONES DE VENTANA (CHM|) Y PLANK DOCK
+# PASO 3: TEMA GTK, TEMA DE ICONOS Y TEMA DE CURSOR (INSTALACIÓN GLOBAL + LOCAL)
 # =============================================================================
-echo -e "\n${YELLOW}🎨 [3/12] Instalando Tema MacTahoe, ordenando botones y configurando Plank...${NC}"
+echo -e "\n${YELLOW}🎨 [3/12] Descargando e instalando Temas GTK, Iconos y Cursores macOS...${NC}"
 
-SCREEN_WIDTH=$(xrandr --current 2>/dev/null | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1 || echo "1920")
-ICON_BOLD_FLAG=""
-[ "${SCREEN_WIDTH:-1920}" -ge 3840 ] && ICON_BOLD_FLAG="-b"
+# 3.1 Tema GTK (MacTahoe / WhiteSur)
+echo -e "${BLUE}   ⬇️  Instalando Tema GTK (Claro y Oscuro)...${NC}"
+rm -rf /tmp/macos-gtk-theme
+git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git /tmp/macos-gtk-theme 2>/dev/null || \
+git clone --depth=1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git /tmp/macos-gtk-theme 2>/dev/null || true
 
-if [ ! -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
-    git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q 2>/dev/null || \
-    git clone --depth=1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git "$WORKDIR/MacTahoe-gtk-theme" -q 2>/dev/null || true
-fi
-if [ -d "$WORKDIR/MacTahoe-gtk-theme" ]; then
-    ( cd "$WORKDIR/MacTahoe-gtk-theme" && ./install.sh -d "$REAL_HOME/.themes" -c dark -c light --round > /dev/null 2>&1 ) || true
-fi
-
-if [ ! -d "$WORKDIR/MacTahoe-icon-theme" ]; then
-    git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git "$WORKDIR/MacTahoe-icon-theme" -q 2>/dev/null || \
-    git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git "$WORKDIR/MacTahoe-icon-theme" -q 2>/dev/null || true
-fi
-if [ -d "$WORKDIR/MacTahoe-icon-theme" ]; then
-    ( cd "$WORKDIR/MacTahoe-icon-theme" && ./install.sh -d "$REAL_HOME/.icons" $ICON_BOLD_FLAG > /dev/null 2>&1 ) || true
+if [ -d "/tmp/macos-gtk-theme" ]; then
+    ( cd /tmp/macos-gtk-theme && sudo ./install.sh -d /usr/share/themes -c dark -c light ) || true
+    ( cd /tmp/macos-gtk-theme && sudo -u "$REAL_USER" ./install.sh -d "$REAL_HOME/.themes" -c dark -c light ) || true
+    rm -rf /tmp/macos-gtk-theme
 fi
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.themes" "$REAL_HOME/.icons" 2>/dev/null || true
+# Detectar el nombre real del tema GTK instalado
+GTK_THEME_DARK="WhiteSur-Dark"
+GTK_THEME_LIGHT="WhiteSur-Light"
+for t in "MacTahoe-Dark" "WhiteSur-Dark" "MacTahoe-dark" "WhiteSur-dark"; do
+    if [ -d "/usr/share/themes/$t" ] || [ -d "$REAL_HOME/.themes/$t" ]; then
+        GTK_THEME_DARK="$t"
+        break
+    fi
+done
+for t in "MacTahoe-Light" "WhiteSur-Light" "MacTahoe-light" "WhiteSur-light"; do
+    if [ -d "/usr/share/themes/$t" ] || [ -d "$REAL_HOME/.themes/$t" ]; then
+        GTK_THEME_LIGHT="$t"
+        break
+    fi
+done
 
-# Detectar nombre exacto del tema instalado (MacTahoe-Dark o WhiteSur-Dark)
-INSTALLED_GTK="MacTahoe-Dark"
-[ ! -d "$REAL_HOME/.themes/MacTahoe-Dark" ] && [ -d "$REAL_HOME/.themes/WhiteSur-Dark" ] && INSTALLED_GTK="WhiteSur-Dark"
+# 3.2 Tema de Iconos (MacTahoe / WhiteSur)
+echo -e "${BLUE}   ⬇️  Instalando Tema de Iconos...${NC}"
+rm -rf /tmp/macos-icon-theme
+git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git /tmp/macos-icon-theme 2>/dev/null || \
+git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git /tmp/macos-icon-theme 2>/dev/null || true
 
-INSTALLED_ICONS="MacTahoe-dark"
-[ ! -d "$REAL_HOME/.icons/MacTahoe-dark" ] && [ -d "$REAL_HOME/.icons/WhiteSur-dark" ] && INSTALLED_ICONS="WhiteSur-dark"
-[ ! -d "$REAL_HOME/.icons/$INSTALLED_ICONS" ] && [ -d "$REAL_HOME/.icons/WhiteSur" ] && INSTALLED_ICONS="WhiteSur"
-
-run_as_user xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s "$INSTALLED_GTK" 2>/dev/null || \
-run_as_user xfconf-query -c xsettings -p /Net/ThemeName -s "$INSTALLED_GTK" 2>/dev/null || true
-
-run_as_user xfconf-query -c xfwm4 -p /general/theme -n -t string -s "$INSTALLED_GTK" 2>/dev/null || \
-run_as_user xfconf-query -c xfwm4 -p /general/theme -s "$INSTALLED_GTK" 2>/dev/null || true
-
-run_as_user xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s "$INSTALLED_ICONS" 2>/dev/null || \
-run_as_user xfconf-query -c xsettings -p /Net/IconThemeName -s "$INSTALLED_ICONS" 2>/dev/null || true
-
-# ORDENAR BOTONES DE VENTANA EN XFWM4: Cerrar (C), Minimizar (H), Maximizar (M) a la izquierda + Título (|)
-run_as_user xfconf-query -c xfwm4 -p /general/button_layout -n -t string -s "CHM|" 2>/dev/null || \
-run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "CHM|" 2>/dev/null || true
-run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s true 2>/dev/null || \
-run_as_user xfconf-query -c xfwm4 -p /general/use_compositing -s true 2>/dev/null || true
-
-echo -e "${GREEN}   ✓ Botones de ventana ordenados a la izquierda: Cerrar (C), Minimizar (H), Maximizar (M)${NC}"
-
-# Configurar temas de Plank Dock y lanzarlo
-if [ ! -d "$WORKDIR/MacOS-Mojave-Plank-themes" ]; then
-    git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git "$WORKDIR/MacOS-Mojave-Plank-themes" -q 2>/dev/null || true
+if [ -d "/tmp/macos-icon-theme" ]; then
+    ( cd /tmp/macos-icon-theme && sudo ./install.sh -d /usr/share/icons ) || true
+    ( cd /tmp/macos-icon-theme && sudo -u "$REAL_USER" ./install.sh -d "$REAL_HOME/.icons" ) || true
+    rm -rf /tmp/macos-icon-theme
 fi
-if [ -d "$WORKDIR/MacOS-Mojave-Plank-themes" ]; then
-    cp -r "$WORKDIR/MacOS-Mojave-Plank-themes"/* "$REAL_HOME/.local/share/plank/themes/" 2>/dev/null || true
-    sudo cp -r "$WORKDIR/MacOS-Mojave-Plank-themes"/* /usr/share/plank/themes/ 2>/dev/null || true
+
+ICON_THEME_NAME="WhiteSur-dark"
+for i in "MacTahoe-dark" "MacTahoe" "WhiteSur-dark" "WhiteSur"; do
+    if [ -d "/usr/share/icons/$i" ] || [ -d "$REAL_HOME/.icons/$i" ]; then
+        ICON_THEME_NAME="$i"
+        break
+    fi
+done
+
+# 3.3 Tema de Cursores macOS (WhiteSur Cursors)
+echo -e "${BLUE}   ⬇️  Instalando Tema de Cursores macOS...${NC}"
+rm -rf /tmp/macos-cursors
+git clone --depth=1 https://github.com/vinceliuice/WhiteSur-cursors.git /tmp/macos-cursors 2>/dev/null || true
+if [ -d "/tmp/macos-cursors/dist" ]; then
+    sudo cp -r /tmp/macos-cursors/dist /usr/share/icons/WhiteSur-cursors 2>/dev/null || true
+    cp -r /tmp/macos-cursors/dist "$REAL_HOME/.icons/WhiteSur-cursors" 2>/dev/null || true
+    rm -rf /tmp/macos-cursors
+fi
+CURSOR_THEME_NAME="WhiteSur-cursors"
+
+# Aplicar Tema GTK, Gestor de Ventanas, Iconos y Cursores en XFCE
+xfconf_set "xsettings" "/Net/ThemeName" "string" "$GTK_THEME_DARK"
+xfconf_set "xfwm4" "/general/theme" "string" "$GTK_THEME_DARK"
+xfconf_set "xsettings" "/Net/IconThemeName" "string" "$ICON_THEME_NAME"
+xfconf_set "xsettings" "/Gtk/CursorThemeName" "string" "$CURSOR_THEME_NAME"
+xfconf_set "xsettings" "/Gtk/CursorThemeSize" "int" "24"
+
+# Respaldo directo en settings.ini de GTK3 y .gtkrc-2.0 para garantizar que aplique siempre
+cat > "$REAL_HOME/.config/gtk-3.0/settings.ini" << EOF
+[Settings]
+gtk-theme-name=$GTK_THEME_DARK
+gtk-icon-theme-name=$ICON_THEME_NAME
+gtk-font-name=SF Pro Text 10
+gtk-cursor-theme-name=$CURSOR_THEME_NAME
+gtk-cursor-theme-size=24
+gtk-application-prefer-dark-theme=1
+EOF
+
+cat > "$REAL_HOME/.gtkrc-2.0" << EOF
+gtk-theme-name="$GTK_THEME_DARK"
+gtk-icon-theme-name="$ICON_THEME_NAME"
+gtk-font-name="SF Pro Text 10"
+gtk-cursor-theme-name="$CURSOR_THEME_NAME"
+gtk-cursor-theme-size=24
+EOF
+
+# Orden de botones de ventana estilo macOS (Cerrar, Minimizar, Maximizar a la izquierda)
+xfconf_set "xfwm4" "/general/button_layout" "string" "CHM|"
+xfconf_set "xfwm4" "/general/use_compositing" "bool" "true"
+
+echo -e "${GREEN}   ✓ Tema GTK ($GTK_THEME_DARK), Iconos ($ICON_THEME_NAME) y Cursores ($CURSOR_THEME_NAME) aplicados${NC}"
+
+# =============================================================================
+# PASO 4: SONIDOS macOS BIG SUR Y EVENTOS DE SONIDO EN XFCE
+# =============================================================================
+echo -e "\n${YELLOW}🔊 [4/12] Instalando y activando sonidos macOS Big Sur...${NC}"
+
+rm -rf /tmp/bigsur.zip /tmp/bigsur-extract
+ZIP_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/archive/refs/heads/main.zip"
+if curl -sL "$ZIP_URL" --max-time 60 -o "/tmp/bigsur.zip" && [ -s "/tmp/bigsur.zip" ]; then
+    unzip -q -o "/tmp/bigsur.zip" -d "/tmp/bigsur-extract" 2>/dev/null || true
+    if [ -d "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/theme/bigsur" ]; then
+        sudo cp -r "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/theme/bigsur" /usr/share/sounds/ 2>/dev/null || true
+        cp -r "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/theme/bigsur" "$REAL_HOME/.local/share/sounds/" 2>/dev/null || true
+    elif [ -d "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/bigsur" ]; then
+        sudo cp -r "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/bigsur" /usr/share/sounds/ 2>/dev/null || true
+        cp -r "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/bigsur" "$REAL_HOME/.local/share/sounds/" 2>/dev/null || true
+    fi
+    rm -rf /tmp/bigsur.zip /tmp/bigsur-extract
+fi
+
+xfconf_set "xsettings" "/Net/SoundThemeName" "string" "bigsur"
+xfconf_set "xsettings" "/Net/EnableEventSounds" "bool" "true"
+xfconf_set "xsettings" "/Net/EnableInputFeedbackSounds" "bool" "true"
+
+cat > "$REAL_HOME/.config/autostart/macos-startup-chime.desktop" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=macOS Startup Chime
+Exec=sh -c "paplay /usr/share/sounds/bigsur/stereo/desktop-login.oga 2>/dev/null || paplay /usr/share/sounds/freedesktop/stereo/service-login.oga 2>/dev/null || true"
+X-GNOME-Autostart-enabled=true
+EOF
+
+echo -e "${GREEN}   ✓ Sonidos Big Sur instalados y activados en XFCE${NC}"
+
+# =============================================================================
+# PASO 5: PANEL SUPERIOR ESTILO macOS Y PLANK DOCK
+# =============================================================================
+echo -e "\n${YELLOW}🍎 [5/12] Configurando Panel Superior con Logo Apple y Plank Dock...${NC}"
+
+cat > /tmp/apple-logo.svg << 'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
+  <path fill="#FFFFFF" d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.28-10.76-19.99-14.47-32.12-3.71-12.13-5.56-23.36-5.56-33.68 0-12.87 3.22-23.47 9.65-31.78 6.44-8.31 14.54-12.63 24.31-12.96 4.92 0 10.35 1.49 16.29 4.46 5.93 2.97 9.77 4.51 11.51 4.62 1.45 0 5.64-1.78 12.56-5.34 6.93-3.56 13.06-5.07 18.39-4.54 13.65 1.1 23.91 6.49 30.78 16.17-12.19 7.39-18.15 17.65-17.88 30.78.27 10.27 4.28 18.82 12.02 25.65 5.46 4.86 11.97 7.79 19.53 8.79-1.57 4.79-3.43 9.69-5.58 14.69zM119.22 31.01c0 8.05-2.94 15.56-8.82 22.53-7.09 8.28-15.65 13.05-24.91 12.3-.19-.96-.29-2.01-.29-3.15 0-7.73 3.25-15.99 9.75-23.23 3.11-3.51 7.06-6.42 11.85-8.73 4.79-2.31 9.33-3.59 13.62-3.84.13 1.42.2 2.79.2 4.12z"/>
+</svg>
+EOF
+sudo mv /tmp/apple-logo.svg /usr/share/pixmaps/apple-logo.svg
+sudo chmod 644 /usr/share/pixmaps/apple-logo.svg
+
+# Actualizar cualquier instancia de Whisker Menu existente o crear panel limpio
+mkdir -p "$REAL_HOME/.config/xfce4/panel"
+for rc in "$REAL_HOME/.config/xfce4/panel"/whiskermenu-*.rc; do
+    if [ -f "$rc" ]; then
+        sed -i 's|^button-icon=.*|button-icon=/usr/share/pixmaps/apple-logo.svg|g' "$rc"
+        sed -i 's|^show-button-title=.*|show-button-title=false|g' "$rc"
+    fi
+done
+
+for p in $(run_as_user xfconf-query -c xfce4-panel -p /plugins -l 2>/dev/null | grep "whiskermenu" || true); do
+    PLUGIN_BASE=$(echo "$p" | cut -d'/' -f1-3)
+    xfconf_set "xfce4-panel" "$PLUGIN_BASE/button-icon" "string" "/usr/share/pixmaps/apple-logo.svg"
+    xfconf_set "xfce4-panel" "$PLUGIN_BASE/show-button-title" "bool" "false"
+done
+
+# Mover el panel principal arriba (p=6)
+xfconf_set "xfce4-panel" "/panels/panel-0/position" "string" "p=6;x=0;y=0"
+xfconf_set "xfce4-panel" "/panels/panel-1/position" "string" "p=6;x=0;y=0"
+
+# Temas de Plank Dock
+rm -rf /tmp/plank-themes
+git clone --depth=1 https://github.com/Macintosh98/MacOS-Mojave-Plank-themes.git /tmp/plank-themes 2>/dev/null || true
+if [ -d "/tmp/plank-themes" ]; then
+    cp -r /tmp/plank-themes/* "$REAL_HOME/.local/share/plank/themes/" 2>/dev/null || true
+    sudo cp -r /tmp/plank-themes/* /usr/share/plank/themes/ 2>/dev/null || true
+    rm -rf /tmp/plank-themes
 fi
 
 run_as_user dconf write /net/launchpad/plank/docks/dock1/position "'bottom'" 2>/dev/null || true
@@ -225,121 +338,44 @@ run_as_user dconf write /net/launchpad/plank/docks/dock1/hide-mode "'intelligent
 run_as_user dconf write /net/launchpad/plank/docks/dock1/icon-size 48 2>/dev/null || true
 run_as_user dconf write /net/launchpad/plank/docks/dock1/zoom-enabled true 2>/dev/null || true
 run_as_user dconf write /net/launchpad/plank/docks/dock1/zoom-percent 150 2>/dev/null || true
-run_as_user dconf write /net/launchpad/plank/docks/dock1/theme "'Gtk+'" 2>/dev/null || true
 
 cat > "$REAL_HOME/.config/autostart/plank.desktop" << 'EOF'
 [Desktop Entry]
 Type=Application
 Name=Plank Dock
-Comment=macOS Dock for XFCE
 Exec=plank
 X-GNOME-Autostart-enabled=true
 X-XFCE-Autostart-Override=true
 NoDisplay=false
 EOF
 
-echo -e "${GREEN}   ✓ Tema MacTahoe y Plank Dock configurados${NC}"
+echo -e "${GREEN}   ✓ Panel Superior y Plank Dock listos${NC}"
 
 # =============================================================================
-# PASO 4: PANEL SUPERIOR ESTILO macOS Y WHISKER MENU CON LOGO APPLE
+# PASO 6: PLYMOUTH (LOGO DE APPLE EN EL ARRANQUE)
 # =============================================================================
-echo -e "\n${YELLOW}🍎 [4/12] Configurando panel superior y Whisker Menu...${NC}"
+echo -e "\n${YELLOW}🖥️  [6/12] Instalando tema de arranque Apple Mac Plymouth...${NC}"
 
-ICON_DIR="$REAL_HOME/.local/share/icons/apple-menu/scalable/apps"
-mkdir -p "$ICON_DIR"
-
-cat > "$ICON_DIR/apple-logo.svg" << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
-  <path fill="#FFFFFF" d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.28-10.76-19.99-14.47-32.12-3.71-12.13-5.56-23.36-5.56-33.68 0-12.87 3.22-23.47 9.65-31.78 6.44-8.31 14.54-12.63 24.31-12.96 4.92 0 10.35 1.49 16.29 4.46 5.93 2.97 9.77 4.51 11.51 4.62 1.45 0 5.64-1.78 12.56-5.34 6.93-3.56 13.06-5.07 18.39-4.54 13.65 1.1 23.91 6.49 30.78 16.17-12.19 7.39-18.15 17.65-17.88 30.78.27 10.27 4.28 18.82 12.02 25.65 5.46 4.86 11.97 7.79 19.53 8.79-1.57 4.79-3.43 9.69-5.58 14.69zM119.22 31.01c0 8.05-2.94 15.56-8.82 22.53-7.09 8.28-15.65 13.05-24.91 12.3-.19-.96-.29-2.01-.29-3.15 0-7.73 3.25-15.99 9.75-23.23 3.11-3.51 7.06-6.42 11.85-8.73 4.79-2.31 9.33-3.59 13.62-3.84.13 1.42.2 2.79.2 4.12z"/>
-</svg>
-EOF
-
-sudo cp "$ICON_DIR/apple-logo.svg" /usr/share/pixmaps/apple-logo.svg 2>/dev/null || true
-
-PANEL_CONFIG_DIR="$REAL_HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
-PANEL_BACKUP="$REAL_HOME/.config/xfce4/panel_backup_$(date +%F_%H-%M-%S).xml"
-[ -f "$PANEL_CONFIG_DIR/xfce4-panel.xml" ] && cp "$PANEL_CONFIG_DIR/xfce4-panel.xml" "$PANEL_BACKUP" 2>/dev/null || true
-
-run_as_user xfce4-panel --quit 2>/dev/null || true
-pkill xfce4-panel 2>/dev/null || true
-sleep 1
-
-run_as_user xfconf-query -c xfce4-panel -r -R /panels 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -r -R /plugins 2>/dev/null || true
-
-run_as_user xfconf-query -c xfce4-panel -p /panels -n -t int -a -s 0 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position -n -t string -s "p=6;x=0;y=0" 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/position-locked -n -t bool -s true 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/size -n -t uint -s 28 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/length -n -t uint -s 100 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/autohide-behavior -n -t uint -s 0 2>/dev/null || true
-
-run_as_user xfconf-query -c xfce4-panel -p /panels/panel-0/plugin-ids -n \
-    -t int -s 1 -t int -s 2 -t int -s 3 -t int -s 4 -t int -s 5 -t int -s 6 2>/dev/null || true
-
-# Plugin 1: Whisker Menu con Logo de Apple
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s "whiskermenu" 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/button-icon -n -t string -s "/usr/share/pixmaps/apple-logo.svg" 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-1/show-button-title -n -t bool -s false 2>/dev/null || true
-
-mkdir -p "$REAL_HOME/.config/xfce4/panel"
-cat > "$REAL_HOME/.config/xfce4/panel/whiskermenu-1.rc" << 'EOF'
-button-icon=/usr/share/pixmaps/apple-logo.svg
-button-single-row=false
-show-button-title=false
-show-button-icon=true
-EOF
-
-# Plugin 2: Separador expansible
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2 -n -t string -s "separator" 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/expand -n -t bool -s true 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-2/style -n -t uint -s 0 2>/dev/null || true
-
-# Plugin 3: Bandeja del sistema (Systray)
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-3 -n -t string -s "systray" 2>/dev/null || true
-
-# Plugin 4: Audio (PulseAudio)
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-4 -n -t string -s "pulseaudio" 2>/dev/null || true
-
-# Plugin 5: Energía
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-5 -n -t string -s "power-manager-plugin" 2>/dev/null || true
-
-# Plugin 6: Reloj estilo macOS
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-6 -n -t string -s "clock" 2>/dev/null || true
-run_as_user xfconf-query -c xfce4-panel -p /plugins/plugin-6/digital-format -n -t string -s "%a %d %b  %H:%M" 2>/dev/null || true
-
-echo -e "${GREEN}   ✓ Panel superior reconstruido con logo de Apple${NC}"
-
-# =============================================================================
-# PASO 5: PLYMOUTH (PANTALLA DE ARRANQUE CON LOGO APPLE)
-# =============================================================================
-echo -e "\n${YELLOW}🖥️  [5/12] Instalando pantalla de arranque Apple Mac Plymouth...${NC}"
-
-if [ ! -d "$WORKDIR/apple-mac-plymouth" ]; then
-    git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git "$WORKDIR/apple-mac-plymouth" -q 2>/dev/null || true
-fi
-
-if [ -d "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" ]; then
+rm -rf /tmp/apple-mac-plymouth
+git clone --depth=1 https://github.com/navisjayaseelan/apple-mac-plymouth.git /tmp/apple-mac-plymouth 2>/dev/null || true
+if [ -d "/tmp/apple-mac-plymouth/apple-mac-plymouth" ]; then
     sudo mkdir -p /usr/share/plymouth/themes
-    sudo cp -r "$WORKDIR/apple-mac-plymouth/apple-mac-plymouth" /usr/share/plymouth/themes/ 2>/dev/null || true
+    sudo cp -r /tmp/apple-mac-plymouth/apple-mac-plymouth /usr/share/plymouth/themes/
     sudo update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 100 2>/dev/null || true
     sudo update-alternatives --set default.plymouth /usr/share/plymouth/themes/apple-mac-plymouth/apple-mac-plymouth.plymouth 2>/dev/null || true
     command -v update-initramfs &>/dev/null && sudo update-initramfs -u >/dev/null 2>&1 || true
-    echo -e "${GREEN}   ✓ Tema Apple Mac Plymouth instalado y activado en initramfs${NC}"
-else
-    echo -e "${RED}   ⚠️ No se pudo clonar el repositorio de Plymouth${NC}"
+    rm -rf /tmp/apple-mac-plymouth
+    echo -e "${GREEN}   ✓ Plymouth instalado${NC}"
 fi
 
 # =============================================================================
-# PASO 6: DESCARGA E INSTALACIÓN REAL DE APPS (LOCALSEND, ZUNO, IPTVNATOR, OFFICE)
+# PASO 7: APLICACIONES E ICONOS (LOCALSEND, APPLE TV, APPLE MUSIC, OFFICE, SAFARI)
 # =============================================================================
-echo -e "\n${YELLOW}🎵 [6/12] Descargando e instalando LocalSend, Apple TV, Apple Music, Office y Safari...${NC}"
+echo -e "\n${YELLOW}🎵 [7/12] Instalando LocalSend, Apple TV, Apple Music, Office y Safari...${NC}"
 
 APP_ICON_DIR="$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
-SCALABLE_APP_DIR="$REAL_HOME/.local/share/icons/hicolor/scalable/apps"
-mkdir -p "$APP_ICON_DIR" "$SCALABLE_APP_DIR"
+mkdir -p "$APP_ICON_DIR"
 
-# 1. Generar SVGs vectoriales a prueba de fallos
 cat > "$APP_ICON_DIR/applemusic.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="am" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FF5E7E"/><stop offset="100%" stop-color="#FF2D55"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#am)"/><path fill="#FFF" d="M368 122c0-10.5-9.2-18.3-19.6-16.3l-152 29c-8.3 1.6-14.4 8.9-14.4 17.4v185.3c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V212l134-25.6v118c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V122z"/></svg>
 EOF
@@ -360,39 +396,19 @@ cat > "$APP_ICON_DIR/localsend.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="115" fill="#008080"/><circle cx="256" cy="256" r="150" fill="none" stroke="#FFF" stroke-width="28"/><circle cx="256" cy="256" r="85" fill="none" stroke="#FFF" stroke-width="28"/><circle cx="256" cy="256" r="32" fill="#FFF"/></svg>
 EOF
 
-cp "$APP_ICON_DIR"/*.svg "$SCALABLE_APP_DIR/" 2>/dev/null || true
-
-# 2. Descargar e instalar LocalSend (AppImage + Firewall UFW)
-echo -e "${BLUE}   ⬇️  Descargando LocalSend...${NC}"
+# LocalSend
 if [ ! -s "$REAL_HOME/.local/bin/localsend" ]; then
-    LOCALSEND_URL=$(curl -sL https://api.github.com/repos/localsend/localsend/releases/latest | grep -o "https://.*linux-x86_64\.AppImage" | head -1)
-    [ -z "$LOCALSEND_URL" ] && LOCALSEND_URL="https://github.com/localsend/localsend/releases/download/v1.15.4/LocalSend-1.15.4-linux-x86_64.AppImage"
-    curl -sL "$LOCALSEND_URL" -o "$REAL_HOME/.local/bin/localsend" || true
+    curl -sL "https://github.com/localsend/localsend/releases/download/v1.15.4/LocalSend-1.15.4-linux-x86_64.AppImage" -o "$REAL_HOME/.local/bin/localsend" || true
     chmod +x "$REAL_HOME/.local/bin/localsend" 2>/dev/null || true
 fi
 if command -v ufw &>/dev/null; then
     sudo ufw allow 53317/tcp >/dev/null 2>&1 || true
     sudo ufw allow 53317/udp >/dev/null 2>&1 || true
 fi
-cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
-[Desktop Entry]
-Name=LocalSend (AirDrop)
-GenericName=Compartir Archivos
-Comment=Alternativa open-source a AirDrop
-Exec=$REAL_HOME/.local/bin/localsend --no-sandbox %U
-Icon=$APP_ICON_DIR/localsend.svg
-Terminal=false
-Type=Application
-Categories=Network;FileTransfer;
-StartupNotify=true
-EOF
 
-# 3. Descargar e instalar Apple TV (IPTVnator AppImage + Lista M3U Español)
-echo -e "${BLUE}   ⬇️  Descargando Apple TV (IPTVnator)...${NC}"
+# Apple TV (IPTVnator)
 if [ ! -s "$REAL_HOME/.local/bin/iptvnator" ]; then
-    IPTV_URL=$(curl -sL https://api.github.com/repos/4gray/iptvnator/releases/latest | grep -o "https://.*linux-x86_64\.AppImage" | head -1)
-    [ -z "$IPTV_URL" ] && IPTV_URL="https://github.com/4gray/iptvnator/releases/download/v0.16.0/iptvnator-0.16.0-linux-x86_64.AppImage"
-    curl -sL "$IPTV_URL" -o "$REAL_HOME/.local/bin/iptvnator" || \
+    curl -sL "https://github.com/4gray/iptvnator/releases/download/v0.16.0/iptvnator-0.16.0-linux-x86_64.AppImage" -o "$REAL_HOME/.local/bin/iptvnator" || \
     curl -sL "https://github.com/4gray/iptvnator/releases/download/v0.14.0/iptvnator-0.14.0-linux-x86_64.AppImage" -o "$REAL_HOME/.local/bin/iptvnator" || true
     chmod +x "$REAL_HOME/.local/bin/iptvnator" 2>/dev/null || true
 fi
@@ -400,91 +416,78 @@ mkdir -p "$REAL_HOME/.config/iptvnator"
 cat > "$REAL_HOME/.config/iptvnator/store.json" << 'EOF'
 {"playlists": [{"id": "spa", "name": "📺 Canales en Español", "url": "https://iptv-org.github.io/iptv/languages/spa.m3u", "autoRefresh": true}], "settings": {"player": "html5", "theme": "dark"}}
 EOF
+
+# Apple Music (Zuno)
+if [ ! -s "$REAL_HOME/.local/bin/zuno" ]; then
+    curl -sL "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" -o "$REAL_HOME/.local/bin/zuno" || true
+    chmod +x "$REAL_HOME/.local/bin/zuno" 2>/dev/null || true
+fi
+
+# Office (ONLYOFFICE)
+if command -v flatpak &>/dev/null; then
+    sudo flatpak install -y --noninteractive flathub org.onlyoffice.desktopeditors >/dev/null 2>&1 || true
+fi
+
+cat > "$REAL_HOME/.local/share/applications/localsend.desktop" << EOF
+[Desktop Entry]
+Name=LocalSend (AirDrop)
+Exec=$REAL_HOME/.local/bin/localsend --no-sandbox %U
+Icon=$APP_ICON_DIR/localsend.svg
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;
+EOF
+
 cat > "$REAL_HOME/.local/share/applications/appletv.desktop" << EOF
 [Desktop Entry]
 Name=Apple TV
-GenericName=Reproductor de Video
-Comment=Apple TV powered by IPTVnator
 Exec=$REAL_HOME/.local/bin/iptvnator --no-sandbox --ozone-platform=x11 %U
 Icon=$APP_ICON_DIR/appletv.svg
 Terminal=false
 Type=Application
 Categories=AudioVideo;Video;Player;
-StartupNotify=true
 EOF
 
-# 4. Descargar e instalar Apple Music (Zuno AppImage)
-echo -e "${BLUE}   ⬇️  Descargando Apple Music (Zuno)...${NC}"
-if [ ! -s "$REAL_HOME/.local/bin/zuno" ]; then
-    curl -sL "https://github.com/noFAYZ/zuno/releases/download/v1.4.0/Zuno_1.4.0_amd64.AppImage" -o "$REAL_HOME/.local/bin/zuno" || \
-    curl -sL "https://github.com/noFAYZ/zuno/releases/download/v1.3.2/Zuno_1.3.2_amd64.AppImage" -o "$REAL_HOME/.local/bin/zuno" || true
-    chmod +x "$REAL_HOME/.local/bin/zuno" 2>/dev/null || true
-fi
 cat > "$REAL_HOME/.local/share/applications/applemusic.desktop" << EOF
 [Desktop Entry]
 Name=Apple Music
-GenericName=Reproductor de Música
-Comment=Apple Music powered by Zuno
 Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 $REAL_HOME/.local/bin/zuno --no-sandbox %U
 Icon=$APP_ICON_DIR/applemusic.svg
 Terminal=false
 Type=Application
-Categories=Audio;Music;Player;AudioVideo;
-StartupNotify=true
+Categories=Audio;Music;Player;
 EOF
 
-# 5. Instalar Suite Office (ONLYOFFICE Desktop Editors vía Flatpak)
-echo -e "${BLUE}   ⬇️  Instalando ONLYOFFICE Desktop Editors (Flatpak)...${NC}"
-if command -v flatpak &>/dev/null; then
-    sudo flatpak install -y --noninteractive flathub org.onlyoffice.desktopeditors 2>/dev/null || \
-    run_as_user flatpak install -y --noninteractive flathub org.onlyoffice.desktopeditors 2>/dev/null || true
-fi
 cat > "$REAL_HOME/.local/share/applications/office.desktop" << EOF
 [Desktop Entry]
 Name=Office
-GenericName=Suite de Oficina
-Comment=ONLYOFFICE Desktop Editors
 Exec=flatpak run org.onlyoffice.desktopeditors %U
 Icon=$APP_ICON_DIR/office.svg
 Terminal=false
 Type=Application
 Categories=Office;
-StartupNotify=true
 EOF
 
-# 6. Safari y Finder (Thunar)
 cat > "$REAL_HOME/.local/share/applications/safari.desktop" << EOF
 [Desktop Entry]
 Name=Safari
-GenericName=Navegador Web
-Comment=Firefox personalizado como Safari
 Exec=firefox %u
 Icon=$APP_ICON_DIR/safari.svg
 Terminal=false
 Type=Application
 Categories=Network;WebBrowser;
-StartupNotify=true
 EOF
 
-if [ -f "/usr/share/applications/thunar.desktop" ]; then
-    cp "/usr/share/applications/thunar.desktop" "$REAL_HOME/.local/share/applications/finder.desktop"
-    sed -i 's/^Name=.*/Name=Finder/g; s/^Icon=.*/Icon=system-file-manager/g' "$REAL_HOME/.local/share/applications/finder.desktop"
-fi
-
 chmod +x "$REAL_HOME/.local/share/applications/"*.desktop 2>/dev/null || true
-gtk-update-icon-cache -f "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/dev/null || true
-
-echo -e "${GREEN}   ✓ LocalSend, Apple TV, Apple Music, Office y Safari instalados${NC}"
+echo -e "${GREEN}   ✓ Aplicaciones e iconos listos${NC}"
 
 # =============================================================================
-# PASO 7: WALLPAPERS DINÁMICOS Y MODO OSCURO AUTOMÁTICO
+# PASO 8: WALLPAPERS DINÁMICOS Y MODO OSCURO AUTOMÁTICO (SIN SOBRESCRIBIR TEMA)
 # =============================================================================
-echo -e "\n${YELLOW}🌅 [7/12] Instalando Wallpapers Dinámicos y Modo Oscuro Automático...${NC}"
+echo -e "\n${YELLOW}🌅 [8/12] Configurando Wallpapers Dinámicos y Modo Oscuro Automático...${NC}"
 
 BG_DIR="/usr/share/backgrounds/macos-dynamic"
-sudo mkdir -p "$BG_DIR" /usr/share/xfce4/backdrops
-
 if [ ! -s "$BG_DIR/mojave-day.jpg" ]; then
     sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/linuxdotexe/nordic-wallpapers/master/wallpapers/ign_macos.png" -o "$BG_DIR/mojave-day.jpg" || true
 fi
@@ -492,40 +495,31 @@ if [ ! -s "$BG_DIR/mojave-night.jpg" ]; then
     sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/aynp/dracula-wallpapers/main/os/macos-big-sur-night.jpg" -o "$BG_DIR/mojave-night.jpg" || true
 fi
 
-sudo ln -sf "$BG_DIR/mojave-day.jpg" /usr/share/xfce4/backdrops/macos-mojave-day.jpg 2>/dev/null || true
-sudo ln -sf "$BG_DIR/mojave-night.jpg" /usr/share/xfce4/backdrops/macos-mojave-night.jpg 2>/dev/null || true
-
-cat > "$REAL_HOME/.local/bin/macos-day-night-xfce" << 'EOF'
+cat > "$REAL_HOME/.local/bin/macos-day-night-xfce" << EOF
 #!/usr/bin/env bash
-HOUR=$(date +%-H)
-if [ "$HOUR" -ge 6 ] && [ "$HOUR" -lt 18 ]; then
+HOUR=\$(date +%-H)
+if [ "\$HOUR" -ge 6 ] && [ "\$HOUR" -lt 18 ]; then
     WP="/usr/share/backgrounds/macos-dynamic/mojave-day.jpg"
-    THEME_SUFFIX="Light"
+    TARGET_THEME="$GTK_THEME_LIGHT"
 else
     WP="/usr/share/backgrounds/macos-dynamic/mojave-night.jpg"
-    THEME_SUFFIX="Dark"
+    TARGET_THEME="$GTK_THEME_DARK"
 fi
 
-if [ -s "$WP" ]; then
-    for prop in $(xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep -E "last-image|image-path"); do
-        xfconf-query -c xfce4-desktop -p "$prop" -s "$WP" 2>/dev/null || true
+if [ -s "\$WP" ]; then
+    for prop in \$(xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep -E "last-image|image-path"); do
+        xfconf-query -c xfce4-desktop -p "\$prop" -s "\$WP" 2>/dev/null || true
     done
 fi
 
-for prefix in "MacTahoe" "WhiteSur"; do
-    if [ -d "$HOME/.themes/${prefix}-${THEME_SUFFIX}" ] || [ -d "/usr/share/themes/${prefix}-${THEME_SUFFIX}" ]; then
-        xfconf-query -c xsettings -p /Net/ThemeName -s "${prefix}-${THEME_SUFFIX}" 2>/dev/null || true
-        xfconf-query -c xfwm4 -p /general/theme -s "${prefix}-${THEME_SUFFIX}" 2>/dev/null || true
-        break
-    fi
-done
+xfconf-query -c xsettings -p /Net/ThemeName -s "\$TARGET_THEME" 2>/dev/null || true
+xfconf-query -c xfwm4 -p /general/theme -s "\$TARGET_THEME" 2>/dev/null || true
 EOF
 chmod +x "$REAL_HOME/.local/bin/macos-day-night-xfce"
 
 cat > "$REAL_HOME/.config/systemd/user/macos-day-night.service" << EOF
 [Unit]
 Description=Sincronizar Wallpaper y Modo Oscuro XFCE
-
 [Service]
 Type=oneshot
 ExecStart=$REAL_HOME/.local/bin/macos-day-night-xfce
@@ -534,12 +528,10 @@ EOF
 cat > "$REAL_HOME/.config/systemd/user/macos-day-night.timer" << 'EOF'
 [Unit]
 Description=Timer horario Wallpaper XFCE
-
 [Timer]
 OnBootSec=1min
 OnUnitActiveSec=15min
 Persistent=true
-
 [Install]
 WantedBy=timers.target
 EOF
@@ -548,19 +540,19 @@ run_as_user systemctl --user daemon-reload 2>/dev/null || true
 run_as_user systemctl --user enable --now macos-day-night.timer 2>/dev/null || true
 run_as_user "$REAL_HOME/.local/bin/macos-day-night-xfce" 2>/dev/null || true
 
-echo -e "${GREEN}   ✓ Wallpapers dinámicos activos en XFCE${NC}"
+echo -e "${GREEN}   ✓ Wallpapers dinámicos sincronizados con $GTK_THEME_LIGHT / $GTK_THEME_DARK${NC}"
 
 # =============================================================================
-# PASO 8: ROFI SPOTLIGHT Y ACERCA DE ESTE MAC
+# PASO 9: ROFI SPOTLIGHT, ACERCA DE ESTE MAC Y HOSTNAME
 # =============================================================================
-echo -e "\n${YELLOW}🔍 [8/12] Configurando Rofi Spotlight y 'Acerca de este Mac'...${NC}"
+echo -e "\n${YELLOW}💻 [9/12] Configurando Rofi Spotlight, 'Acerca de este Mac' y Hostname...${NC}"
 
 cat > "$REAL_HOME/.config/rofi/config.rasi" << 'EOF'
 configuration {
     modi: "drun,run,filebrowser";
     show-icons: true;
     display-drun: "🔍 Spotlight";
-    font: "SF Pro Display 13";
+    font: "SF Pro Text 13";
     drun-display-format: "{name}";
 }
 window { width: 620px; border: 1px; border-color: #ffffff33; border-radius: 14px; background-color: #1e1e1ee6; padding: 16px; }
@@ -638,79 +630,18 @@ EOF
 chmod +x "$REAL_HOME/.local/bin/about-this-mac"
 sudo ln -sf "$REAL_HOME/.local/bin/about-this-mac" /usr/local/bin/about-this-mac 2>/dev/null || true
 
-echo -e "${GREEN}   ✓ Rofi Spotlight y 'Acerca de este Mac' listos${NC}"
-
-# =============================================================================
-# PASO 9: CAMBIO DE HOSTNAME INCONDICIONAL Y SONIDOS BIG SUR
-# =============================================================================
-echo -e "\n${YELLOW}💻 [9/12] Configurando identidad del equipo (Hostname) y sonidos Big Sur...${NC}"
-
 NEW_HOSTNAME="MacBook-Neo"
-CURRENT_HOSTNAME=$(hostname 2>/dev/null || cat /etc/hostname)
+sudo hostnamectl set-hostname "$NEW_HOSTNAME" 2>/dev/null || true
+echo "$NEW_HOSTNAME" | sudo tee /etc/hostname > /dev/null 2>/dev/null || true
+sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts 2>/dev/null || true
 
-if [ "$CURRENT_HOSTNAME" != "$NEW_HOSTNAME" ]; then
-    sudo hostnamectl set-hostname "$NEW_HOSTNAME" 2>/dev/null || true
-    echo "$NEW_HOSTNAME" | sudo tee /etc/hostname > /dev/null 2>/dev/null || true
-    sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts 2>/dev/null || true
-    grep -q "127.0.1.1" /etc/hosts 2>/dev/null || echo -e "127.0.1.1\t$NEW_HOSTNAME" | sudo tee -a /etc/hosts > /dev/null 2>/dev/null || true
-fi
-echo -e "${GREEN}   ✓ Nombre del host actualizado a: $NEW_HOSTNAME${NC}"
-
-# Sonidos macOS Big Sur
-SOUNDS_DIR="$REAL_HOME/.local/share/sounds"
-if [ ! -d "$SOUNDS_DIR/bigsur" ]; then
-    ZIP_URL="https://github.com/gxanshu/macos-bigsur-sound-theme-linux/archive/refs/heads/main.zip"
-    if curl -sL "$ZIP_URL" --max-time 60 -o "/tmp/bigsur.zip" 2>/dev/null && [ -s "/tmp/bigsur.zip" ]; then
-        unzip -q -o "/tmp/bigsur.zip" -d "/tmp/bigsur-extract" 2>/dev/null || true
-        [ -d "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/theme/bigsur" ] && \
-            cp -r "/tmp/bigsur-extract/macos-bigsur-sound-theme-linux-main/theme/bigsur" "$SOUNDS_DIR/" 2>/dev/null || true
-        rm -rf "/tmp/bigsur.zip" "/tmp/bigsur-extract"
-    fi
-fi
-run_as_user xfconf-query -c xsettings -p /Net/SoundThemeName -n -t string -s "bigsur" 2>/dev/null || true
-
-cat > "$REAL_HOME/.config/autostart/macos-startup-chime.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=macOS Startup Chime
-Exec=sh -c "paplay /usr/share/sounds/freedesktop/stereo/service-login.oga 2>/dev/null || true"
-X-GNOME-Autostart-enabled=true
-EOF
+echo -e "${GREEN}   ✓ Spotlight, Acerca de este Mac y Hostname ($NEW_HOSTNAME) configurados${NC}"
 
 # =============================================================================
-# PASO 10: THUNAR, TERMINAL, SCROLL NATURAL Y ATAJOS DE TECLADO
+# PASO 10: ATAJOS DE TECLADO, THUNAR, TERMINAL Y GESTOS FUSUMA
 # =============================================================================
-echo -e "\n${YELLOW}⌨️  [10/12] Configurando Thunar, Terminal, Scroll Natural y Atajos macOS...${NC}"
+echo -e "\n${YELLOW}⌨️  [10/12] Configurando Atajos de Teclado, Terminal y Gestos...${NC}"
 
-run_as_user xfconf-query -c thunar -p /misc-default-view -n -t string -s "THUNAR_VIEW_ICON" 2>/dev/null || true
-run_as_user xfconf-query -c thunar -p /misc-single-click -n -t bool -s false 2>/dev/null || true
-
-for dev in $(xinput list --id-only 'Touchpad' 'touchpad' 2>/dev/null); do
-    xinput set-prop "$dev" "libinput Tapping Enabled" 1 2>/dev/null || true
-    xinput set-prop "$dev" "libinput Natural Scrolling Enabled" 1 2>/dev/null || true
-done
-
-mkdir -p "$REAL_HOME/.config/xfce4/terminal"
-cat > "$REAL_HOME/.config/xfce4/terminal/terminalrc" << 'EOF'
-[Configuration]
-FontName=SF Mono Regular 12
-ColorForeground=#e6e6e6
-ColorBackground=#1e1e1e
-ColorBold=#ffffff
-MiscCursorShape=TERMINAL_CURSOR_SHAPE_IBEAM
-MiscCursorBlinks=FALSE
-EOF
-
-cat > "$REAL_HOME/.config/gtk-3.0/bookmarks" << EOF
-file://$REAL_HOME/Desktop Desktop
-file://$REAL_HOME/Documents Documents
-file://$REAL_HOME/Downloads Downloads
-file://$REAL_HOME/Music Music
-file://$REAL_HOME/Pictures Pictures
-file://$REAL_HOME/Videos Movies
-EOF
-
-# Scripts auxiliares de ventanas
 cat > "$REAL_HOME/.local/bin/macos-center-window" << 'EOF'
 #!/usr/bin/env bash
 WIN_ID=$(xdotool getactivewindow 2>/dev/null)
@@ -744,47 +675,37 @@ if [ -n "$WIN_PID" ] && [ "$WIN_PID" -gt 100 ]; then
     kill -15 "$WIN_PID" 2>/dev/null || true
 fi
 EOF
-
 chmod +x "$REAL_HOME/.local/bin/macos-"*
 
-# Atajos de aplicaciones y comandos
-xfce_set_keybinding "$REAL_HOME/.local/bin/macos-spotlight" "<Primary>space"
-xfce_set_keybinding "$REAL_HOME/.local/bin/about-this-mac" "<Super>i"
-xfce_set_keybinding "$REAL_HOME/.local/bin/macos-center-window" "<Super>c"
-xfce_set_keybinding "$REAL_HOME/.local/bin/macos-quit-app" "<Super>q"
-xfce_set_keybinding "xfce4-popup-whiskermenu" "Super_L"
-xfce_set_keybinding "exo-open --launch FileManager" "<Super>e"
-xfce_set_keybinding "xfce4-terminal" "<Primary><Alt>t"
-xfce_set_keybinding "xkill" "<Primary><Alt>Escape"
-xfce_set_keybinding "light-locker-command -l" "<Super>l"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Primary>space" "string" "$REAL_HOME/.local/bin/macos-spotlight"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Super>i" "string" "$REAL_HOME/.local/bin/about-this-mac"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Super>c" "string" "$REAL_HOME/.local/bin/macos-center-window"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Super>q" "string" "$REAL_HOME/.local/bin/macos-quit-app"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/Super_L" "string" "xfce4-popup-whiskermenu"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Super>e" "string" "exo-open --launch FileManager"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Primary><Alt>t" "string" "xfce4-terminal"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Primary><Alt>Escape" "string" "xkill"
+xfconf_set "xfce4-keyboard-shortcuts" "/commands/custom/<Super>l" "string" "light-locker-command -l"
 
-# Atajos de ventanas (XFWM4)
-for pair in \
-    "<Super>m:hide_window_key" \
-    "<Super>Up:maximize_window_key" \
-    "<Super>d:show_desktop_key" \
-    "<Super>1:workspace_1_key" \
-    "<Super>2:workspace_2_key" \
-    "<Super>3:workspace_3_key" \
-    "<Primary><Alt>Left:left_workspace_key" \
-    "<Primary><Alt>Right:right_workspace_key"; do
-    KEY="${pair%%:*}"
-    VAL="${pair##*:}"
-    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/$KEY" -n -t string -s "$VAL" 2>/dev/null || \
-    run_as_user xfconf-query -c xfce4-keyboard-shortcuts -p "/xfwm4/custom/$KEY" -s "$VAL" 2>/dev/null || true
-done
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>m" "string" "hide_window_key"
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>Up" "string" "maximize_window_key"
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>d" "string" "show_desktop_key"
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>1" "string" "workspace_1_key"
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>2" "string" "workspace_2_key"
+xfconf_set "xfce4-keyboard-shortcuts" "/xfwm4/custom/<Super>3" "string" "workspace_3_key"
 
-echo -e "${GREEN}   ✓ Atajos de teclado configurados${NC}"
+mkdir -p "$REAL_HOME/.config/xfce4/terminal"
+cat > "$REAL_HOME/.config/xfce4/terminal/terminalrc" << 'EOF'
+[Configuration]
+FontName=SF Mono Regular 11
+ColorForeground=#e6e6e6
+ColorBackground=#1e1e1e
+ColorBold=#ffffff
+MiscCursorShape=TERMINAL_CURSOR_SHAPE_IBEAM
+MiscCursorBlinks=FALSE
+EOF
 
-# =============================================================================
-# PASO 11: GESTOS FUSUMA Y PERMISOS FINALES
-# =============================================================================
-echo -e "\n${YELLOW}🔒 [11/12] Configurando Gestos Fusuma y permisos finales...${NC}"
-
-if ! groups "$REAL_USER" | grep -q '\binput\b'; then
-    sudo usermod -aG input "$REAL_USER" 2>/dev/null || true
-fi
-
+sudo usermod -aG input "$REAL_USER" 2>/dev/null || true
 mkdir -p "$REAL_HOME/.config/fusuma"
 cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF'
 swipe:
@@ -799,36 +720,36 @@ swipe:
       command: 'xdotool key super+d'
 EOF
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$WORKDIR" 2>/dev/null || true
+echo -e "${GREEN}   ✓ Atajos, Terminal y Gestos configurados${NC}"
 
 # =============================================================================
-# PASO 12: RECARGA EN VIVO DE XFWM4, PANEL Y PLANK DOCK
+# PASO 11: PERMISOS Y CACHÉ DE ICONOS
 # =============================================================================
-echo -e "\n${YELLOW}🔄 [12/12] Recargando XFWM4, Panel Superior y lanzando Plank Dock...${NC}"
+echo -e "\n${YELLOW}🔒 [11/12] Actualizando cachés de iconos y corrigiendo propiedad...${NC}"
 
-# Recargar orden de botones CHM| y tema en XFWM4
-run_as_user xfconf-query -c xfwm4 -p /general/button_layout -s "CHM|" 2>/dev/null || true
-if command -v xfwm4 &>/dev/null; then
-    run_as_user xfwm4 --replace >/dev/null 2>&1 &
-fi
+sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$REAL_HOME/.gtkrc-2.0" 2>/dev/null || true
+sudo gtk-update-icon-cache -f "/usr/share/icons/$ICON_THEME_NAME" 2>/dev/null || true
+sudo gtk-update-icon-cache -f "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
-# Reiniciar panel superior de XFCE
-run_as_user xfce4-panel -r >/dev/null 2>&1 || run_as_user xfce4-panel >/dev/null 2>&1 &
+# =============================================================================
+# PASO 12: RECARGA DE XFSETTINGS, XFWM4, PANEL Y PLANK EN VIVO
+# =============================================================================
+echo -e "\n${YELLOW}🔄 [12/12] Recargando demonios de XFCE en vivo...${NC}"
 
-# Lanzar Plank Dock inmediatamente en la sesión actual
+run_as_user xfsettingsd --replace >/dev/null 2>&1 &
+sleep 1
+run_as_user xfwm4 --replace >/dev/null 2>&1 &
+sleep 1
+run_as_user xfce4-panel -r >/dev/null 2>&1 || true
+
 pkill plank 2>/dev/null || true
 sleep 1
-if command -v plank &>/dev/null; then
-    run_as_user nohup plank >/dev/null 2>&1 &
-fi
+run_as_user nohup plank >/dev/null 2>&1 &
 
 echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║         ✅ INSTALACIÓN XFCE COMPLETADA CON ÉXITO                 ║${NC}"
+echo -e "${CYAN}║         ✅ INSTALACIÓN XFCE COMPLETADA Y VERIFICADA              ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
-
-echo -e "\n${GREEN}✨ Correcciones aplicadas en este MacFCE.sh:${NC}"
-echo -e "   • ${YELLOW}Botones de ventana:${NC} Ordenados a la izquierda con sintaxis XFWM4 'CHM|' (Cerrar, Minimizar, Maximizar)."
-echo -e "   • ${YELLOW}Hostname:${NC} Cambiado directamente a 'MacBook-Neo' en /etc/hostname y /etc/hosts."
-echo -e "   • ${YELLOW}Plank Dock:${NC} Instalado, configurado en dconf y ejecutándose en la parte inferior."
-echo -e "   • ${YELLOW}Plymouth:${NC} Tema Apple Mac Plymouth clonado y activado en initramfs."
-echo -e "   • ${YELLOW}Apps instaladas:${NC} LocalSend (.AppImage), Apple TV / IPTVnator (.AppImage + canales), Apple Music / Zuno (.AppImage) y Office / ONLYOFFICE (Flatpak).\n"
+echo -e "   • ${GREEN}Tema GTK activo:${NC} $GTK_THEME_DARK"
+echo -e "   • ${GREEN}Tema de Iconos activo:${NC} $ICON_THEME_NAME"
+echo -e "   • ${GREEN}Tema de Cursor activo:${NC} $CURSOR_THEME_NAME"
+echo -e "   • ${GREEN}Tema de Sonido activo:${NC} bigsur\n"
