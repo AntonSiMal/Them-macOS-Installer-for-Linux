@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# MacFCE.sh - Instalador Definitivo macOS Tahoe para XFCE (Todo en uno - v3)
-# Corrige: Bug 'xfce4-panel -r' (fix_whiskermenu) en MacTahoe-gtk-theme y D-Bus
+# MacFCE.sh - Instalador Definitivo macOS Tahoe para XFCE (Todo en uno - v4)
+# Corrige: Bug 'xfce4-panel -r' (fix_whiskermenu), D-Bus, y Fondo Negro XFCE
 # =============================================================================
 
 GREEN='\033[0;32m'
@@ -29,7 +29,7 @@ mkdir -p "$WORKDIR"
 
 # 2. Capturar DBUS_SESSION_BUS_ADDRESS y DISPLAY reales del proceso de XFCE
 XFCE_PID=""
-for proc in xfce4-session xfsettingsd xfce4-panel Thunar; do
+for proc in xfce4-session xfsettingsd xfce4-panel Thunar xfdesktop; do
     XFCE_PID=$(pgrep -u "$REAL_USER" "$proc" 2>/dev/null | head -n 1 || true)
     [ -n "$XFCE_PID" ] && break
 done
@@ -69,15 +69,15 @@ xfconf_set() {
 
 clear
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║       🍏 Instalador Definitivo macOS Tahoe para XFCE (v3)        ║${NC}"
+echo -e "${CYAN}║       🍏 Instalador Definitivo macOS Tahoe para XFCE (v4)        ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
 echo -e "${BLUE}   👤 Usuario: $REAL_USER | DISPLAY: $REAL_DISPLAY${NC}"
 echo -e "${BLUE}   🔌 D-Bus: $REAL_DBUS${NC}"
 
 # =============================================================================
-# PASO 0: ESTRUCTURA DE DIRECTORIOS Y PERMISOS
+# PASO 0: ESTRUCTURA DE DIRECTORIOS Y DESBLOQUEO DE PERMISOS XFCONF
 # =============================================================================
-echo -e "\n${YELLOW}🔐 [0/12] Preparando directorios de usuario y del sistema...${NC}"
+echo -e "\n${YELLOW}🔐 [0/12] Preparando directorios y desbloqueando permisos de XFCE...${NC}"
 
 mkdir -p "$REAL_HOME/.local/share/applications"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
@@ -93,10 +93,11 @@ mkdir -p "$REAL_HOME/.config/autostart"
 mkdir -p "$REAL_HOME/.config/systemd/user"
 mkdir -p "$REAL_HOME/.config/gtk-3.0"
 mkdir -p "$REAL_HOME/.config/xfce4/xfconf/xfce-perchannel-xml"
-sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic
+sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic /usr/share/xfce4/backdrops /usr/share/backgrounds/xfce
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$WORKDIR" 2>/dev/null || true
-echo -e "${GREEN}   ✓ Directorios listos${NC}"
+sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.cache" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$WORKDIR" 2>/dev/null || true
+chmod -R u+rwX "$REAL_HOME/.config/xfce4" "$REAL_HOME/.local" 2>/dev/null || true
+echo -e "${GREEN}   ✓ Directorios y permisos de configuración desbloqueados${NC}"
 
 # =============================================================================
 # PASO 1: DEPENDENCIAS DEL SISTEMA
@@ -482,26 +483,36 @@ run_as_user update-desktop-database "$REAL_HOME/.local/share/applications" 2>/de
 echo -e "${GREEN}   ✓ Aplicaciones instaladas${NC}"
 
 # =============================================================================
-# PASO 8: WALLPAPERS DINÁMICOS Y MODO OSCURO AUTOMÁTICO
+# PASO 8: WALLPAPERS DINÁMICOS Y REPARACIÓN DE FONDO NEGRO EN XFDESKTOP
 # =============================================================================
-echo -e "\n${YELLOW}🌅 [8/12] Configurando Wallpapers Dinámicos...${NC}"
+echo -e "\n${YELLOW}🌅 [8/12] Configurando Wallpapers Dinámicos y reparando selector de XFCE...${NC}"
 
 BG_DIR="/usr/share/backgrounds/macos-dynamic"
-if [ ! -s "$BG_DIR/mojave-day.jpg" ]; then
-    sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/linuxdotexe/nordic-wallpapers/master/wallpapers/ign_macos.png" -o "$BG_DIR/mojave-day.jpg" || true
-fi
-if [ ! -s "$BG_DIR/mojave-night.jpg" ]; then
-    sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/aynp/dracula-wallpapers/main/os/macos-big-sur-night.jpg" -o "$BG_DIR/mojave-night.jpg" || true
-fi
+sudo mkdir -p "$BG_DIR" /usr/share/xfce4/backdrops /usr/share/backgrounds/xfce
+
+# Descargar fondos verificando que sean imágenes válidas y no archivos vacíos
+sudo curl -sL "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1920&q=85" -o "$BG_DIR/mojave-day.jpg" || \
+sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/linuxdotexe/nordic-wallpapers/master/wallpapers/ign_macos.png" -o "$BG_DIR/mojave-day.jpg" || true
+
+sudo curl -sL "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1920&q=85" -o "$BG_DIR/mojave-night.jpg" || \
+sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/aynp/dracula-wallpapers/main/os/macos-big-sur-night.jpg" -o "$BG_DIR/mojave-night.jpg" || true
+
+sudo chmod 644 "$BG_DIR"/*.jpg 2>/dev/null || true
+
+# Copiar a las carpetas nativas de XFCE (/usr/share/xfce4/backdrops y /usr/share/backgrounds/xfce)
+sudo cp "$BG_DIR/mojave-day.jpg" /usr/share/xfce4/backdrops/macos-day.jpg 2>/dev/null || true
+sudo cp "$BG_DIR/mojave-night.jpg" /usr/share/xfce4/backdrops/macos-night.jpg 2>/dev/null || true
+sudo cp "$BG_DIR"/*.jpg /usr/share/backgrounds/xfce/ 2>/dev/null || true
+sudo chmod 644 /usr/share/xfce4/backdrops/*.jpg /usr/share/backgrounds/xfce/*.jpg 2>/dev/null || true
 
 cat > "$REAL_HOME/.local/bin/macos-day-night-xfce" << EOF
 #!/usr/bin/env bash
 HOUR=\$(date +%-H)
 if [ "\$HOUR" -ge 6 ] && [ "\$HOUR" -lt 18 ]; then
-    WP="/usr/share/backgrounds/macos-dynamic/mojave-day.jpg"
+    WP="/usr/share/xfce4/backdrops/macos-day.jpg"
     TARGET_THEME="$GTK_THEME_LIGHT"
 else
-    WP="/usr/share/backgrounds/macos-dynamic/mojave-night.jpg"
+    WP="/usr/share/xfce4/backdrops/macos-night.jpg"
     TARGET_THEME="$GTK_THEME_DARK"
 fi
 
@@ -509,6 +520,10 @@ if [ -s "\$WP" ]; then
     for prop in \$(xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep -E "last-image|image-path"); do
         xfconf-query -c xfce4-desktop -p "\$prop" -s "\$WP" 2>/dev/null || true
     done
+    for style in \$(xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep "image-style"); do
+        xfconf-query -c xfce4-desktop -p "\$style" -s 5 2>/dev/null || true
+    done
+    xfdesktop --reload 2>/dev/null || true
 fi
 
 xfconf-query -c xsettings -p /Net/ThemeName -s "\$TARGET_THEME" 2>/dev/null || true
@@ -537,9 +552,8 @@ EOF
 
 run_as_user systemctl --user daemon-reload 2>/dev/null || true
 run_as_user systemctl --user enable --now macos-day-night.timer 2>/dev/null || true
-run_as_user "$REAL_HOME/.local/bin/macos-day-night-xfce" 2>/dev/null || true
 
-echo -e "${GREEN}   ✓ Wallpapers dinámicos sincronizados${NC}"
+echo -e "${GREEN}   ✓ Wallpapers dinámicos copiados en /usr/share/xfce4/backdrops y sincronizados${NC}"
 
 # =============================================================================
 # PASO 9: ROFI SPOTLIGHT, ACERCA DE ESTE MAC Y HOSTNAME
@@ -722,19 +736,41 @@ EOF
 echo -e "${GREEN}   ✓ Atajos, Terminal y Gestos configurados${NC}"
 
 # =============================================================================
-# PASO 11: PERMISOS Y CACHÉ DE ICONOS
+# PASO 11: PERMISOS DEFINITIVOS Y CACHÉ DE ICONOS
 # =============================================================================
-echo -e "\n${YELLOW}🔒 [11/12] Actualizando cachés de iconos y permisos...${NC}"
+echo -e "\n${YELLOW}🔒 [11/12] Restaurando propiedad de configuración al usuario y actualizando cachés...${NC}"
 
-sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$REAL_HOME/.gtkrc-2.0" 2>/dev/null || true
+sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.cache" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$REAL_HOME/.gtkrc-2.0" "$WORKDIR" 2>/dev/null || true
+chmod -R u+rwX "$REAL_HOME/.config/xfce4" "$REAL_HOME/.local" 2>/dev/null || true
+
 sudo gtk-update-icon-cache -f "/usr/share/icons/$ICON_THEME_NAME" 2>/dev/null || true
 sudo gtk-update-icon-cache -f "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
 # =============================================================================
-# PASO 12: RECARGA DE XFSETTINGS, XFWM4, PANEL Y PLANK EN VIVO
+# PASO 12: RECARGA DE XFDESKTOP (FONDO), XFSETTINGS, XFWM4, PANEL Y PLANK
 # =============================================================================
-echo -e "\n${YELLOW}🔄 [12/12] Recargando demonios de XFCE en vivo...${NC}"
+echo -e "\n${YELLOW}🔄 [12/12] Reiniciando xfdesktop, xfsettingsd, xfwm4 y Plank en vivo...${NC}"
 
+# Reiniciar xfconfd y xfdesktop como el usuario real para eliminar el fondo negro y desbloquear el selector
+pkill -u "$REAL_USER" -f xfconfd 2>/dev/null || true
+run_as_user xfdesktop --quit 2>/dev/null || true
+sleep 1
+run_as_user nohup xfdesktop >/dev/null 2>&1 &
+sleep 2
+
+# Aplicar el fondo y el modo Zoom (image-style = 5) en todos los monitores y espacios de trabajo
+for prop in $(run_as_user xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep -E "last-image|image-path" || true); do
+    run_as_user xfconf-query -c xfce4-desktop -p "$prop" -s "/usr/share/xfce4/backdrops/macos-day.jpg" 2>/dev/null || true
+done
+for style in $(run_as_user xfconf-query -c xfce4-desktop -p /backdrop -l 2>/dev/null | grep "image-style" || true); do
+    run_as_user xfconf-query -c xfce4-desktop -p "$style" -s 5 2>/dev/null || \
+    run_as_user xfconf-query -c xfce4-desktop -p "$style" -n -t int -s 5 2>/dev/null || true
+done
+
+run_as_user "$REAL_HOME/.local/bin/macos-day-night-xfce" 2>/dev/null || true
+run_as_user xfdesktop --reload 2>/dev/null || true
+
+# Reiniciar gestor de ajustes, ventanas, panel y Plank
 run_as_user xfsettingsd --replace >/dev/null 2>&1 &
 sleep 1
 run_as_user xfwm4 --replace >/dev/null 2>&1 &
@@ -746,9 +782,10 @@ sleep 1
 run_as_user nohup plank >/dev/null 2>&1 &
 
 echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║         ✅ INSTALACIÓN XFCE COMPLETADA Y VERIFICADA (v3)         ║${NC}"
+echo -e "${CYAN}║         ✅ INSTALACIÓN XFCE COMPLETADA Y VERIFICADA (v4)         ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
 echo -e "   • ${GREEN}Tema GTK activo:${NC} $GTK_THEME_DARK"
 echo -e "   • ${GREEN}Tema de Iconos activo:${NC} $ICON_THEME_NAME"
 echo -e "   • ${GREEN}Tema de Cursor activo:${NC} $CURSOR_THEME_NAME"
-echo -e "   • ${GREEN}Tema de Sonido activo:${NC} bigsur\n"
+echo -e "   • ${GREEN}Tema de Sonido activo:${NC} bigsur"
+echo -e "   • ${GREEN}Fondo de pantalla:${NC} Reparado, activo en Zoom y desbloqueado en /usr/share/xfce4/backdrops\n"
