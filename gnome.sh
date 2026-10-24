@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# MacGNOME.sh - Instalador Definitivo macOS Tahoe para GNOME (Todo en uno)
+# MacGNOME.sh - Instalador Definitivo macOS Tahoe para GNOME (Todo en uno - v2)
 # Soporta: Ubuntu GNOME / Debian GNOME / Zorin OS / Pop!_OS
-# Incluye: GTK3/GTK4 (Libadwaita), Iconos, Cursores, Sonidos Big Sur,
-#          Liquid Glass, Magic Lamp, Dash-to-Dock, Wallpapers Dinámicos XML,
-#          Quick Look (Sushi), Rofi Spotlight, Apps y 50+ Atajos macOS.
+# Incluye: Manzana en esquina superior izquierda (#panelActivities + -i apple),
+#          Color de resalte Azul (#0A84FF), Tema completo de Terminal macOS,
+#          GTK3/GTK4 (Libadwaita), Iconos, Cursores, Sonidos Big Sur,
+#          Liquid Glass, Magic Lamp, Dash-to-Dock y 50+ Atajos macOS.
 # =============================================================================
 
 GREEN='\033[0;32m'
@@ -46,7 +47,6 @@ REAL_DBUS="${REAL_DBUS:-unix:path=/run/user/$REAL_UID/bus}"
 REAL_DISPLAY="${REAL_DISPLAY:-${DISPLAY:-:0}}"
 REAL_WAYLAND="${REAL_WAYLAND:-${WAYLAND_DISPLAY:-}}"
 
-# Función infalible para ejecutar gsettings, dconf y gnome-extensions en la sesión del usuario
 run_as_user() {
     if [ "$(id -u)" -eq 0 ]; then
         sudo -u "$REAL_USER" env \
@@ -66,7 +66,7 @@ run_as_user() {
 
 clear
 echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║         🍏 Instalador Definitivo macOS Tahoe para GNOME          ║${NC}"
+echo -e "${CYAN}║       🍏 Instalador Definitivo macOS Tahoe para GNOME (v2)       ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
 echo -e "${BLUE}   👤 Usuario: $REAL_USER (UID: $REAL_UID) | DISPLAY: $REAL_DISPLAY${NC}"
 echo -e "${BLUE}   🔌 D-Bus: $REAL_DBUS${NC}"
@@ -81,6 +81,7 @@ mkdir -p "$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 mkdir -p "$REAL_HOME/.local/share/icons/hicolor/scalable/apps"
 mkdir -p "$REAL_HOME/.local/share/fonts"
 mkdir -p "$REAL_HOME/.local/share/sounds"
+mkdir -p "$REAL_HOME/.local/share/themes"
 mkdir -p "$REAL_HOME/.local/share/gnome-shell/extensions"
 mkdir -p "$REAL_HOME/.local/bin"
 mkdir -p "$REAL_HOME/.themes"
@@ -91,12 +92,21 @@ mkdir -p "$REAL_HOME/.config/systemd/user"
 mkdir -p "$REAL_HOME/.config/gtk-3.0"
 mkdir -p "$REAL_HOME/.config/gtk-4.0"
 mkdir -p "$REAL_HOME/.config/fusuma"
-sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic /usr/share/gnome-background-properties
+sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic /usr/share/gnome-background-properties /usr/share/pixmaps
+
+# Crear el SVG de la manzana antes de compilar y parchear temas
+cat > /tmp/apple-logo.svg << 'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
+  <path fill="#FFFFFF" d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.28-10.76-19.99-14.47-32.12-3.71-12.13-5.56-23.36-5.56-33.68 0-12.87 3.22-23.47 9.65-31.78 6.44-8.31 14.54-12.63 24.31-12.96 4.92 0 10.35 1.49 16.29 4.46 5.93 2.97 9.77 4.51 11.51 4.62 1.45 0 5.64-1.78 12.56-5.34 6.93-3.56 13.06-5.07 18.39-4.54 13.65 1.1 23.91 6.49 30.78 16.17-12.19 7.39-18.15 17.65-17.88 30.78.27 10.27 4.28 18.82 12.02 25.65 5.46 4.86 11.97 7.79 19.53 8.79-1.57 4.79-3.43 9.69-5.58 14.69zM119.22 31.01c0 8.05-2.94 15.56-8.82 22.53-7.09 8.28-15.65 13.05-24.91 12.3-.19-.96-.29-2.01-.29-3.15 0-7.73 3.25-15.99 9.75-23.23 3.11-3.51 7.06-6.42 11.85-8.73 4.79-2.31 9.33-3.59 13.62-3.84.13 1.42.2 2.79.2 4.12z"/>
+</svg>
+EOF
+sudo mv /tmp/apple-logo.svg /usr/share/pixmaps/apple-logo.svg
+sudo chmod 644 /usr/share/pixmaps/apple-logo.svg
 
 sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.cache" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$WORKDIR" 2>/dev/null || true
 chmod -R u+rwX "$REAL_HOME/.config" "$REAL_HOME/.local" 2>/dev/null || true
 
-echo -e "${GREEN}   ✓ Directorios y permisos listos${NC}"
+echo -e "${GREEN}   ✓ Directorios y logo de Apple listos${NC}"
 
 # =============================================================================
 # PASO 1: DEPENDENCIAS DEL SISTEMA, COMPILADORES GTK Y UTILIDADES GNOME
@@ -112,7 +122,7 @@ PKGS=(
     rofi qt5ct qt5-style-plugins dconf-cli plymouth plymouth-themes ufw flatpak
     python3 python3-gi gir1.2-gtk-3.0 libnotify-bin
     alsa-utils pulseaudio-utils sox libcanberra-gtk-module libcanberra-gtk3-module
-    gnome-shell-extensions gnome-tweaks gnome-sushi
+    gnome-terminal gnome-shell-extensions gnome-tweaks gnome-sushi
     gnome-shell-extension-dashtodock gnome-shell-extension-manager
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good
     gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
@@ -122,7 +132,6 @@ for pkg in "${PKGS[@]}"; do
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$pkg" >/dev/null 2>&1 || true
 done
 
-# Soporte FUSE indispensable para ejecutar LocalSend, Zuno e IPTVnator (.AppImage)
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2 >/dev/null 2>&1 || \
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libfuse2t64 >/dev/null 2>&1 || true
 
@@ -175,16 +184,16 @@ run_as_user gsettings set org.gnome.desktop.interface font-hinting 'slight'
 echo -e "${GREEN}   ✓ Fuentes Apple instaladas y activadas en GNOME${NC}"
 
 # =============================================================================
-# PASO 3: TEMA MACTAHOE (GTK3 + GTK4 LIBADWAITA + SHELL + GDM), ICONOS Y CURSOR
+# PASO 3: TEMA MACTAHOE (AZUL + MANZANA EN ESQUINA SUPERIOR IZQUIERDA)
 # =============================================================================
-echo -e "\n${YELLOW}🎨 [3/12] Compilando Tema MacTahoe (GTK3/GTK4/Shell/GDM), Iconos y Cursores...${NC}"
+echo -e "\n${YELLOW}🎨 [3/12] Compilando Tema MacTahoe (Resalte Azul + Manzana en Panel), Iconos y Cursores...${NC}"
 
 SCREEN_WIDTH=$(xrandr --current 2>/dev/null | grep '*' | head -1 | awk '{print $1}' | cut -d'x' -f1 || echo "1920")
 ICON_BOLD_FLAG=""
 [ "${SCREEN_WIDTH:-1920}" -ge 3840 ] && ICON_BOLD_FLAG="-b"
 
-# 3.1 Tema GTK + GNOME Shell + Libadwaita
-echo -e "${BLUE}   ⬇️  Descargando y compilando MacTahoe GTK/Shell Theme...${NC}"
+# 3.1 Tema GTK + GNOME Shell + Libadwaita (Con -i apple para la manzana y -t default para Azul)
+echo -e "${BLUE}   ⬇️  Descargando y compilando MacTahoe GTK/Shell Theme (Azul + Icono Apple)...${NC}"
 rm -rf /tmp/macos-gtk-theme
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-gtk-theme.git /tmp/macos-gtk-theme 2>/dev/null || \
 git clone --depth=1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git /tmp/macos-gtk-theme 2>/dev/null || true
@@ -193,17 +202,44 @@ if [ -d "/tmp/macos-gtk-theme" ]; then
     find /tmp/macos-gtk-theme -type f -name "*.sh" -exec sed -i 's/xfce4-panel -r/true/g' {} + 2>/dev/null || true
     chown -R "$REAL_USER:$REAL_GID" /tmp/macos-gtk-theme
 
-    # Instalar para el usuario incluyendo soporte Libadwaita (-l) para apps GTK4 de GNOME
-    run_as_user bash -c "cd /tmp/macos-gtk-theme && ./install.sh -d '$REAL_HOME/.themes' -c dark -c light -l --round" || \
-    run_as_user bash -c "cd /tmp/macos-gtk-theme && ./install.sh -d '$REAL_HOME/.themes' -c dark -c light" || true
+    # Compilar con -i apple (Manzana arriba a la izquierda), -t default (Azul) y -l (Libadwaita)
+    run_as_user bash -c "cd /tmp/macos-gtk-theme && ./install.sh -d '$REAL_HOME/.themes' -c dark -c light -t default -i apple -l --round" || \
+    run_as_user bash -c "cd /tmp/macos-gtk-theme && ./install.sh -d '$REAL_HOME/.themes' -c dark -c light -t default -i apple" || true
+
+    # Copiar también a ~/.local/share/themes y /usr/share/themes para que user-theme de GNOME 42-48 lo detecte siempre
+    cp -r "$REAL_HOME/.themes"/* "$REAL_HOME/.local/share/themes/" 2>/dev/null || true
     sudo cp -r "$REAL_HOME/.themes"/* /usr/share/themes/ 2>/dev/null || true
 
-    # Aplicar estilo macOS a la pantalla de login GDM (exclusivo de GNOME)
     if [ -f "/tmp/macos-gtk-theme/tweaks.sh" ]; then
-        ( cd /tmp/macos-gtk-theme && sudo ./tweaks.sh -g -b default >/dev/null 2>&1 ) || true
+        ( cd /tmp/macos-gtk-theme && sudo ./tweaks.sh -g -b default -i apple >/dev/null 2>&1 ) || true
     fi
     rm -rf /tmp/macos-gtk-theme
 fi
+
+# Inyectar CSS de la manzana directamente en gnome-shell.css para garantizar el logo en GNOME 45/46/47/48
+for shell_css in "$REAL_HOME/.local/share/themes"/*/gnome-shell/gnome-shell.css "$REAL_HOME/.themes"/*/gnome-shell/gnome-shell.css /usr/share/themes/*/gnome-shell/gnome-shell.css; do
+    if [ -f "$shell_css" ] && [[ "$shell_css" == *"Tahoe"* || "$shell_css" == *"WhiteSur"* ]]; then
+        sudo bash -c "cat >> '$shell_css'" << 'EOF'
+
+/* Forzar Logo de Apple en botón superior izquierdo (GNOME 40-48) */
+#panel #panelActivities.panel-button {
+    background-image: url("file:///usr/share/pixmaps/apple-logo.svg") !important;
+    background-repeat: no-repeat !important;
+    background-position: center center !important;
+    background-size: 16px 16px !important;
+    min-width: 44px !important;
+    color: transparent !important;
+}
+#panel #panelActivities.panel-button > *,
+#panel #panelActivities.panel-button .workspace-dot {
+    opacity: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+EOF
+    fi
+done
 
 GTK_THEME_DARK="MacTahoe-Dark"
 GTK_THEME_LIGHT="MacTahoe-Light"
@@ -220,7 +256,7 @@ for t in "MacTahoe-Light" "MacTahoe-light" "WhiteSur-Light" "WhiteSur-light"; do
     fi
 done
 
-# 3.2 Tema de Iconos
+# 3.2 Tema de Iconos (Con resalte azul por defecto)
 echo -e "${BLUE}   ⬇️  Descargando e instalando MacTahoe Icon Theme...${NC}"
 rm -rf /tmp/macos-icon-theme
 git clone --depth=1 https://github.com/vinceliuice/MacTahoe-icon-theme.git /tmp/macos-icon-theme 2>/dev/null || \
@@ -228,6 +264,7 @@ git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git /tmp/
 
 if [ -d "/tmp/macos-icon-theme" ]; then
     chown -R "$REAL_USER:$REAL_GID" /tmp/macos-icon-theme
+    run_as_user bash -c "cd /tmp/macos-icon-theme && ./install.sh -d '$REAL_HOME/.icons' -t default $ICON_BOLD_FLAG" || \
     run_as_user bash -c "cd /tmp/macos-icon-theme && ./install.sh -d '$REAL_HOME/.icons' $ICON_BOLD_FLAG" || true
     sudo cp -r "$REAL_HOME/.icons"/* /usr/share/icons/ 2>/dev/null || true
     rm -rf /tmp/macos-icon-theme
@@ -252,23 +289,28 @@ if [ -d "/tmp/macos-cursors/dist" ]; then
 fi
 CURSOR_THEME_NAME="WhiteSur-cursors"
 
-# Activar User Themes y aplicar Temas, Iconos, Cursores y Botones de Ventana (Izquierda)
-run_as_user gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com
+# 3.4 Configurar Color de Resalte AZUL (#0A84FF) en GNOME, GTK3 y GTK4
+run_as_user gsettings set org.gnome.desktop.interface accent-color 'blue'
 run_as_user gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME_DARK"
 run_as_user gsettings set org.gnome.desktop.wm.preferences theme "$GTK_THEME_DARK"
-run_as_user gsettings set org.gnome.shell.extensions.user-theme name "$GTK_THEME_DARK"
 run_as_user gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 run_as_user gsettings set org.gnome.desktop.interface icon-theme "$ICON_THEME_NAME"
 run_as_user gsettings set org.gnome.desktop.interface cursor-theme "$CURSOR_THEME_NAME"
 run_as_user gsettings set org.gnome.desktop.interface cursor-size 24
-
-# Ordenar botones de ventana estilo macOS: Cerrar, Minimizar, Maximizar a la izquierda
 run_as_user gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:'
 
-# Tematización Qt
-if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment 2>/dev/null; then
-    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment >/dev/null 2>&1 || true
-fi
+for css_file in "$REAL_HOME/.config/gtk-3.0/gtk.css" "$REAL_HOME/.config/gtk-4.0/gtk.css"; do
+    cat >> "$css_file" << 'EOF'
+
+/* Color de resalte Azul oficial de macOS (#0A84FF) */
+@define-color accent_color #0A84FF;
+@define-color accent_bg_color #0A84FF;
+@define-color accent_fg_color #FFFFFF;
+@define-color theme_selected_bg_color #0A84FF;
+@define-color theme_selected_fg_color #FFFFFF;
+selection { background-color: #0A84FF; color: #FFFFFF; }
+EOF
+done
 
 cat > "$REAL_HOME/.config/gtk-3.0/settings.ini" << EOF
 [Settings]
@@ -281,16 +323,19 @@ gtk-application-prefer-dark-theme=1
 gtk-decoration-layout=close,minimize,maximize:
 EOF
 
-echo -e "${GREEN}   ✓ Tema GTK/Shell ($GTK_THEME_DARK), Iconos ($ICON_THEME_NAME), Cursores y Botones aplicados${NC}"
+if ! grep -q "QT_QPA_PLATFORMTHEME=qt5ct" /etc/environment 2>/dev/null; then
+    echo "QT_QPA_PLATFORMTHEME=qt5ct" | sudo tee -a /etc/environment >/dev/null 2>&1 || true
+fi
+
+echo -e "${GREEN}   ✓ Tema ($GTK_THEME_DARK), Manzana Superior Izquierda y Resalte Azul aplicados${NC}"
 
 # =============================================================================
-# PASO 4: EXTENSIONES GNOME (LIQUID GLASS, MAGIC LAMP Y DASH TO DOCK)
+# PASO 4: EXTENSIONES GNOME (USER-THEME, LIQUID GLASS, MAGIC LAMP, DOCK)
 # =============================================================================
-echo -e "\n${YELLOW}🧩 [4/12] Instalando Liquid Glass, Magic Lamp Effect y configurando Dock...${NC}"
+echo -e "\n${YELLOW}🧩 [4/12] Activando User-Theme, Liquid Glass, Magic Lamp y Dock...${NC}"
 
 EXT_DIR="$REAL_HOME/.local/share/gnome-shell/extensions"
 
-# 4.1 Compiz Alike Magic Lamp Effect (Efecto Genio al minimizar en GNOME)
 rm -rf /tmp/magic-lamp
 git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git /tmp/magic-lamp 2>/dev/null || true
 if [ -d "/tmp/magic-lamp" ]; then
@@ -301,7 +346,6 @@ if [ -d "/tmp/magic-lamp" ]; then
     rm -rf /tmp/magic-lamp
 fi
 
-# 4.2 Liquid Glass (Efecto cristal líquido en GNOME)
 rm -rf /tmp/liquid-glass
 git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git /tmp/liquid-glass 2>/dev/null || true
 if [ -d "/tmp/liquid-glass" ]; then
@@ -318,14 +362,40 @@ fi
 
 sudo chown -R "$REAL_USER:$REAL_GID" "$EXT_DIR" 2>/dev/null || true
 
-# Habilitar extensiones en GNOME Shell
+# Forzar activación de user-theme y extensiones directamente en dconf y gnome-extensions
 run_as_user gsettings set org.gnome.shell disable-user-extensions false
-run_as_user gnome-extensions enable "compiz-alike-magic-lamp-effect@hermes83.github.com"
-[ -n "${LG_UUID:-}" ] && run_as_user gnome-extensions enable "$LG_UUID"
-run_as_user gnome-extensions enable "dash-to-dock@micxgx.gmail.com"
-run_as_user gnome-extensions enable "ubuntu-dock@ubuntu.com"
+CURRENT_EXTS=$(run_as_user gsettings get org.gnome.shell enabled-extensions)
+UPDATED_EXTS=$(python3 - "$CURRENT_EXTS" "${LG_UUID:-}" << 'EOF'
+import sys, ast
+raw = sys.argv[1].replace("@as ", "").strip()
+lg = sys.argv[2]
+try:
+    lst = ast.literal_eval(raw) if raw else []
+except Exception:
+    lst = []
+for ext in [
+    "user-theme@gnome-shell-extensions.gcampax.github.com",
+    "compiz-alike-magic-lamp-effect@hermes83.github.com",
+    "dash-to-dock@micxgx.gmail.com",
+    "ubuntu-dock@ubuntu.com"
+]:
+    if ext not in lst:
+        lst.append(ext)
+if lg and lg not in lst:
+    lst.append(lg)
+print(str(lst))
+EOF
+)
+run_as_user gsettings set org.gnome.shell enabled-extensions "$UPDATED_EXTS"
+run_as_user gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com
+run_as_user gsettings set org.gnome.shell.extensions.user-theme name "$GTK_THEME_DARK"
+run_as_user dconf write /org/gnome/shell/extensions/user-theme/name "'$GTK_THEME_DARK'"
 
-# 4.3 Configurar Dash-to-Dock / Ubuntu Dock como Dock inferior de macOS
+# Recargar el tema de GNOME Shell en vivo para mostrar la manzana
+run_as_user gsettings set org.gnome.shell.extensions.user-theme name 'Default'
+sleep 0.3
+run_as_user gsettings set org.gnome.shell.extensions.user-theme name "$GTK_THEME_DARK"
+
 for DOCK_SCHEMA in "org.gnome.shell.extensions.dash-to-dock"; do
     run_as_user gsettings set "$DOCK_SCHEMA" dock-position 'BOTTOM'
     run_as_user gsettings set "$DOCK_SCHEMA" extend-height false
@@ -341,7 +411,7 @@ for DOCK_SCHEMA in "org.gnome.shell.extensions.dash-to-dock"; do
     run_as_user gsettings set "$DOCK_SCHEMA" hot-keys false
 done
 
-echo -e "${GREEN}   ✓ Liquid Glass, Magic Lamp y Dock estilo macOS configurados${NC}"
+echo -e "${GREEN}   ✓ Extensiones y tema de GNOME Shell recargados${NC}"
 
 # =============================================================================
 # PASO 5: SONIDOS macOS BIG SUR Y STARTUP CHIME
@@ -372,7 +442,7 @@ Exec=sh -c "paplay /usr/share/sounds/bigsur/stereo/desktop-login.oga 2>/dev/null
 X-GNOME-Autostart-enabled=true
 EOF
 
-echo -e "${GREEN}   ✓ Sonidos Big Sur y Startup Chime activados${NC}"
+echo -e "${GREEN}   ✓ Sonidos Big Sur activados${NC}"
 
 # =============================================================================
 # PASO 6: PLYMOUTH (PANTALLA DE ARRANQUE CON LOGO APPLE)
@@ -398,14 +468,6 @@ echo -e "\n${YELLOW}🎵 [7/12] Instalando LocalSend, Apple TV, Apple Music, Off
 
 APP_ICON_DIR="$REAL_HOME/.local/share/icons/hicolor/256x256/apps"
 mkdir -p "$APP_ICON_DIR"
-
-cat > /tmp/apple-logo.svg << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
-  <path fill="#FFFFFF" d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.28-10.76-19.99-14.47-32.12-3.71-12.13-5.56-23.36-5.56-33.68 0-12.87 3.22-23.47 9.65-31.78 6.44-8.31 14.54-12.63 24.31-12.96 4.92 0 10.35 1.49 16.29 4.46 5.93 2.97 9.77 4.51 11.51 4.62 1.45 0 5.64-1.78 12.56-5.34 6.93-3.56 13.06-5.07 18.39-4.54 13.65 1.1 23.91 6.49 30.78 16.17-12.19 7.39-18.15 17.65-17.88 30.78.27 10.27 4.28 18.82 12.02 25.65 5.46 4.86 11.97 7.79 19.53 8.79-1.57 4.79-3.43 9.69-5.58 14.69zM119.22 31.01c0 8.05-2.94 15.56-8.82 22.53-7.09 8.28-15.65 13.05-24.91 12.3-.19-.96-.29-2.01-.29-3.15 0-7.73 3.25-15.99 9.75-23.23 3.11-3.51 7.06-6.42 11.85-8.73 4.79-2.31 9.33-3.59 13.62-3.84.13 1.42.2 2.79.2 4.12z"/>
-</svg>
-EOF
-sudo mv /tmp/apple-logo.svg /usr/share/pixmaps/apple-logo.svg
-sudo chmod 644 /usr/share/pixmaps/apple-logo.svg
 
 cat > "$APP_ICON_DIR/applemusic.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="am" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FF5E7E"/><stop offset="100%" stop-color="#FF2D55"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#am)"/><path fill="#FFF" d="M368 122c0-10.5-9.2-18.3-19.6-16.3l-152 29c-8.3 1.6-14.4 8.9-14.4 17.4v185.3c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V212l134-25.6v118c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V122z"/></svg>
@@ -528,7 +590,6 @@ sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/linuxdotexe/no
 sudo curl -sL "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1920&q=85" -o "$BG_DIR/mojave-night.jpg" || \
 sudo curl -sL -A "Mozilla/5.0" "https://raw.githubusercontent.com/aynp/dracula-wallpapers/main/os/macos-big-sur-night.jpg" -o "$BG_DIR/mojave-night.jpg" || true
 
-# Crear XML de transición dinámica nativo de GNOME
 sudo bash -c "cat > $BG_DIR/mojave-timed.xml" << 'EOF'
 <background>
   <starttime>
@@ -560,7 +621,6 @@ sudo bash -c "cat > $BG_DIR/mojave-timed.xml" << 'EOF'
 </background>
 EOF
 
-# Registrar el fondo dinámico en la Configuración de GNOME
 sudo bash -c "cat > /usr/share/gnome-background-properties/macos-dynamic.xml" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd">
@@ -581,10 +641,10 @@ run_as_user gsettings set org.gnome.desktop.background picture-uri "file://$BG_D
 run_as_user gsettings set org.gnome.desktop.background picture-uri-dark "file://$BG_DIR/mojave-night.jpg"
 run_as_user gsettings set org.gnome.desktop.background picture-options 'zoom'
 
-# Script de sincronización horaria de Modo Claro/Oscuro (06:00 a 18:00) para GNOME
 cat > "$REAL_HOME/.local/bin/macos-day-night-gnome" << EOF
 #!/usr/bin/env bash
 HOUR=\$(date +%-H)
+gsettings set org.gnome.desktop.interface accent-color 'blue' 2>/dev/null || true
 if [ "\$HOUR" -ge 6 ] && [ "\$HOUR" -lt 18 ]; then
     gsettings set org.gnome.desktop.interface color-scheme 'prefer-light'
     gsettings set org.gnome.desktop.interface gtk-theme "$GTK_THEME_LIGHT"
@@ -622,10 +682,10 @@ run_as_user systemctl --user daemon-reload
 run_as_user systemctl --user enable --now macos-day-night.timer
 run_as_user "$REAL_HOME/.local/bin/macos-day-night-gnome"
 
-echo -e "${GREEN}   ✓ Wallpapers dinámicos XML y Modo Oscuro Automático activos en GNOME${NC}"
+echo -e "${GREEN}   ✓ Wallpapers dinámicos XML y Modo Oscuro Automático activos${NC}"
 
 # =============================================================================
-# PASO 9: ROFI SPOTLIGHT, ACERCA DE ESTE MAC Y HOSTNAME (MacBook-Pro)
+# PASO 9: ROFI SPOTLIGHT (CON SELECCIÓN AZUL), ACERCA DE ESTE MAC Y HOSTNAME
 # =============================================================================
 echo -e "\n${YELLOW}💻 [9/12] Configurando Rofi Spotlight, 'Acerca de este Mac' y Hostname...${NC}"
 
@@ -720,23 +780,44 @@ sudo sed -i "s/127\.0\.1\.1.*/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts 2>/dev/null
 echo -e "${GREEN}   ✓ Spotlight, Acerca de este Mac y Hostname ($NEW_HOSTNAME) configurados${NC}"
 
 # =============================================================================
-# PASO 10: SCROLL NATURAL, TERMINAL macOS, SIDEBAR FINDER Y GESTOS FUSUMA
+# PASO 10: TEMA DE TERMINAL macOS (COLORES + RESALTE AZUL), SCROLL Y FUSUMA
 # =============================================================================
-echo -e "\n${YELLOW}📜 [10/12] Configurando Scroll Natural, Terminal, Sidebar Finder y Fusuma...${NC}"
+echo -e "\n${YELLOW}💻 [10/12] Configurando Tema de Terminal macOS, Scroll Natural y Sidebar Finder...${NC}"
 
 # Scroll Natural y Tap-to-Click en GNOME
 run_as_user gsettings set org.gnome.desktop.peripherals.touchpad natural-scroll true
 run_as_user gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true
 run_as_user gsettings set org.gnome.desktop.peripherals.mouse natural-scroll true
 
-# Perfil de GNOME Terminal con SF Mono y cursor I-Beam
+# Configurar TODOS los perfiles de GNOME Terminal con la paleta macOS Tahoe y resalte Azul (#0A84FF)
 TERM_PROFILE=$(run_as_user gsettings get org.gnome.Terminal.ProfilesList default | tr -d "'")
 if [ -n "$TERM_PROFILE" ]; then
     TPATH="org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:$TERM_PROFILE/"
+    run_as_user gsettings set "$TPATH" visible-name 'macOS Tahoe'
+    run_as_user gsettings set "$TPATH" use-theme-colors false
+    run_as_user gsettings set "$TPATH" background-color '#1E1E1E'
+    run_as_user gsettings set "$TPATH" foreground-color '#E6E6E6'
+    run_as_user gsettings set "$TPATH" bold-color-same-as-fg false
+    run_as_user gsettings set "$TPATH" bold-color '#FFFFFF'
+    run_as_user gsettings set "$TPATH" cursor-colors-set true
+    run_as_user gsettings set "$TPATH" cursor-background-color '#0A84FF'
+    run_as_user gsettings set "$TPATH" cursor-foreground-color '#FFFFFF'
+    run_as_user gsettings set "$TPATH" highlight-colors-set true
+    run_as_user gsettings set "$TPATH" highlight-background-color '#0A84FF'
+    run_as_user gsettings set "$TPATH" highlight-foreground-color '#FFFFFF'
     run_as_user gsettings set "$TPATH" use-system-font false
     run_as_user gsettings set "$TPATH" font 'SF Mono Regular 11'
     run_as_user gsettings set "$TPATH" cursor-shape 'ibeam'
+    run_as_user gsettings set "$TPATH" palette "['#1e1e1e', '#ff453a', '#32d74b', '#ffd60a', '#0a84ff', '#bf5af2', '#5ac8fa', '#e6e6e6', '#636366', '#ff6961', '#30db5b', '#ffd426', '#409cff', '#da8fff', '#70d7ff', '#ffffff']"
 fi
+
+# Soporte adicional si la distro usa GNOME Console (kgx) o Ptyxis
+run_as_user gsettings set org.gnome.Console use-system-font false
+run_as_user gsettings set org.gnome.Console custom-font 'SF Mono Regular 11'
+run_as_user gsettings set org.gnome.Console theme 'night'
+run_as_user gsettings set org.gnome.Ptyxis use-system-font false
+run_as_user gsettings set org.gnome.Ptyxis font-name 'SF Mono Regular 11'
+run_as_user gsettings set org.gnome.Ptyxis cursor-shape 'ibeam'
 
 # Marcadores Sidebar estilo Finder en Nautilus
 cat > "$REAL_HOME/.config/gtk-3.0/bookmarks" << EOF
@@ -748,7 +829,6 @@ file://$REAL_HOME/Pictures Pictures
 file://$REAL_HOME/Videos Movies
 EOF
 
-# Gestos Fusuma
 sudo usermod -aG input "$REAL_USER" 2>/dev/null || true
 cat > "$REAL_HOME/.config/fusuma/config.yml" << 'EOF'
 swipe:
@@ -763,7 +843,7 @@ swipe:
       command: 'xdotool key super+d'
 EOF
 
-echo -e "${GREEN}   ✓ Scroll Natural, Terminal, Nautilus Sidebar y Gestos listos${NC}"
+echo -e "${GREEN}   ✓ Tema de Terminal macOS (con resalte azul), Scroll Natural y Sidebar listos${NC}"
 
 # =============================================================================
 # PASO 11: 50+ ATAJOS DE TECLADO ESTILO macOS EN GNOME
@@ -793,14 +873,12 @@ fi
 EOF
 chmod +x "$REAL_HOME/.local/bin/macos-"*
 
-# Liberar Super+1/2/3/4 de GNOME Shell para que cambien de área de trabajo
 run_as_user gsettings set org.gnome.desktop.wm.preferences num-workspaces 4
 run_as_user gsettings set org.gnome.mutter dynamic-workspaces false
 for i in 1 2 3 4; do
     run_as_user gsettings set org.gnome.shell.keybindings "switch-to-application-$i" "[]"
 done
 
-# Atajos de Gestión de Ventanas y Áreas de Trabajo en Mutter / GNOME
 run_as_user gsettings set org.gnome.desktop.wm.keybindings close "['<Super>q', '<Alt>F4']"
 run_as_user gsettings set org.gnome.desktop.wm.keybindings minimize "['<Super>m']"
 run_as_user gsettings set org.gnome.desktop.wm.keybindings toggle-maximized "['<Super>Up']"
@@ -813,12 +891,10 @@ run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-4
 run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-left "['<Primary><Alt>Left']"
 run_as_user gsettings set org.gnome.desktop.wm.keybindings switch-to-workspace-right "['<Primary><Alt>Right']"
 
-# Atajos de Sistema (Finder, Terminal, Bloqueo)
 run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys home "['<Super>e']"
 run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys terminal "['<Primary><Alt>t']"
 run_as_user gsettings set org.gnome.settings-daemon.plugins.media-keys screensaver "['<Super>l']"
 
-# Atajos personalizados en GNOME (Spotlight, Acerca de este Mac, Centrar ventana, xkill)
 add_gnome_shortcut() {
     local id="$1"
     local name="$2"
@@ -866,10 +942,9 @@ sudo gtk-update-icon-cache -f "/usr/share/icons/$ICON_THEME_NAME" 2>/dev/null ||
 sudo gtk-update-icon-cache -f "$REAL_HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
 echo -e "\n${CYAN}╔══════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║         ✅ INSTALACIÓN GNOME COMPLETADA Y VERIFICADA             ║${NC}"
+echo -e "${CYAN}║         ✅ INSTALACIÓN GNOME COMPLETADA Y VERIFICADA (v2)        ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════╝${NC}"
-echo -e "   • ${GREEN}Tema GTK / Shell / Libadwaita:${NC} $GTK_THEME_DARK"
-echo -e "   • ${GREEN}Tema de Iconos:${NC} $ICON_THEME_NAME"
-echo -e "   • ${GREEN}Tema de Cursor:${NC} $CURSOR_THEME_NAME"
-echo -e "   • ${GREEN}Extensiones GNOME:${NC} User-Theme, Liquid Glass, Magic Lamp y Dash-to-Dock"
-echo -e "   • ${GREEN}Fondo Dinámico:${NC} macOS Tahoe Dynamic registrado en Configuración > Fondo\n"
+echo -e "   • ${GREEN}Botón Superior Izquierdo:${NC} Icono de Manzana Apple inyectado en #panelActivities"
+echo -e "   • ${GREEN}Color de Resalte:${NC} Azul macOS (#0A84FF) activo en GNOME, GTK3 y GTK4"
+echo -e "   • ${GREEN}Terminal macOS:${NC} Paleta oscura ANSI, cursor I-Beam y selección en Azul"
+echo -e "   • ${GREEN}Tema GTK / Shell / Libadwaita:${NC} $GTK_THEME_DARK\n"
