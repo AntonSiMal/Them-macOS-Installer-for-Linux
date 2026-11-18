@@ -2,11 +2,11 @@
 # =============================================================================
 # MacGNOME.sh - Instalador Definitivo macOS Tahoe para GNOME (Todo en uno)
 # Soporta: Ubuntu GNOME / Debian GNOME / Zorin OS / Pop!_OS (X11 y Wayland)
-# Incluye: Autorreparación automática de dpkg/apt, Logo Apple (Activities + Zorin),
-#          Color de resalte Azul (#0A84FF), Tema completo de Terminal macOS,
-#          GTK3/GTK4 (Libadwaita), Iconos, Cursores, Sonidos Big Sur,
-#          Liquid Glass, Magic Lamp, Dash-to-Dock, Wallpapers Dinámicos XML libres,
-#          Quick Look (Sushi), Rofi Spotlight, Apps dinámicas y Atajos macOS.
+# Incluye: Autorreparación automática de dpkg/apt, Logo Apple Wikimedia (/3/31/),
+#          Logo oficial Apple TV PNG, Color de resalte Azul (#0A84FF),
+#          Tema completo de Terminal macOS, GTK3/GTK4 (Libadwaita), Iconos,
+#          Cursores, Sonidos Big Sur, Liquid Glass, Magic Lamp, Dash-to-Dock,
+#          Wallpapers Dinámicos XML libres, Rofi Spotlight, Apps y Atajos macOS.
 # =============================================================================
 
 GREEN='\033[0;32m'
@@ -15,6 +15,8 @@ RED='\033[0;31m'
 CYAN='\033[0;36m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+
+WIKI_UA="MacGNOME-Installer/1.0 (https://github.com/vinceliuice/MacTahoe-gtk-theme)"
 
 # 0. Solicitar y mantener activo el ticket sudo si no se lanzó directamente como root
 if [ "$(id -u)" -ne 0 ]; then
@@ -104,7 +106,7 @@ if ! curl -Is --max-time 8 https://github.com >/dev/null 2>&1; then
 fi
 
 # =============================================================================
-# PASO 0: ESTRUCTURA DE DIRECTORIOS, LOGO APPLE Y DESBLOQUEO DE PERMISOS
+# PASO 0: ESTRUCTURA DE DIRECTORIOS Y LOGOTIPO OFICIAL DE APPLE
 # =============================================================================
 echo -e "\n${YELLOW}🔐 [0/12] Preparando directorios y desbloqueando permisos de usuario...${NC}"
 
@@ -126,15 +128,21 @@ mkdir -p "$REAL_HOME/.config/gtk-4.0"
 mkdir -p "$REAL_HOME/.config/fusuma"
 sudo mkdir -p /usr/share/themes /usr/share/icons /usr/share/sounds /usr/share/backgrounds/macos-dynamic /usr/share/gnome-background-properties /usr/share/pixmaps
 
-# Generar logotipo vectorial oficial de Apple en blanco puro (sin depender de enlaces externos)
-cat > /tmp/apple-logo.svg << 'EOF'
+echo -e "${BLUE}    ⬇️  Descargando logotipo oficial de Apple (White SVG)...${NC}"
+sudo rm -f /usr/share/pixmaps/apple-logo.svg
+sudo curl -fsSL -A "$WIKI_UA" "https://upload.wikimedia.org/wikipedia/commons/3/31/Apple_logo_white.svg" -o /usr/share/pixmaps/apple-logo.svg || true
+
+# Respaldo local en caso de operar sin salida a Wikimedia
+if [ ! -s "/usr/share/pixmaps/apple-logo.svg" ] || ! grep -qi "<svg" /usr/share/pixmaps/apple-logo.svg 2>/dev/null; then
+    cat > /tmp/apple-logo.svg << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
   <path fill="#FFFFFF" d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.13-1.9-14.34-6.08-3.69-3.03-7.61-7.82-11.77-14.37-5.93-9.28-10.76-19.99-14.47-32.12-3.71-12.13-5.56-23.36-5.56-33.68 0-12.87 3.22-23.47 9.65-31.78 6.44-8.31 14.54-12.63 24.31-12.96 4.92 0 10.35 1.49 16.29 4.46 5.93 2.97 9.77 4.51 11.51 4.62 1.45 0 5.64-1.78 12.56-5.34 6.93-3.56 13.06-5.07 18.39-4.54 13.65 1.1 23.91 6.49 30.78 16.17-12.19 7.39-18.15 17.65-17.88 30.78.27 10.27 4.28 18.82 12.02 25.65 5.46 4.86 11.97 7.79 19.53 8.79-1.57 4.79-3.43 9.69-5.58 14.69zM119.22 31.01c0 8.05-2.94 15.56-8.82 22.53-7.09 8.28-15.65 13.05-24.91 12.3-.19-.96-.29-2.01-.29-3.15 0-7.73 3.25-15.99 9.75-23.23 3.11-3.51 7.06-6.42 11.85-8.73 4.79-2.31 9.33-3.59 13.62-3.84.13 1.42.2 2.79.2 4.12z"/>
 </svg>
 EOF
-sudo mv /tmp/apple-logo.svg /usr/share/pixmaps/apple-logo.svg
-sudo chmod 644 /usr/share/pixmaps/apple-logo.svg
+    sudo mv /tmp/apple-logo.svg /usr/share/pixmaps/apple-logo.svg
+fi
 
+sudo chmod 644 /usr/share/pixmaps/apple-logo.svg
 sudo chown -R "$REAL_USER:$REAL_GID" "$REAL_HOME/.local" "$REAL_HOME/.config" "$REAL_HOME/.cache" "$REAL_HOME/.themes" "$REAL_HOME/.icons" "$WORKDIR" 2>/dev/null || true
 chmod -R u+rwX "$REAL_HOME/.config" "$REAL_HOME/.local" 2>/dev/null || true
 
@@ -423,7 +431,6 @@ fi
 
 sudo chown -R "$REAL_USER:$REAL_GID" "$EXT_DIR" 2>/dev/null || true
 
-# Evitar conflicto con docks nativos y extensiones que sobrescriben GTK4 Libadwaita
 run_as_user gnome-extensions disable ubuntu-dock@ubuntu.com
 run_as_user gnome-extensions disable zorin-taskbar@zorinos.com
 run_as_user gnome-extensions disable custom-accent-colors@demiskp
@@ -542,10 +549,6 @@ cat > "$APP_ICON_DIR/applemusic.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="am" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FF5E7E"/><stop offset="100%" stop-color="#FF2D55"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#am)"/><path fill="#FFF" d="M368 122c0-10.5-9.2-18.3-19.6-16.3l-152 29c-8.3 1.6-14.4 8.9-14.4 17.4v185.3c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V212l134-25.6v118c-10.2-6.8-23.3-10.4-37.3-9.1-27.1 2.5-48.7 23.6-50.5 50.1-2.1 31.2 22.8 56.6 53.8 56.6 29.8 0 54-23.7 54-53.5V122z"/></svg>
 EOF
 
-cat > "$APP_ICON_DIR/appletv.svg" << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="atv" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#2C2C2E"/><stop offset="100%" stop-color="#000000"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#atv)"/><path fill="#FFF" d="M168.5 190c-12 21-29 20-29 20s-2-15 9-29c10-13 26-14 26-14s3 11-6 23zm-6.5 29c14 0 20 9 30 9s18-9 31-9c12 0 25 7 32 18-28 16-23 53 5 64-7 17-16 33-28 45-11 11-18 11-28 4-11-6-21-6-32 0-10 6-18 6-28-4-16-16-29-46-29-73 0-32 21-54 47-54zm95-14h28v26h23v21h-23v55c0 11 5 16 15 16 4 0 8-1 8-1v21s-6 2-15 2c-22 0-36-12-36-35v-58h-16v-21h16v-26zm62 26h29l23 82h1l23-82h28l-37 110h-30l-37-110z"/></svg>
-EOF
-
 cat > "$APP_ICON_DIR/office.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="off" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#D83B01"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#off)"/><path fill="#FFF" d="M148 156l142-48 82 26v244l-82 24-142-50 142 18V168l-92 22v138l-50 28V156z"/></svg>
 EOF
@@ -561,10 +564,8 @@ EOF
 cp "$APP_ICON_DIR"/*.svg "$APP_ICON_SCALABLE/" 2>/dev/null || true
 sudo cp "$APP_ICON_DIR/office.svg" /usr/share/pixmaps/office.svg 2>/dev/null || true
 sudo cp "$APP_ICON_DIR/office.svg" /usr/share/pixmaps/org.onlyoffice.desktopeditors.svg 2>/dev/null || true
-sudo cp "$APP_ICON_DIR/appletv.svg" /usr/share/pixmaps/appletv.svg 2>/dev/null || true
-sudo cp "$APP_ICON_DIR/appletv.svg" /usr/share/pixmaps/iptvnator.svg 2>/dev/null || true
 
-# LocalSend (descarga dinámica desde API de GitHub para evitar 404 por cambio de versión)
+# LocalSend (descarga dinámica desde API de GitHub)
 if [ -f "$REAL_HOME/.local/bin/localsend" ] && [ "$(stat -c%s "$REAL_HOME/.local/bin/localsend" 2>/dev/null || echo 0)" -lt 10000000 ]; then
     rm -f "$REAL_HOME/.local/bin/localsend"
 fi
@@ -600,17 +601,34 @@ if [ -n "$IPTV_DEB_URL" ]; then
     rm -f /tmp/iptvnator.deb
 fi
 
+# Icono oficial Apple TV PNG (Wikimedia con User-Agent validado + respaldo SVG local)
+rm -f "$APP_ICON_DIR/appletv.svg" "$APP_ICON_SCALABLE/appletv.svg" "$APP_ICON_DIR/appletv.png"
+curl -fsSL -A "$WIKI_UA" "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ad/AppleTVLogo.svg/960px-AppleTVLogo.svg.png" -o "$APP_ICON_DIR/appletv.png" || true
+if [ -s "$APP_ICON_DIR/appletv.png" ] && file "$APP_ICON_DIR/appletv.png" 2>/dev/null | grep -qi "PNG"; then
+    sudo cp "$APP_ICON_DIR/appletv.png" /usr/share/pixmaps/appletv.png 2>/dev/null || true
+    sudo cp "$APP_ICON_DIR/appletv.png" /usr/share/pixmaps/iptvnator.png 2>/dev/null || true
+    APPLETV_ICON="/usr/share/pixmaps/appletv.png"
+else
+    rm -f "$APP_ICON_DIR/appletv.png"
+    cat > "$APP_ICON_DIR/appletv.svg" << 'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="atv" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#2C2C2E"/><stop offset="100%" stop-color="#000000"/></linearGradient></defs><rect width="512" height="512" rx="115" fill="url(#atv)"/><path fill="#FFF" d="M168.5 190c-12 21-29 20-29 20s-2-15 9-29c10-13 26-14 26-14s3 11-6 23zm-6.5 29c14 0 20 9 30 9s18-9 31-9c12 0 25 7 32 18-28 16-23 53 5 64-7 17-16 33-28 45-11 11-18 11-28 4-11-6-21-6-32 0-10 6-18 6-28-4-16-16-29-46-29-73 0-32 21-54 47-54zm95-14h28v26h23v21h-23v55c0 11 5 16 15 16 4 0 8-1 8-1v21s-6 2-15 2c-22 0-36-12-36-35v-58h-16v-21h16v-26zm62 26h29l23 82h1l23-82h28l-37 110h-30l-37-110z"/></svg>
+EOF
+    sudo cp "$APP_ICON_DIR/appletv.svg" /usr/share/pixmaps/appletv.svg 2>/dev/null || true
+    sudo cp "$APP_ICON_DIR/appletv.svg" /usr/share/pixmaps/iptvnator.svg 2>/dev/null || true
+    APPLETV_ICON="/usr/share/pixmaps/appletv.svg"
+fi
+
 mkdir -p "$REAL_HOME/.config/iptvnator"
 cat > "$REAL_HOME/.config/iptvnator/store.json" << 'EOF'
 {"playlists": [{"id": "spa", "name": "📺 Canales en Español", "url": "https://iptv-org.github.io/iptv/languages/spa.m3u", "autoRefresh": true}], "settings": {"player": "html5", "theme": "dark"}}
 EOF
 
-sudo tee /usr/share/applications/iptvnator.desktop > /dev/null << 'EOF'
+sudo tee /usr/share/applications/iptvnator.desktop > /dev/null << EOF
 [Desktop Entry]
 Name=Apple TV
 GenericName=Apple TV
 Exec=/usr/bin/iptvnator --ozone-platform=x11 --no-sandbox %U
-Icon=/usr/share/pixmaps/appletv.svg
+Icon=$APPLETV_ICON
 Terminal=false
 Type=Application
 Categories=AudioVideo;Video;Player;
