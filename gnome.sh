@@ -2,11 +2,12 @@
 # =============================================================================
 # MacGNOME.sh - Instalador Definitivo macOS Tahoe para GNOME (Todo en uno)
 # Soporta: Ubuntu GNOME / Debian GNOME / Zorin OS / Pop!_OS (X11 y Wayland)
-# Incluye: Autorreparación automática de dpkg/apt, Logo Apple Wikimedia (/3/31/),
-#          Logo oficial Apple TV PNG, Color de resalte Azul (#0A84FF),
-#          Tema completo de Terminal macOS, GTK3/GTK4 (Libadwaita), Iconos,
-#          Cursores, Sonidos Big Sur, Liquid Glass, Magic Lamp, Dash-to-Dock,
-#          Wallpapers Dinámicos XML libres, Rofi Spotlight, Apps y Atajos macOS.
+# Incluye: Autorreparación de dpkg/apt, purga de lg-driver@liquid-glass.test,
+#          Logo Apple Wikimedia (/3/31/), Logo oficial Apple TV PNG,
+#          Color de resalte Azul (#0A84FF), Tema completo de Terminal macOS,
+#          GTK3/GTK4 (Libadwaita), Iconos, Cursores, Sonidos Big Sur,
+#          Blur my Shell, Magic Lamp, Dash-to-Dock único, Wallpapers XML libres,
+#          Rofi Spotlight, Apps unificadas y 50+ Atajos macOS sin colisiones.
 # =============================================================================
 
 GREEN='\033[0;32m'
@@ -132,7 +133,7 @@ echo -e "${BLUE}    ⬇️  Descargando logotipo oficial de Apple (White SVG)...
 sudo rm -f /usr/share/pixmaps/apple-logo.svg
 sudo curl -fsSL -A "$WIKI_UA" "https://upload.wikimedia.org/wikipedia/commons/3/31/Apple_logo_white.svg" -o /usr/share/pixmaps/apple-logo.svg || true
 
-# Respaldo local en caso de operar sin salida a Wikimedia
+# Respaldo vectorial local si Wikimedia no está accesible
 if [ ! -s "/usr/share/pixmaps/apple-logo.svg" ] || ! grep -qi "<svg" /usr/share/pixmaps/apple-logo.svg 2>/dev/null; then
     cat > /tmp/apple-logo.svg << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 170 170" width="100%" height="100%">
@@ -162,10 +163,10 @@ PKGS=(
     gtk2-engines-murrine gtk2-engines-pixbuf libgdk-pixbuf2.0-dev imagemagick dialog optipng
     wmctrl xdotool x11-utils xinput libinput-tools ruby ruby-dev build-essential
     rofi qt5ct qt5-style-plugins dconf-cli plymouth plymouth-themes ufw flatpak
-    python3 python3-gi gir1.2-gtk-3.0 libnotify-bin
+    python3 python3-gi gir1.2-gtk-3.0 gir1.2-dbusmenu-glib-0.4 libnotify-bin
     alsa-utils pulseaudio-utils sox libcanberra-gtk-module libcanberra-gtk3-module
-    gnome-terminal gnome-shell-extensions gnome-tweaks gnome-sushi
-    gnome-shell-extension-dashtodock gnome-shell-extension-manager
+    gnome-terminal gnome-shell-extensions gnome-shell-extension-prefs gnome-tweaks gnome-sushi
+    gnome-shell-extension-dashtodock gnome-shell-extension-manager pipx
     gstreamer1.0-plugins-base gstreamer1.0-plugins-good
     gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
 )
@@ -399,12 +400,24 @@ fi
 echo -e "${GREEN}    ✓ Tema ($GTK_THEME_DARK), Manzana Superior Izquierda y Resalte Azul aplicados${NC}"
 
 # =============================================================================
-# PASO 4: EXTENSIONES GNOME (USER-THEME, LIQUID GLASS, MAGIC LAMP, DOCK)
+# PASO 4: EXTENSIONES GNOME (PURGA DE CRASHES, BLUR MY SHELL, MAGIC LAMP Y DOCK)
 # =============================================================================
-echo -e "\n${YELLOW}🧩 [4/12] Activando User-Theme, Liquid Glass, Magic Lamp y Dock...${NC}"
+echo -e "\n${YELLOW}🧩 [4/12] Limpiando extensiones conflictivas y activando Blur my Shell, Magic Lamp y Dock...${NC}"
 
 EXT_DIR="$REAL_HOME/.local/share/gnome-shell/extensions"
 
+# Purgar extensión defectuosa lg-driver@liquid-glass.test (provoca cierre en bucle de GNOME Shell)
+run_as_user gnome-extensions disable lg-driver@liquid-glass.test
+rm -rf "$EXT_DIR/lg-driver@liquid-glass.test"
+sudo rm -rf /usr/share/gnome-shell/extensions/lg-driver@liquid-glass.test
+
+# Desactivar docks nativos y extensiones que sobrescriben GTK4 Libadwaita
+run_as_user gnome-extensions disable ubuntu-dock@ubuntu.com
+run_as_user gnome-extensions disable zorin-taskbar@zorinos.com
+run_as_user gnome-extensions disable zorin-dash@zorinos.com
+run_as_user gnome-extensions disable custom-accent-colors@demiskp
+
+# Instalar Compiz Alike Magic Lamp Effect
 rm -rf /tmp/magic-lamp
 git clone --depth=1 https://github.com/hermes83/compiz-alike-magic-lamp-effect.git /tmp/magic-lamp 2>/dev/null || true
 if [ -d "/tmp/magic-lamp" ]; then
@@ -415,56 +428,61 @@ if [ -d "/tmp/magic-lamp" ]; then
     rm -rf /tmp/magic-lamp
 fi
 
-rm -rf /tmp/liquid-glass
-git clone --depth=1 https://github.com/ryohsuke1231/liquid-glass.git /tmp/liquid-glass 2>/dev/null || true
-if [ -d "/tmp/liquid-glass" ]; then
-    LG_METADATA=$(find /tmp/liquid-glass -name "metadata.json" | head -n 1)
-    if [ -n "$LG_METADATA" ]; then
-        LG_UUID=$(python3 -c "import json; print(json.load(open('$LG_METADATA'))['uuid'])" 2>/dev/null || echo "liquid-glass@ryohsuke1231")
-        LG_SRC_DIR=$(dirname "$LG_METADATA")
-        mkdir -p "$EXT_DIR/$LG_UUID"
-        cp -r "$LG_SRC_DIR"/* "$EXT_DIR/$LG_UUID/" 2>/dev/null || true
-        glib-compile-schemas "$EXT_DIR/$LG_UUID/schemas/" 2>/dev/null || true
-    fi
-    rm -rf /tmp/liquid-glass
+# Instalar Blur my Shell vía gnome-extensions-cli (para transparencia en panel superior y dock)
+BLUR_UUID="blur-my-shell@aunetx"
+if [ ! -d "$EXT_DIR/$BLUR_UUID" ] && [ ! -d "/usr/share/gnome-shell/extensions/$BLUR_UUID" ]; then
+    run_as_user pipx install gnome-extensions-cli --system-site-packages
+    run_as_user "$REAL_HOME/.local/bin/gext" install "$BLUR_UUID"
 fi
 
 sudo chown -R "$REAL_USER:$REAL_GID" "$EXT_DIR" 2>/dev/null || true
 
-run_as_user gnome-extensions disable ubuntu-dock@ubuntu.com
-run_as_user gnome-extensions disable zorin-taskbar@zorinos.com
-run_as_user gnome-extensions disable custom-accent-colors@demiskp
-
 run_as_user gsettings set org.gnome.shell disable-user-extensions false
 CURRENT_EXTS=$(run_as_user gsettings get org.gnome.shell enabled-extensions)
-UPDATED_EXTS=$(python3 - "$CURRENT_EXTS" "${LG_UUID:-}" << 'EOF'
+UPDATED_EXTS=$(python3 - "$CURRENT_EXTS" << 'EOF'
 import sys, ast
 raw = sys.argv[1].replace("@as ", "").strip()
-lg = sys.argv[2]
 try:
     lst = ast.literal_eval(raw) if raw else []
 except Exception:
     lst = []
-for conflict in ["ubuntu-dock@ubuntu.com", "zorin-taskbar@zorinos.com", "custom-accent-colors@demiskp"]:
+for conflict in [
+    "lg-driver@liquid-glass.test",
+    "ubuntu-dock@ubuntu.com",
+    "zorin-taskbar@zorinos.com",
+    "zorin-dash@zorinos.com",
+    "custom-accent-colors@demiskp"
+]:
     if conflict in lst:
         lst.remove(conflict)
 for ext in [
     "user-theme@gnome-shell-extensions.gcampax.github.com",
     "compiz-alike-magic-lamp-effect@hermes83.github.com",
-    "dash-to-dock@micxgx.gmail.com"
+    "dash-to-dock@micxgx.gmail.com",
+    "blur-my-shell@aunetx"
 ]:
     if ext not in lst:
         lst.append(ext)
-if lg and lg not in lst:
-    lst.append(lg)
 print(str(lst))
 EOF
 )
 run_as_user gsettings set org.gnome.shell enabled-extensions "$UPDATED_EXTS"
 run_as_user gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com
 run_as_user gnome-extensions enable compiz-alike-magic-lamp-effect@hermes83.github.com
-[ -n "${LG_UUID:-}" ] && run_as_user gnome-extensions enable "$LG_UUID"
 run_as_user gnome-extensions enable dash-to-dock@micxgx.gmail.com
+run_as_user gnome-extensions enable blur-my-shell@aunetx
+
+# Configurar desenfoque translúcido estilo macOS Tahoe en panel y dock
+BLUR_SCHEMA_DIR="$EXT_DIR/$BLUR_UUID/schemas"
+[ ! -d "$BLUR_SCHEMA_DIR" ] && BLUR_SCHEMA_DIR="/usr/share/gnome-shell/extensions/$BLUR_UUID/schemas"
+if [ -d "$BLUR_SCHEMA_DIR" ]; then
+    run_as_user gsettings --schemadir "$BLUR_SCHEMA_DIR" set org.gnome.shell.extensions.blur-my-shell.panel blur true
+    run_as_user gsettings --schemadir "$BLUR_SCHEMA_DIR" set org.gnome.shell.extensions.blur-my-shell.panel static-blur true
+    run_as_user gsettings --schemadir "$BLUR_SCHEMA_DIR" set org.gnome.shell.extensions.blur-my-shell.panel override-background true
+    run_as_user gsettings --schemadir "$BLUR_SCHEMA_DIR" set org.gnome.shell.extensions.blur-my-shell.panel style-panel 0
+    run_as_user gsettings --schemadir "$BLUR_SCHEMA_DIR" set org.gnome.shell.extensions.blur-my-shell.dash-to-dock blur true
+fi
+
 run_as_user gsettings set org.gnome.shell.extensions.user-theme name "$GTK_THEME_DARK"
 run_as_user dconf write /org/gnome/shell/extensions/user-theme/name "'$GTK_THEME_DARK'"
 
@@ -486,7 +504,7 @@ run_as_user gsettings set "$DOCK_SCHEMA" transparency-mode 'DYNAMIC'
 run_as_user gsettings set "$DOCK_SCHEMA" background-opacity 0.4
 run_as_user gsettings set "$DOCK_SCHEMA" hot-keys false
 
-echo -e "${GREEN}   ✓ Extensiones y tema de GNOME Shell recargados${NC}"
+echo -e "${GREEN}   ✓ Extensiones estabilizadas, Blur my Shell y Dash-to-Dock configurados${NC}"
 
 # =============================================================================
 # PASO 5: SONIDOS macOS BIG SUR Y STARTUP CHIME
@@ -994,8 +1012,12 @@ fi
 EOF
 chmod +x "$REAL_HOME/.local/bin/macos-"*
 
+# Liberar Super+1..4 y atajos de mosaico nativos para evitar colisiones de keysym en Mutter
 run_as_user gsettings set org.gnome.desktop.wm.preferences num-workspaces 4
 run_as_user gsettings set org.gnome.mutter dynamic-workspaces false
+run_as_user gsettings set org.gnome.mutter.keybindings toggle-tiled-left "[]"
+run_as_user gsettings set org.gnome.mutter.keybindings toggle-tiled-right "[]"
+run_as_user gsettings set org.gnome.shell.extensions.tiling-assistant maximize-window "[]"
 for i in 1 2 3 4; do
     run_as_user gsettings set org.gnome.shell.keybindings "switch-to-application-$i" "[]"
 done
@@ -1076,6 +1098,7 @@ echo -e "${CYAN}╚════════════════════�
 echo -e "   • ${GREEN}Botón Superior Izquierdo:${NC} Logo Apple oficial en Activities y Zorin Menu"
 echo -e "   • ${GREEN}Color de Resalte:${NC} Azul macOS (#0A84FF) activo en GNOME, GTK3 y GTK4"
 echo -e "   • ${GREEN}Terminal macOS:${NC} Paleta oscura ANSI, cursor I-Beam y selección en Azul"
+echo -e "   • ${GREEN}Extensiones Activas:${NC} User-Theme, Blur my Shell, Magic Lamp y Dash-to-Dock"
 echo -e "   • ${GREEN}Apps Unificadas:${NC} Apple TV (iptvnator.desktop) y Office (org.onlyoffice.desktopeditors.desktop)"
 echo -e "   • ${GREEN}Fondo Dinámico:${NC} XML registrado sin bloqueo (cambiable libremente en Configuración)"
 echo -e "   • ${GREEN}Tema GTK / Shell / Libadwaita:${NC} $GTK_THEME_DARK"
